@@ -18,4 +18,3 @@ My goal is to taste and rate chicken wings from various establishments, providin
 - Switch to list view for a sortable list of all ratings
 - Use the "Zoom to Nearby Places" feature to find rated wings near you
 
-Join me on this flavorful adventure and discover the best chicken wings around!
