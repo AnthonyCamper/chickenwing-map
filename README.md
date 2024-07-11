@@ -16,4 +16,4 @@ My goal is to taste and rate chicken wings from various establishments, providin
 - Use the map to explore rated locations
 - Click on markers to view ratings and reviews
 - Switch to list view for a sortable list of all ratings
-- Use the "Zoom to Nearby Places" feature to find rated wings near you : ) 
+- Use the "Zoom to Nearby Places" feature to find rated wings near you 
