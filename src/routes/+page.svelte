@@ -5,12 +5,23 @@
     import ListView from '$lib/components/ListView.svelte';
     import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
     import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+    import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
   
     let wingRatings: any[] = [];
     let isMapView = true;
     let isDarkMode = false;
+    let isLoading = true;
+    let selectedRating: any | null = null;
   
-    onMount(async () => {
+    onMount(() => {
+      isDarkMode = localStorage.getItem('darkMode') === 'true';
+      applyTheme();
+      
+      fetchWingRatings();
+    });
+  
+    async function fetchWingRatings() {
+      isLoading = true;
       const { data, error } = await supabase
         .from('wing_ratings')
         .select('*');
@@ -18,9 +29,11 @@
       if (error) {
         console.error('Error fetching wing ratings:', error);
       } else {
-        wingRatings = data;
+        console.log('Fetched data:', data);
+        wingRatings = data || [];
       }
-    });
+      isLoading = false;
+    }
   
     function toggleView() {
       isMapView = !isMapView;
@@ -28,11 +41,28 @@
   
     function toggleTheme() {
       isDarkMode = !isDarkMode;
-      document.documentElement.classList.toggle('dark');
+      applyTheme();
+    }
+  
+    function applyTheme() {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem('darkMode', isDarkMode.toString());
+    }
+  
+    function handleMarkerClick(rating: any) {
+      selectedRating = rating;
+    }
+  
+    function closeSlideout() {
+      selectedRating = null;
     }
   </script>
   
-  <div class={`min-h-screen ${isDarkMode ? 'dark' : ''}`}>
+  <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
     <div class="container mx-auto p-4">
       <h1 class="text-3xl font-bold mb-4">Chicken Wing Ratings</h1>
       <div class="flex justify-between mb-4">
@@ -46,16 +76,17 @@
           onChange={toggleTheme} 
         />
       </div>
-      {#if isMapView}
-        <Map {wingRatings} />
+      {#if isLoading}
+        <p>Loading wing ratings...</p>
+      {:else if wingRatings.length === 0}
+        <p>No wing ratings found. <button on:click={fetchWingRatings} class="text-blue-500">Refresh</button></p>
       {:else}
-        <ListView {wingRatings} />
+        {#if isMapView}
+          <Map {wingRatings} onMarkerClick={handleMarkerClick} />
+        {:else}
+          <ListView {wingRatings} />
+        {/if}
       {/if}
     </div>
+    <ReviewSlideout rating={selectedRating} onClose={closeSlideout} />
   </div>
-  
-  <style>
-    :global(body) {
-      @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-white;
-    }
-  </style>
