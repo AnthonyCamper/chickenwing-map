@@ -1,38 +1,21 @@
-# create-svelte
+# Chicken Wing Rating Map
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/main/packages/create-svelte).
+Welcome to my personal mission to rate all the chicken wings I try! This interactive map showcases my journey through the world of chicken wings, rating each experience and sharing my thoughts.
 
-## Creating a project
+## Mission Statement
 
-If you're seeing this, you've probably already done this step. Congrats!
+My goal is to taste and rate chicken wings from various establishments, providing honest feedback and helping others find the best wings in town. Each rating includes:
 
-```bash
-# create a new project in the current directory
-npm create svelte@latest
+- Restaurant name and location
+- Wing rating (out of 10)
+- Brief review
+- Date visited
 
-# create a new project in my-app
-npm create svelte@latest my-app
-```
+## How to Use
 
-## Developing
+- Use the map to explore rated locations
+- Click on markers to view ratings and reviews
+- Switch to list view for a sortable list of all ratings
+- Use the "Zoom to Nearby Places" feature to find rated wings near you
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+Join me on this flavorful adventure and discover the best chicken wings around!
