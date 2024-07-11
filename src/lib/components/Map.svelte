@@ -12,7 +12,8 @@
       const L = await import('leaflet');
       await import('leaflet/dist/leaflet.css');
   
-      map = L.map(mapElement).setView([0, 0], 2);
+      map = L.map(mapElement, { zoomControl: false }).setView([0, 0], 2);
+      L.control.zoom({ position: 'topright' }).addTo(map);
   
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -48,4 +49,10 @@
     });
   </script>
   
-  <div bind:this={mapElement} class="absolute inset-0 z-10 transition-all duration-300 ease-in-out" class:pr-80={isSlideoutOpen}></div>
+  <div bind:this={mapElement} class="absolute inset-0 transition-all duration-300 ease-in-out" class:pr-80={isSlideoutOpen}></div>
+  
+  <style>
+    :global(.leaflet-control-zoom) {
+      margin-top: 60px !important;
+    }
+  </style>
