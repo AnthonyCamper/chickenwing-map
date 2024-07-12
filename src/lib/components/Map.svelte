@@ -54,7 +54,7 @@
     }
 
     const wingIcon = L.icon({
-      iconUrl: '/images/wing-icon.png',
+      iconUrl: '/assets/wing-icon.png',
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -32]
