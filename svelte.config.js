@@ -17,7 +17,7 @@ const config = {
         strict: true
   }),
       paths: {
-          base: process.env.NODE_ENV === 'dev' ? '' : '/chickenwing-map',
+        base: process.env.NODE_ENV === 'production' ? '/chickenwing-map' : '',
       }
   }
 };
