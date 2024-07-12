@@ -9,6 +9,8 @@
   let map: any;
   let mapElement: HTMLElement;
   let L: any;
+  let markers: any[] = [];
+  let searchMarker: any;
 
   onMount(async () => {
     console.log("Mount started");
@@ -22,9 +24,18 @@
     }
   });
 
-  export function zoomToLocation(latitude: number, longitude: number) {
+  export function zoomToLocation(latitude: number, longitude: number, locationName: string) {
     if (map) {
-      map.setView([latitude, longitude], 15); // Adjust zoom level (15) as needed
+      map.setView([latitude, longitude], 12);  // Adjust zoom level as needed
+      // Remove previous search marker if exists
+      if (searchMarker) {
+        map.removeLayer(searchMarker);
+      }
+      // Add a marker for the searched location
+      searchMarker = L.marker([latitude, longitude])
+        .addTo(map)
+        .bindPopup(`Searched: ${locationName}`)
+        .openPopup();
     }
   }
   
@@ -59,6 +70,10 @@
       return;
     }
 
+    // Clear existing markers
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+
     const wingIcon = L.icon({
       iconUrl: '/assets/wing-icon.png',
       iconSize: [32, 32],
@@ -68,7 +83,7 @@
 
     wingRatings.forEach(rating => {
       if (isValidCoordinate(rating.latitude, rating.longitude)) {
-        L.marker([rating.latitude, rating.longitude], { icon: wingIcon })
+        const marker = L.marker([rating.latitude, rating.longitude], { icon: wingIcon })
           .addTo(map)
           .bindPopup(`
             <b>${rating.restaurant_name}</b><br>
@@ -77,11 +92,12 @@
             ${rating.distance !== undefined ? `Distance: ${rating.distance.toFixed(2)} km<br>` : ''}
           `)
           .on('click', () => onMarkerClick(rating));
+        markers.push(marker);
       } else {
         console.warn(`Invalid coordinates for rating: ${rating.restaurant_name}`);
       }
     });
-    console.log(`Added ${wingRatings.length} markers`);
+    console.log(`Added ${markers.length} markers`);
   }
 
   function isValidCoordinate(lat: any, lng: any) {
@@ -99,6 +115,8 @@
     console.log("After update");
     if (map) {
       map.invalidateSize();
+      addMarkers();
+      fitMapToBounds();
     }
   });
 
