@@ -22,6 +22,12 @@
     }
   });
 
+  export function zoomToLocation(latitude: number, longitude: number) {
+    if (map) {
+      map.setView([latitude, longitude], 15); // Adjust zoom level (15) as needed
+    }
+  }
+  
   function initializeMap() {
     console.log("Initializing map");
     if (!mapElement) {

@@ -7,6 +7,8 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
 	import { writable } from 'svelte/store';
+	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
+	import Icon from 'svelte-fa';
   
 	let wingRatings: any[] = [];
 	let isMapView = true;
@@ -17,6 +19,12 @@
   
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
+  
+	let searchQuery = '';
+	let noResultsFound = false;
+	let mapComponent: Map;
+	let autocompleteResults: string[] = [];
+	let showAutocomplete = false;
   
 	$: isSlideoutOpen = !!selectedRating;
   
@@ -137,13 +145,65 @@
 	function closeSlideout() {
 	  selectedRating = null;
 	}
+  
+	function handleSearch() {
+	  showAutocomplete = false;
+	  if (isMapView) {
+		const matchingRating = wingRatings.find(rating => 
+		  rating.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
+		);
+		if (matchingRating && mapComponent) {
+		  mapComponent.zoomToLocation(matchingRating.latitude, matchingRating.longitude);
+		  noResultsFound = false;
+		} else {
+		  noResultsFound = true;
+		}
+	  } else {
+		noResultsFound = filteredRatings.length === 0;
+	  }
+	}
+  
+	function submitPlaceToReview() {
+	  const subject = encodeURIComponent('Submit a Place to Review');
+	  const body = encodeURIComponent('I would like to submit the following place for a wing review:\n\nRestaurant Name:\nAddress:\nAdditional Information:');
+	  window.location.href = `mailto:scooterg@redteam.help?subject=${subject}&body=${body}`;
+	}
+  
+	function updateAutocomplete() {
+	  if (searchQuery.length > 0) {
+		autocompleteResults = wingRatings
+		  .map(rating => rating.restaurant_name)
+		  .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
+		  .slice(0, 5);  // Limit to 5 results
+		showAutocomplete = autocompleteResults.length > 0;
+	  } else {
+		showAutocomplete = false;
+	  }
+	}
+  
+	function selectAutocomplete(result: string) {
+	  searchQuery = result;
+	  showAutocomplete = false;
+	  handleSearch();
+	}
+  
+	$: filteredRatings = sortedRatings.filter(rating => 
+	  rating.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
+	);
+  
+	$: {
+	  if (!isMapView) {
+		noResultsFound = filteredRatings.length === 0 && searchQuery !== '';
+	  }
+	  updateAutocomplete();
+	}
   </script>
   
-  <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-6 md:p-8">
-	<div class="max-w-7xl mx-auto shadow-lg rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+  <div class="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-6 md:p-8">
+	<div class="max-w-7xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden">
 	  <div class="p-4 sm:p-6">
-		<h1 class="text-2xl sm:text-3xl font-bold mb-4">Chicken Wing Ratings</h1>
-		<div class="flex flex-col sm:flex-row justify-between mb-4 gap-4">
+		<h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Chicken Wing Ratings</h1>
+		<div class="flex flex-col sm:flex-row justify-between mb-6 gap-4">
 		  <ToggleSwitch 
 			checked={isMapView} 
 			onChange={toggleView} 
@@ -154,9 +214,54 @@
 			onChange={toggleTheme} 
 		  />
 		</div>
+		
+		<!-- Search bar and Submit button -->
+		<div class="mb-6 flex flex-wrap items-center gap-4 relative">
+		  <div class="flex-grow relative">
+			<div class="relative">
+			  <input 
+				type="text" 
+				bind:value={searchQuery} 
+				on:input={updateAutocomplete}
+				placeholder="Search restaurants..." 
+				class="w-full p-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+			  />
+			  <button 
+				on:click={handleSearch}
+				class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+			  >
+				<Icon icon={faSearch} />
+			  </button>
+			</div>
+			{#if showAutocomplete}
+			  <div class="absolute z-50 w-full bg-white dark:bg-gray-700 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600">
+				{#each autocompleteResults as result}
+				  <div 
+					class="p-3 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-gray-800 dark:text-white"
+					on:click={() => selectAutocomplete(result)}
+				  >
+					{result}
+				  </div>
+				{/each}
+			  </div>
+			{/if}
+		  </div>
+		  <button 
+			on:click={submitPlaceToReview}
+			class="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center"
+		  >
+			<Icon icon={faPlus} class="mr-2" />
+			<span>Submit a Place</span>
+		  </button>
+		</div>
+  
+		<!-- No results message -->
+		{#if noResultsFound}
+		  <p class="text-red-500 mt-2">No places found matching your search.</p>
+		{/if}
 	  </div>
 	  
-	  <div class="relative h-[calc(100vh-200px)] sm:h-[calc(100vh-240px)]">
+	  <div class="relative h-[calc(100vh-300px)] sm:h-[calc(100vh-340px)]">
 		{#if isLoading}
 		  <p class="p-4">Loading wing ratings...</p>
 		{:else if wingRatings.length === 0}
@@ -164,7 +269,8 @@
 		{:else}
 		  {#if isMapView}
 			<Map 
-			  wingRatings={sortedRatings} 
+			  bind:this={mapComponent}
+			  wingRatings={filteredRatings} 
 			  onMarkerClick={handleShowReview} 
 			  {isSlideoutOpen} 
 			  {userLocation}
@@ -172,7 +278,7 @@
 		  {:else}
 			<div class="p-4 overflow-y-auto h-full">
 			  <ListView 
-				wingRatings={sortedRatings} 
+				wingRatings={filteredRatings} 
 				onShowReview={handleShowReview} 
 				bind:sortBy={$sortBy} 
 				bind:sortOrder={$sortOrder}
