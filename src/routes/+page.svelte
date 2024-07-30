@@ -3,7 +3,6 @@
 	import { supabase } from '$lib/supabase';
 	import Map from '$lib/components/Map.svelte';
 	import ListView from '$lib/components/ListView.svelte';
-	import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
 	import { writable } from 'svelte/store';
@@ -143,8 +142,8 @@
 		}
 	}
 
-	function toggleView() {
-		isMapView = !isMapView;
+	function setMapView(value: boolean) {
+		isMapView = value;
 	}
 
 	function toggleTheme() {
@@ -235,101 +234,123 @@
 <div
 	class="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-6 md:p-8"
 >
-	<div class="max-w-7xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg overflow-hidden">
-		<div class="p-4 sm:p-6">
-			<h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Chicken Wing Ratings</h1>
-			<div class="flex flex-col sm:flex-row justify-between mb-6 gap-4">
-				<ToggleSwitch
-					checked={isMapView}
-					onChange={toggleView}
-					label={isMapView ? 'Map View' : 'List View'}
-				/>
-				<ThemeToggle checked={isDarkMode} onChange={toggleTheme} />
-			</div>
-
-			<div class="mb-6 flex flex-wrap items-center gap-4 relative">
-				<div class="flex-grow relative pointer-events-none">
-					<div class="relative pointer-events-auto">
-						<select
-							bind:value={searchType}
-							class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-transparent border-none text-gray-500 dark:text-gray-400 focus:outline-none"
-						>
-							<option value="name">Name</option>
-							<option value="city">City</option>
-							<option value="zip">ZIP</option>
-						</select>
-						<input
-							type="text"
-							on:keypress={handleKeyPress}
-							bind:value={searchQuery}
-							on:input={updateAutocomplete}
-							placeholder={`Search by ${searchType}...`}
-							class="w-full p-3 pl-20 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-						/>
-						<button
-							on:click={handleSearch}
-							class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-						>
-							<Icon icon={faSearch} />
-						</button>
-					</div>
-					{#if showAutocomplete}
-						<div
-							class="absolute z-[9999] w-full bg-white dark:bg-gray-700 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 pointer-events-auto"
-						>
-							{#each autocompleteResults as result}
-								<div
-									class="p-3 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-gray-800 dark:text-white"
-									on:click={() => selectAutocomplete(result)}
-								>
-									{result}
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
+	<div class="p-4 sm:p-6">
+		<h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Chicken Wing Ratings</h1>
+		<div class="flex flex-col sm:flex-row justify-between mb-6 gap-4">
+			<div class="flex rounded-md shadow-sm" role="group">
 				<button
-					on:click={submitPlaceToReview}
-					class="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center"
+					type="button"
+					on:click={() => setMapView(true)}
+					class={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+						isMapView
+							? 'bg-blue-600 text-white'
+							: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
+					}`}
 				>
-					<Icon icon={faPlus} class="mr-2" />
-					<span>Submit a Place</span>
+					Map View
+				</button>
+				<button
+					type="button"
+					on:click={() => setMapView(false)}
+					class={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+						!isMapView
+							? 'bg-blue-600 text-white'
+							: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
+					}`}
+				>
+					List View
 				</button>
 			</div>
-
-			{#if noResultsFound}
-				<p class="text-red-500 mt-2">No places found matching your search.</p>
-			{/if}
+			<ThemeToggle checked={isDarkMode} onChange={toggleTheme} />
 		</div>
-
-		<div class="relative h-[calc(100vh-300px)] sm:h-[calc(100vh-340px)]">
-			{#if isLoading}
-				<p class="p-4">Loading wing ratings...</p>
-			{:else if wingRatings.length === 0}
-				<p class="p-4">
-					No wing ratings found. <button on:click={fetchWingRatings} class="text-blue-500"
-						>Refresh</button
-					>
-				</p>
-			{:else if isMapView}
-				<Map
-					bind:this={mapComponent}
-					wingRatings={displayedRatings}
-					onMarkerClick={handleShowReview}
-					{isSlideoutOpen}
-					{userLocation}
-				/>
-			{:else}
-				<div class="p-4 overflow-y-auto h-full">
-					<ListView
-						wingRatings={displayedRatings}
-						onShowReview={handleShowReview}
-						bind:sortBy={$sortBy}
-						bind:sortOrder={$sortOrder}
-					/>
+		<div class="mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-4 relative">
+			<div class="flex-grow w-full sm:w-auto">
+				<div class="flex rounded-md shadow-sm mb-2" role="group">
+					<label class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-l-md bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-200 dark:border-gray-600">
+						<input type="radio" bind:group={searchType} value="name" class="sr-only" />
+						<span class={searchType === 'name' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>Name</span>
+					</label>
+					<label class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-200 dark:border-gray-600">
+						<input type="radio" bind:group={searchType} value="city" class="sr-only" />
+						<span class={searchType === 'city' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>City</span>
+					</label>
+					<label class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-r-md bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600">
+						<input type="radio" bind:group={searchType} value="zip" class="sr-only" />
+						<span class={searchType === 'zip' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>ZIP</span>
+					</label>
 				</div>
-			{/if}
+				<div class="relative">
+					<input
+						type="text"
+						on:keypress={handleKeyPress}
+						bind:value={searchQuery}
+						on:input={updateAutocomplete}
+						placeholder={`Search by ${searchType}...`}
+						class="w-full p-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+					/>
+					<button
+						on:click={handleSearch}
+						class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+					>
+						<Icon icon={faSearch} />
+					</button>
+				</div>
+				{#if showAutocomplete}
+					<div
+						class="absolute z-[9999] w-full bg-white dark:bg-gray-700 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600"
+					>
+						{#each autocompleteResults as result}
+							<div
+								class="p-3 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-gray-800 dark:text-white"
+								on:click={() => selectAutocomplete(result)}
+							>
+								{result}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+			<button
+				on:click={submitPlaceToReview}
+				class="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center whitespace-nowrap"
+			>
+				<Icon icon={faPlus} class="mr-2" />
+				<span>Submit a Place</span>
+			</button>
 		</div>
+
+		{#if noResultsFound}
+			<p class="text-red-500 mt-2">No places found matching your search.</p>
+		{/if}
+	</div>
+
+	<div class="relative h-[calc(100vh-300px)] sm:h-[calc(100vh-340px)]">
+		{#if isLoading}
+			<p class="p-4">Loading wing ratings...</p>
+		{:else if wingRatings.length === 0}
+			<p class="p-4">
+				No wing ratings found. <button on:click={fetchWingRatings} class="text-blue-500"
+					>Refresh</button
+				>
+			</p>
+		{:else if isMapView}
+			<Map
+				bind:this={mapComponent}
+				wingRatings={displayedRatings}
+				onMarkerClick={handleShowReview}
+				{isSlideoutOpen}
+				{userLocation}
+			/>
+		{:else}
+			<div class="p-4 overflow-y-auto h-full">
+				<ListView
+					wingRatings={displayedRatings}
+					onShowReview={handleShowReview}
+					bind:sortBy={$sortBy}
+					bind:sortOrder={$sortOrder}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>
 
