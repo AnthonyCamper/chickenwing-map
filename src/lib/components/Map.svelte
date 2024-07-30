@@ -27,11 +27,9 @@
   export function zoomToLocation(latitude: number, longitude: number, locationName: string) {
     if (map) {
       map.setView([latitude, longitude], 12);  // Adjust zoom level as needed
-      // Remove previous search marker if exists
       if (searchMarker) {
         map.removeLayer(searchMarker);
       }
-      // Add a marker for the searched location
       searchMarker = L.marker([latitude, longitude])
         .addTo(map)
         .bindPopup(`Searched: ${locationName}`)
@@ -70,7 +68,6 @@
       return;
     }
 
-    // Clear existing markers
     markers.forEach(marker => map.removeLayer(marker));
     markers = [];
 
@@ -91,13 +88,19 @@
             ${rating.address}<br>
             ${rating.distance !== undefined ? `Distance: ${rating.distance.toFixed(2)} km<br>` : ''}
           `)
-          .on('click', () => onMarkerClick(rating));
+          .on('click', () => handleMarkerClick(rating));
         markers.push(marker);
       } else {
         console.warn(`Invalid coordinates for rating: ${rating.restaurant_name}`);
       }
     });
     console.log(`Added ${markers.length} markers`);
+  }
+
+  function handleMarkerClick(rating: any) {
+    onMarkerClick(rating);
+    // Optionally, you can add any specific behavior here, like panning to the marker
+    map.panTo([rating.latitude, rating.longitude]);
   }
 
   function isValidCoordinate(lat: any, lng: any) {
@@ -116,7 +119,7 @@
     if (map) {
       map.invalidateSize();
       addMarkers();
-      fitMapToBounds();
+      // Remove this line: fitMapToBounds();
     }
   });
 
