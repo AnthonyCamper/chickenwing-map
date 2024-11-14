@@ -3,17 +3,21 @@
   import { faTimes } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
   import { supabase } from '$lib/supabase';
+  import { onMount } from 'svelte';
 
   export let show = false;
   export let onClose: () => void;
 
   let loading = false;
   let error = '';
+  let redirectUrl = '';
 
-  // Get the base URL for redirects
-  const redirectUrl = window.location.origin === 'http://localhost:5173' 
-    ? 'http://localhost:5173'
-    : 'https://wingkingtony.com';
+  onMount(() => {
+    // Set redirect URL only after component is mounted in browser
+    redirectUrl = window.location.origin === 'http://localhost:5173' 
+      ? 'http://localhost:5173'
+      : 'https://wingkingtony.com';
+  });
 
   async function signInWithGoogle() {
     try {
@@ -54,7 +58,7 @@
       class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6"
     >
       <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Sign in to vote</h2>
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Sign In Required</h2>
         <button 
           on:click={onClose}
           class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
@@ -64,6 +68,10 @@
       </div>
 
       <div class="space-y-4">
+        <p class="text-gray-600 dark:text-gray-300 text-center mb-4">
+          You must sign in to add reviews or vote on existing ones.
+        </p>
+
         {#if error}
           <p class="text-red-600 dark:text-red-400 text-center">
             {error}
@@ -78,10 +86,6 @@
           <img src="https://www.google.com/favicon.ico" alt="Google" class="w-5 h-5" />
           {loading ? 'Signing in...' : 'Continue with Google'}
         </button>
-
-        <p class="text-sm text-gray-500 dark:text-gray-400 text-center mt-4">
-          Sign in securely with your Google account to vote on reviews.
-        </p>
       </div>
     </div>
   </div>

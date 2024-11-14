@@ -5,6 +5,8 @@
 	import ListView from '$lib/components/ListView.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
+	import AddReviewModal from '$lib/components/AddReviewModal.svelte';
+	import SignInModal from '$lib/components/SignInModal.svelte';
 	import { writable } from 'svelte/store';
 	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
@@ -17,6 +19,8 @@
 	let selectedRating: any | null = null;
 	let userLocation: { latitude: number; longitude: number } | null = null;
 	let user: any = null;
+	let showAddReviewModal = false;
+	let showSignInModal = false;
 
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
@@ -81,6 +85,15 @@
 				return 0;
 		}
 	});
+
+	function applyTheme() {
+		if (isDarkMode) {
+			document.documentElement.classList.add('dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+		}
+		localStorage.setItem('darkMode', isDarkMode.toString());
+	}
 
 	onMount(async () => {
 		isDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -181,15 +194,6 @@
 		applyTheme();
 	}
 
-	function applyTheme() {
-		if (isDarkMode) {
-			document.documentElement.classList.add('dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-		}
-		localStorage.setItem('darkMode', isDarkMode.toString());
-	}
-
 	function handleShowReview(rating: any) {
 		selectedRating = { ...rating };
 	}
@@ -231,12 +235,12 @@
 		}
 	}
 
-	function submitPlaceToReview() {
-		const subject = encodeURIComponent('Submit a Place to Review');
-		const body = encodeURIComponent(
-			'I would like to submit the following place for a wing review:\n\nRestaurant Name:\nAddress:\nAdditional Information:'
-		);
-		window.location.href = `mailto:scooterg@redteam.help?subject=${subject}&body=${body}`;
+	function handleAddReview() {
+		if (user) {
+			showAddReviewModal = true;
+		} else {
+			showSignInModal = true;
+		}
 	}
 
 	function updateAutocomplete() {
@@ -353,11 +357,11 @@
 				{/if}
 			</div>
 			<button
-				on:click={submitPlaceToReview}
+				on:click={handleAddReview}
 				class="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center whitespace-nowrap"
 			>
 				<Icon icon={faPlus} class="mr-2" />
-				<span>Submit a Place</span>
+				<span>Add Review</span>
 			</button>
 		</div>
 
@@ -397,6 +401,15 @@
 </div>
 
 <ReviewSlideout rating={selectedRating} onClose={closeSlideout} onVoteChange={handleVoteChange} />
+<AddReviewModal 
+	show={showAddReviewModal} 
+	onClose={() => showAddReviewModal = false} 
+	onReviewAdded={fetchWingRatings} 
+/>
+<SignInModal
+	show={showSignInModal}
+	onClose={() => showSignInModal = false}
+/>
 
 <style>
 	:global(body) {
