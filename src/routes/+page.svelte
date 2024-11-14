@@ -16,6 +16,7 @@
 	let isLoading = true;
 	let selectedRating: any | null = null;
 	let userLocation: { latitude: number; longitude: number } | null = null;
+	let user: any = null;
 
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
@@ -81,9 +82,18 @@
 		}
 	});
 
-	onMount(() => {
+	onMount(async () => {
 		isDarkMode = localStorage.getItem('darkMode') === 'true';
 		applyTheme();
+
+		// Get initial auth state
+		const { data: { user: initialUser } } = await supabase.auth.getUser();
+		user = initialUser;
+
+		// Listen for auth changes
+		supabase.auth.onAuthStateChange((_event, session) => {
+			user = session?.user;
+		});
 
 		fetchWingRatings();
 		getUserLocation();
@@ -91,42 +101,62 @@
 
 	async function fetchWingRatings() {
 		isLoading = true;
-		const { data, error } = await supabase.from('wing_ratings').select('*');
+		console.log('=== FETCHING WING RATINGS ===');
+
+		// Get ratings with vote counts
+		const { data, error } = await supabase
+			.from('wing_ratings')
+			.select(`
+				*,
+				upvotes_count,
+				downvotes_count
+			`);
 
 		if (error) {
 			console.error('Error fetching wing ratings:', error);
 		} else {
-			console.log('Fetched data:', data);
+			console.log('Fetched data:', JSON.stringify(data, null, 2));
+			const currentLocation = userLocation;
 			wingRatings = data || [];
-			if (userLocation) {
+			if (currentLocation) {
 				wingRatings = wingRatings.map((rating) => ({
 					...rating,
 					distance: calculateDistance(
-						userLocation.latitude,
-						userLocation.longitude,
+						currentLocation.latitude,
+						currentLocation.longitude,
 						rating.latitude,
 						rating.longitude
 					)
 				}));
 			}
+			// Update selectedRating if it exists
+			if (selectedRating) {
+				const updatedRating = wingRatings.find(r => r.id === selectedRating.id);
+				if (updatedRating) {
+					console.log('Updating selected rating:', JSON.stringify(updatedRating, null, 2));
+					selectedRating = { ...updatedRating };
+				}
+			}
 		}
 		isLoading = false;
+		console.log('=== FETCH COMPLETE ===');
 	}
 
 	function getUserLocation() {
 		if (navigator.geolocation) {
 			navigator.geolocation.getCurrentPosition(
 				(position) => {
-					userLocation = {
+					const newUserLocation = {
 						latitude: position.coords.latitude,
 						longitude: position.coords.longitude
 					};
+					userLocation = newUserLocation;
 					if (wingRatings.length > 0) {
 						wingRatings = wingRatings.map((rating) => ({
 							...rating,
 							distance: calculateDistance(
-								userLocation.latitude,
-								userLocation.longitude,
+								newUserLocation.latitude,
+								newUserLocation.longitude,
 								rating.latitude,
 								rating.longitude
 							)
@@ -161,11 +191,17 @@
 	}
 
 	function handleShowReview(rating: any) {
-		selectedRating = rating;
+		selectedRating = { ...rating };
 	}
 
 	function closeSlideout() {
 		selectedRating = null;
+	}
+
+	async function handleVoteChange() {
+		console.log('=== VOTE CHANGED ===');
+		console.log('Refreshing data...');
+		await fetchWingRatings();
 	}
 
 	async function handleSearch() {
@@ -221,7 +257,13 @@
 		handleSearch();
 	}
 
-	$: displayedRatings = sortedRatings;
+	// Filter ratings based on search query
+	$: filteredRatings = searchQuery && searchType === 'name'
+		? sortedRatings.filter(rating => 
+				rating.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()))
+		: sortedRatings;
+
+	$: displayedRatings = filteredRatings;
 
 	$: {
 		if (!isMapView) {
@@ -354,7 +396,7 @@
 	</div>
 </div>
 
-<ReviewSlideout rating={selectedRating} onClose={closeSlideout} />
+<ReviewSlideout rating={selectedRating} onClose={closeSlideout} onVoteChange={handleVoteChange} />
 
 <style>
 	:global(body) {

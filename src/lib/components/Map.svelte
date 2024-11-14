@@ -11,6 +11,7 @@
   let L: any;
   let markers: any[] = [];
   let searchMarker: any;
+  let wingIcon: any;
 
   onMount(async () => {
     console.log("Mount started");
@@ -30,7 +31,7 @@
       if (searchMarker) {
         map.removeLayer(searchMarker);
       }
-      searchMarker = L.marker([latitude, longitude])
+      searchMarker = L.marker([latitude, longitude], { icon: wingIcon })
         .addTo(map)
         .bindPopup(`Searched: ${locationName}`)
         .openPopup();
@@ -52,6 +53,13 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
 
+      wingIcon = L.icon({
+        iconUrl: '/assets/wing-icon.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      });
+
       console.log("Tile layer added");
 
       addMarkers();
@@ -70,13 +78,6 @@
 
     markers.forEach(marker => map.removeLayer(marker));
     markers = [];
-
-    const wingIcon = L.icon({
-      iconUrl: '/assets/wing-icon.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-      popupAnchor: [0, -32]
-    });
 
     wingRatings.forEach(rating => {
       if (isValidCoordinate(rating.latitude, rating.longitude)) {
