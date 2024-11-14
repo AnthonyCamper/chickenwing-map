@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { faTimes, faStar, faMapMarkerAlt, faCalendar, faRuler, faThumbsUp, faThumbsDown } from '@fortawesome/free-solid-svg-icons';
+  import { faTimes, faStar, faMapMarkerAlt, faCalendar, faRuler, faThumbsUp, faThumbsDown, faUser } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
   import { supabase } from '$lib/supabase';
   import { onMount } from 'svelte';
@@ -18,6 +18,7 @@
     distance?: number;
     upvotes_count: number;
     downvotes_count: number;
+    user_display_name: string;
   }
 
   export let rating: WingRating | null = null;
@@ -102,9 +103,7 @@
         userVote = type;
       }
 
-      // Save user's vote to localStorage
-      localStorage.setItem(`vote_${rating.id}`, userVote || '');
-
+      onVoteChange();
     } catch (err) {
       console.error('Error updating vote:', err);
     }
@@ -193,6 +192,12 @@
     <div class="flex-1 overflow-y-auto">
       <div class="p-4 space-y-4">
         <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+          <!-- Reviewer Info -->
+          <div class="flex items-center mb-4">
+            <Icon icon={faUser} class="text-gray-400 mr-2" />
+            <span class="text-gray-700 dark:text-gray-200">{rating.user_display_name || 'Anonymous'}</span>
+          </div>
+
           <div class="flex items-center mb-2">
             <Icon icon={faStar} class="text-yellow-400 mr-2" />
             <span class="text-2xl font-bold text-gray-700 dark:text-gray-200">{rating.rating}/10</span>

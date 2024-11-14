@@ -16,12 +16,6 @@
   let error = '';
   let loading = false;
 
-  // List of authorized email addresses
-  const authorizedEmails = [
-    'anthonycap949@gmail.com'
-    // Add other authorized emails here
-  ];
-
   async function handleSubmit() {
     try {
       loading = true;
@@ -47,7 +41,13 @@
       }
 
       // Check if user is authorized
-      if (!authorizedEmails.includes(user.email || '')) {
+      const { data: authorizedUser, error: authError } = await supabase
+        .from('authorized_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (authError || !authorizedUser) {
         error = 'You are not authorized to add reviews';
         return;
       }
