@@ -10,6 +10,11 @@
   let loading = false;
   let error = '';
 
+  // Get the base URL for redirects
+  const redirectUrl = window.location.origin === 'http://localhost:5173' 
+    ? 'http://localhost:5173'
+    : 'https://wingkingtony.com';
+
   async function signInWithGoogle() {
     try {
       loading = true;
@@ -18,7 +23,11 @@
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: `${redirectUrl}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
 

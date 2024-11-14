@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { faThumbsUp, faThumbsDown } from '@fortawesome/free-solid-svg-icons';
+  import Icon from 'svelte-fa';
+
   export let wingRatings: any[];
   export let onShowReview: (rating: any) => void;
   export let sortBy: string;
@@ -33,7 +36,17 @@
   {#each wingRatings as rating}
     <div class="bg-white dark:bg-gray-700 p-4 rounded shadow">
       <h2 class="text-xl font-bold">{rating.restaurant_name}</h2>
-      <p>Rating: {rating.rating}/10</p>
+      <div class="flex items-center space-x-4 mt-2">
+        <div class="flex items-center">
+          <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
+          <span>{rating.upvotes_count || 0}</span>
+        </div>
+        <div class="flex items-center">
+          <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
+          <span>{rating.downvotes_count || 0}</span>
+        </div>
+      </div>
+      <p class="mt-2">Rating: {rating.rating}/10</p>
       <p>{rating.address}</p>
       <p>Visited on: {new Date(rating.date_visited).toLocaleDateString()}</p>
       {#if rating.distance !== undefined}

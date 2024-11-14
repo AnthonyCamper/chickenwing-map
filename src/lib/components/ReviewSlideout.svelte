@@ -27,6 +27,8 @@
   let userVote: 'up' | 'down' | null = null;
   let prevRatingId: string | null = null;
   let showSignInModal = false;
+  let localUpvotes = 0;
+  let localDownvotes = 0;
 
   function getGoogleMapsLink(address: string) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -35,18 +37,10 @@
   async function handleVote(type: 'up' | 'down') {
     if (!rating) return;
 
-    console.log('=== VOTE ATTEMPT ===');
-    console.log('Rating ID:', rating.id);
-    console.log('Current upvotes:', rating.upvotes_count);
-    console.log('Current downvotes:', rating.downvotes_count);
-    console.log('Current user vote:', userVote);
-    console.log('Attempting to vote:', type);
-
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      console.log('User not authenticated, showing sign in modal');
       showSignInModal = true;
       return;
     }
@@ -54,7 +48,6 @@
     try {
       if (userVote === type) {
         // Remove vote
-        console.log('Removing vote');
         const { error } = await supabase
           .from('votes')
           .delete()
@@ -62,11 +55,17 @@
           .eq('user_id', user.id);
 
         if (error) throw error;
+
+        // Update local counts
+        if (type === 'up') {
+          localUpvotes--;
+        } else {
+          localDownvotes--;
+        }
         userVote = null;
       } else {
         // If user already voted, remove old vote
         if (userVote) {
-          console.log('Removing old vote');
           const { error } = await supabase
             .from('votes')
             .delete()
@@ -74,10 +73,16 @@
             .eq('user_id', user.id);
 
           if (error) throw error;
+
+          // Decrement old vote count
+          if (userVote === 'up') {
+            localUpvotes--;
+          } else {
+            localDownvotes--;
+          }
         }
 
         // Add new vote
-        console.log('Adding new vote');
         const { error } = await supabase
           .from('votes')
           .insert([{
@@ -87,18 +92,21 @@
           }]);
 
         if (error) throw error;
+
+        // Increment new vote count
+        if (type === 'up') {
+          localUpvotes++;
+        } else {
+          localDownvotes++;
+        }
         userVote = type;
       }
 
       // Save user's vote to localStorage
       localStorage.setItem(`vote_${rating.id}`, userVote || '');
-      
-      // Notify parent to refresh data
-      onVoteChange();
 
     } catch (err) {
-      console.error('=== ERROR UPDATING VOTE ===');
-      console.error('Error:', err instanceof Error ? err.message : String(err));
+      console.error('Error updating vote:', err);
     }
   }
 
@@ -128,19 +136,19 @@
     }
   }
 
-  $: {
-    // Reset userVote when rating changes
-    if (rating && rating.id !== prevRatingId) {
-      prevRatingId = rating.id;
-      loadUserVote();
-    }
+  // Reset state when rating changes
+  $: if (rating && rating.id !== prevRatingId) {
+    prevRatingId = rating.id;
+    userVote = null;
+    localUpvotes = rating.upvotes_count;
+    localDownvotes = rating.downvotes_count;
+    loadUserVote();
   }
 
   onMount(() => {
     if (rating) {
-      console.log('=== COMPONENT MOUNTED ===');
-      console.log('Rating ID:', rating.id);
-      console.log('Initial rating state:', JSON.stringify(rating, null, 2));
+      localUpvotes = rating.upvotes_count;
+      localDownvotes = rating.downvotes_count;
       loadUserVote();
     }
   });
@@ -169,7 +177,7 @@
           class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'up' ? 'text-green-500 bg-green-100 dark:bg-green-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}"
         >
           <Icon icon={faThumbsUp} class="text-2xl mb-1" />
-          <span class="font-medium">{rating.upvotes_count || 0}</span>
+          <span class="font-medium">{localUpvotes}</span>
         </button>
         
         <button
@@ -177,7 +185,7 @@
           class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'down' ? 'text-red-500 bg-red-100 dark:bg-red-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}"
         >
           <Icon icon={faThumbsDown} class="text-2xl mb-1" />
-          <span class="font-medium">{rating.downvotes_count || 0}</span>
+          <span class="font-medium">{localDownvotes}</span>
         </button>
       </div>
     </div>
