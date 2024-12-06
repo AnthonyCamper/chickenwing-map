@@ -1,8 +1,29 @@
 <script lang="ts">
   import { onMount, afterUpdate } from 'svelte';
 
-  export let wingRatings: any[];
-  export let onMarkerClick: (rating: any) => void;
+  interface Location {
+    id: number;
+    restaurant_name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+  }
+
+  interface Review {
+    id: number;
+    location_id: number;
+    user_id: string;
+    review: string;
+    rating: string;
+    date_visited: string;
+    location: Location;
+    distance?: number;
+    upvotes_count: number;
+    downvotes_count: number;
+  }
+
+  export let reviews: Review[];
+  export let onMarkerClick: (review: Review) => void;
   export let isSlideoutOpen: boolean;
   export let userLocation: { latitude: number; longitude: number } | null;
 
@@ -79,29 +100,44 @@
     markers.forEach(marker => map.removeLayer(marker));
     markers = [];
 
-    wingRatings.forEach(rating => {
-      if (isValidCoordinate(rating.latitude, rating.longitude)) {
-        const marker = L.marker([rating.latitude, rating.longitude], { icon: wingIcon })
+    // Group reviews by location to show all reviews for a location in one popup
+    const locationReviews = reviews.reduce((acc, review) => {
+      const loc = review.location;
+      if (!acc[loc.id]) {
+        acc[loc.id] = {
+          location: loc,
+          reviews: []
+        };
+      }
+      acc[loc.id].reviews.push(review);
+      return acc;
+    }, {} as Record<number, { location: Location; reviews: Review[] }>);
+
+    Object.values(locationReviews).forEach(({ location, reviews }) => {
+      if (isValidCoordinate(location.latitude, location.longitude)) {
+        const avgRating = (reviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / reviews.length).toFixed(1);
+        const marker = L.marker([location.latitude, location.longitude], { icon: wingIcon })
           .addTo(map)
           .bindPopup(`
-            <b>${rating.restaurant_name}</b><br>
-            Rating: ${rating.rating}/10<br>
-            ${rating.address}<br>
-            ${rating.distance !== undefined ? `Distance: ${rating.distance.toFixed(2)} km<br>` : ''}
+            <b>${location.restaurant_name}</b><br>
+            Average Rating: ${avgRating}/10<br>
+            ${location.address}<br>
+            ${reviews[0].distance !== undefined ? `Distance: ${reviews[0].distance.toFixed(2)} km<br>` : ''}
+            Number of Reviews: ${reviews.length}
           `)
-          .on('click', () => handleMarkerClick(rating));
+          .on('click', () => handleMarkerClick(reviews[0])); // Show the first review when clicked
         markers.push(marker);
       } else {
-        console.warn(`Invalid coordinates for rating: ${rating.restaurant_name}`);
+        console.warn(`Invalid coordinates for location: ${location.restaurant_name}`);
       }
     });
     console.log(`Added ${markers.length} markers`);
   }
 
-  function handleMarkerClick(rating: any) {
-    onMarkerClick(rating);
+  function handleMarkerClick(review: Review) {
+    onMarkerClick(review);
     // Optionally, you can add any specific behavior here, like panning to the marker
-    map.panTo([rating.latitude, rating.longitude]);
+    map.panTo([review.location.latitude, review.location.longitude]);
   }
 
   function isValidCoordinate(lat: any, lng: any) {
@@ -120,7 +156,6 @@
     if (map) {
       map.invalidateSize();
       addMarkers();
-      // Remove this line: fitMapToBounds();
     }
   });
 
@@ -133,10 +168,10 @@
 
   function fitMapToBounds() {
     console.log("Fitting map to bounds");
-    if (map && L && wingRatings.length > 0) {
-      const validCoordinates = wingRatings
-        .filter(r => isValidCoordinate(r.latitude, r.longitude))
-        .map(r => [r.latitude, r.longitude]);
+    if (map && L && reviews.length > 0) {
+      const validCoordinates = reviews
+        .filter(r => isValidCoordinate(r.location.latitude, r.location.longitude))
+        .map(r => [r.location.latitude, r.location.longitude]);
 
       if (validCoordinates.length > 0) {
         const bounds = L.latLngBounds(validCoordinates);
@@ -151,16 +186,16 @@
   function zoomToNearbyPlaces() {
     console.log("Zooming to nearby places");
     if (map && L && userLocation) {
-      const nearbyRatings = wingRatings.filter(rating => 
-        rating.distance && 
-        rating.distance <= 10 && 
-        isValidCoordinate(rating.latitude, rating.longitude)
+      const nearbyReviews = reviews.filter(review => 
+        review.distance && 
+        review.distance <= 10 && 
+        isValidCoordinate(review.location.latitude, review.location.longitude)
       );
 
-      if (nearbyRatings.length > 0) {
+      if (nearbyReviews.length > 0) {
         const bounds = L.latLngBounds([
           [userLocation.latitude, userLocation.longitude],
-          ...nearbyRatings.map(r => [r.latitude, r.longitude])
+          ...nearbyReviews.map(r => [r.location.latitude, r.location.longitude])
         ]);
         map.fitBounds(bounds);
         console.log("Zoomed to nearby places");

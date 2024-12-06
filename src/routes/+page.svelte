@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
+	import type { SvelteComponentTyped } from "svelte";
 	import Map from '$lib/components/Map.svelte';
 	import ListView from '$lib/components/ListView.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -12,11 +13,41 @@
 	import Icon from 'svelte-fa';
 	import { geocode } from '$lib/geocoding';
 
-	let wingRatings: any[] = [];
+	interface Location {
+		id: number;
+		restaurant_name: string;
+		address: string;
+		latitude: number;
+		longitude: number;
+	}
+
+	interface Review {
+		id: number;
+		location_id: number;
+		user_id: string;
+		review: string;
+		rating: string;
+		date_visited: string;
+		location: Location;
+		distance?: number;
+		upvotes_count: number;
+		downvotes_count: number;
+	}
+
+	interface MapComponent extends SvelteComponentTyped<{
+		reviews: Review[];
+		onMarkerClick: (review: Review) => void;
+		isSlideoutOpen: boolean;
+		userLocation: { latitude: number; longitude: number } | null;
+	}> {
+		zoomToLocation: (latitude: number, longitude: number, locationName: string) => void;
+	}
+
+	let reviews: Review[] = [];
 	let isMapView = true;
 	let isDarkMode = false;
 	let isLoading = true;
-	let selectedRating: any | null = null;
+	let selectedReview: Review | null = null;
 	let userLocation: { latitude: number; longitude: number } | null = null;
 	let user: any = null;
 	let showAddReviewModal = false;
@@ -28,11 +59,11 @@
 	let searchQuery = '';
 	let searchType = 'name'; // Can be 'name', 'city', or 'zip'
 	let noResultsFound = false;
-	let mapComponent: Map;
+	let mapComponent: MapComponent;
 	let autocompleteResults: string[] = [];
 	let showAutocomplete = false;
 
-	$: isSlideoutOpen = !!selectedRating;
+	$: isSlideoutOpen = !!selectedReview;
 
 	function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 		const R = 6371; // Radius of the earth in km
@@ -51,17 +82,18 @@
 			handleSearch();
 		}
 	}
+
 	function deg2rad(deg: number) {
 		return deg * (Math.PI / 180);
 	}
 
-	$: sortedRatings = [...wingRatings].sort((a, b) => {
+	$: sortedReviews = [...reviews].sort((a, b) => {
 		const order = $sortOrder === 'asc' ? 1 : -1;
 		switch ($sortBy) {
 			case 'rating':
-				return (b.rating - a.rating) * order;
+				return (parseFloat(b.rating) - parseFloat(a.rating)) * order;
 			case 'name':
-				return a.restaurant_name.localeCompare(b.restaurant_name) * order;
+				return a.location.restaurant_name.localeCompare(b.location.restaurant_name) * order;
 			case 'date':
 				return (new Date(b.date_visited).getTime() - new Date(a.date_visited).getTime()) * order;
 			case 'distance':
@@ -69,14 +101,14 @@
 					const distanceA = calculateDistance(
 						userLocation.latitude,
 						userLocation.longitude,
-						a.latitude,
-						a.longitude
+						a.location.latitude,
+						a.location.longitude
 					);
 					const distanceB = calculateDistance(
 						userLocation.latitude,
 						userLocation.longitude,
-						b.latitude,
-						b.longitude
+						b.location.latitude,
+						b.location.longitude
 					);
 					return (distanceA - distanceB) * order;
 				}
@@ -108,46 +140,45 @@
 			user = session?.user;
 		});
 
-		fetchWingRatings();
+		fetchReviews();
 		getUserLocation();
 	});
 
-	async function fetchWingRatings() {
+	async function fetchReviews() {
 		isLoading = true;
-		console.log('=== FETCHING WING RATINGS ===');
+		console.log('=== FETCHING REVIEWS ===');
 
-		// Get ratings with vote counts
+		// Get reviews with locations and vote counts
 		const { data, error } = await supabase
-			.from('wing_ratings')
+			.from('reviews')
 			.select(`
 				*,
-				upvotes_count,
-				downvotes_count
+				location:locations(*)
 			`);
 
 		if (error) {
-			console.error('Error fetching wing ratings:', error);
+			console.error('Error fetching reviews:', error);
 		} else {
 			console.log('Fetched data:', JSON.stringify(data, null, 2));
 			const currentLocation = userLocation;
-			wingRatings = data || [];
+			reviews = data || [];
 			if (currentLocation) {
-				wingRatings = wingRatings.map((rating) => ({
-					...rating,
+				reviews = reviews.map((review) => ({
+					...review,
 					distance: calculateDistance(
 						currentLocation.latitude,
 						currentLocation.longitude,
-						rating.latitude,
-						rating.longitude
+						review.location.latitude,
+						review.location.longitude
 					)
 				}));
 			}
-			// Update selectedRating if it exists
-			if (selectedRating) {
-				const updatedRating = wingRatings.find(r => r.id === selectedRating.id);
-				if (updatedRating) {
-					console.log('Updating selected rating:', JSON.stringify(updatedRating, null, 2));
-					selectedRating = { ...updatedRating };
+			// Update selectedReview if it exists
+			if (selectedReview) {
+				const updatedReview = reviews.find(r => r.id === selectedReview.id);
+				if (updatedReview) {
+					console.log('Updating selected review:', JSON.stringify(updatedReview, null, 2));
+					selectedReview = { ...updatedReview };
 				}
 			}
 		}
@@ -164,14 +195,14 @@
 						longitude: position.coords.longitude
 					};
 					userLocation = newUserLocation;
-					if (wingRatings.length > 0) {
-						wingRatings = wingRatings.map((rating) => ({
-							...rating,
+					if (reviews.length > 0) {
+						reviews = reviews.map((review) => ({
+							...review,
 							distance: calculateDistance(
 								newUserLocation.latitude,
 								newUserLocation.longitude,
-								rating.latitude,
-								rating.longitude
+								review.location.latitude,
+								review.location.longitude
 							)
 						}));
 					}
@@ -194,31 +225,31 @@
 		applyTheme();
 	}
 
-	function handleShowReview(rating: any) {
-		selectedRating = { ...rating };
+	function handleShowReview(review: Review) {
+		selectedReview = review ? { ...review } : null;
 	}
 
 	function closeSlideout() {
-		selectedRating = null;
+		selectedReview = null;
 	}
 
 	async function handleVoteChange() {
 		console.log('=== VOTE CHANGED ===');
 		console.log('Refreshing data...');
-		await fetchWingRatings();
+		await fetchReviews();
 	}
 
 	async function handleSearch() {
 		showAutocomplete = false;
 		if (searchType === 'name') {
-			const matchingRating = wingRatings.find((rating) =>
-				rating.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
+			const matchingReview = reviews.find((review) =>
+				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
 			);
-			if (matchingRating && mapComponent) {
+			if (matchingReview && mapComponent) {
 				mapComponent.zoomToLocation(
-					matchingRating.latitude,
-					matchingRating.longitude,
-					matchingRating.restaurant_name
+					matchingReview.location.latitude,
+					matchingReview.location.longitude,
+					matchingReview.location.restaurant_name
 				);
 				noResultsFound = false;
 			} else {
@@ -245,8 +276,8 @@
 
 	function updateAutocomplete() {
 		if (searchQuery.length > 0 && searchType === 'name') {
-			autocompleteResults = wingRatings
-				.map((rating) => rating.restaurant_name)
+			autocompleteResults = [...new Set(reviews
+				.map((review) => review.location.restaurant_name))]
 				.filter((name) => name.toLowerCase().includes(searchQuery.toLowerCase()))
 				.slice(0, 5); // Limit to 5 results
 			showAutocomplete = autocompleteResults.length > 0;
@@ -261,17 +292,17 @@
 		handleSearch();
 	}
 
-	// Filter ratings based on search query
-	$: filteredRatings = searchQuery && searchType === 'name'
-		? sortedRatings.filter(rating => 
-				rating.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()))
-		: sortedRatings;
+	// Filter reviews based on search query
+	$: filteredReviews = searchQuery && searchType === 'name'
+		? sortedReviews.filter(review => 
+				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()))
+		: sortedReviews;
 
-	$: displayedRatings = filteredRatings;
+	$: displayedReviews = filteredReviews;
 
 	$: {
 		if (!isMapView) {
-			noResultsFound = displayedRatings.length === 0 && searchQuery !== '';
+			noResultsFound = displayedReviews.length === 0 && searchQuery !== '';
 		}
 		updateAutocomplete();
 	}
@@ -372,17 +403,17 @@
 
 	<div class="relative h-[calc(100vh-300px)] sm:h-[calc(100vh-340px)]">
 		{#if isLoading}
-			<p class="p-4">Loading wing ratings...</p>
-		{:else if wingRatings.length === 0}
+			<p class="p-4">Loading reviews...</p>
+		{:else if reviews.length === 0}
 			<p class="p-4">
-				No wing ratings found. <button on:click={fetchWingRatings} class="text-blue-500"
+				No reviews found. <button on:click={fetchReviews} class="text-blue-500"
 					>Refresh</button
 				>
 			</p>
 		{:else if isMapView}
 			<Map
 				bind:this={mapComponent}
-				wingRatings={displayedRatings}
+				reviews={displayedReviews}
 				onMarkerClick={handleShowReview}
 				{isSlideoutOpen}
 				{userLocation}
@@ -390,7 +421,7 @@
 		{:else}
 			<div class="p-4 overflow-y-auto h-full">
 				<ListView
-					wingRatings={displayedRatings}
+					reviews={displayedReviews}
 					onShowReview={handleShowReview}
 					bind:sortBy={$sortBy}
 					bind:sortOrder={$sortOrder}
@@ -400,11 +431,11 @@
 	</div>
 </div>
 
-<ReviewSlideout rating={selectedRating} onClose={closeSlideout} onVoteChange={handleVoteChange} />
+<ReviewSlideout review={selectedReview} onClose={closeSlideout} onVoteChange={handleVoteChange} />
 <AddReviewModal 
 	show={showAddReviewModal} 
 	onClose={() => showAddReviewModal = false} 
-	onReviewAdded={fetchWingRatings} 
+	onReviewAdded={fetchReviews} 
 />
 <SignInModal
 	show={showSignInModal}
