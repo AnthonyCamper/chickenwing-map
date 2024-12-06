@@ -9,7 +9,9 @@
   let showSignInModal = false;
   let showSettingsModal = false;
   let showAdminModal = false;
+  let showSignOutConfirm = false;
   let displayName = '';
+  let tempDisplayName = ''; // New variable for the input field
   let isAdmin = false;
   let authorizedUsers: any[] = [];
   let newUserEmail = '';
@@ -52,6 +54,7 @@
         .insert([{ user_id: user.id, display_name: defaultName }]);
       displayName = defaultName;
     }
+    tempDisplayName = displayName; // Initialize temp name with current display name
 
     // Check if admin
     const { data: adminData } = await supabase
@@ -83,25 +86,36 @@
   }
 
   async function handleSignOut() {
+    showSignOutConfirm = true;
+  }
+
+  async function confirmSignOut() {
     await supabase.auth.signOut();
+    showSignOutConfirm = false;
   }
 
   async function updateDisplayName() {
-    if (!displayName.trim()) {
+    if (!tempDisplayName.trim()) {
       settingsError = 'Display name cannot be empty';
       return;
     }
 
     const { error } = await supabase
       .from('user_profiles')
-      .update({ display_name: displayName.trim(), updated_at: new Date().toISOString() })
+      .update({ display_name: tempDisplayName.trim(), updated_at: new Date().toISOString() })
       .eq('user_id', user.id);
 
     if (error) {
       settingsError = error.message;
     } else {
+      displayName = tempDisplayName; // Only update display name after successful save
       showSettingsModal = false;
     }
+  }
+
+  function openSettingsModal() {
+    tempDisplayName = displayName; // Reset temp name to current display name when opening modal
+    showSettingsModal = true;
   }
 
   async function authorizeUser() {
@@ -148,7 +162,7 @@
     <div class="flex items-center gap-4">
       <span class="text-gray-700 dark:text-gray-300">{displayName}</span>
       <button
-        on:click={() => showSettingsModal = true}
+        on:click={openSettingsModal}
         class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
       >
         <Icon icon={faCog} />
@@ -178,6 +192,32 @@
   {/if}
 </div>
 
+<!-- Sign Out Confirmation Modal -->
+{#if showSignOutConfirm}
+  <div class="fixed inset-0 bg-black bg-opacity-50 z-[3000] flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+      <div class="text-center space-y-4">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Sign Out Confirmation</h2>
+        <p class="text-gray-600 dark:text-gray-300">Are you sure you want to sign out?</p>
+        <div class="flex justify-center gap-4">
+          <button
+            on:click={confirmSignOut}
+            class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md"
+          >
+            Yes, Sign Out
+          </button>
+          <button
+            on:click={() => showSignOutConfirm = false}
+            class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Settings Modal -->
 {#if showSettingsModal}
   <div class="fixed inset-0 bg-black bg-opacity-50 z-[3000] flex items-center justify-center p-4">
@@ -203,7 +243,7 @@
           </label>
           <input
             type="text"
-            bind:value={displayName}
+            bind:value={tempDisplayName}
             class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
           />
         </div>

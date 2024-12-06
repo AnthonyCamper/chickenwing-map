@@ -7,7 +7,7 @@
   import SignInModal from './SignInModal.svelte';
 
   interface WingRating {
-    id: string;
+    id: number;
     restaurant_name: string;
     address: string;
     rating: number;
@@ -26,17 +26,18 @@
   export let onVoteChange: () => void;
 
   let userVote: 'up' | 'down' | null = null;
-  let prevRatingId: string | null = null;
+  let prevRatingId: number | null = null;
   let showSignInModal = false;
   let localUpvotes = 0;
   let localDownvotes = 0;
+  let isProcessingVote = false;
 
   function getGoogleMapsLink(address: string) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   }
 
   async function handleVote(type: 'up' | 'down') {
-    if (!rating) return;
+    if (!rating || isProcessingVote) return;
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -47,54 +48,98 @@
     }
 
     try {
-      if (userVote === type) {
-        // Remove vote
-        const { error } = await supabase
+      isProcessingVote = true;
+
+      // Check if user has already voted
+      const { data: existingVote } = await supabase
+        .from('votes')
+        .select('vote_type')
+        .eq('rating_id', rating.id)
+        .eq('user_id', user.id)
+        .single();
+
+      let action: 'remove' | 'update' | 'insert' = 'insert';
+      
+      if (existingVote) {
+        if (existingVote.vote_type === type) {
+          action = 'remove';
+        } else {
+          action = 'update';
+        }
+      }
+
+      // Perform database operation first
+      if (action === 'remove') {
+        const { error: deleteError } = await supabase
           .from('votes')
           .delete()
           .eq('rating_id', rating.id)
           .eq('user_id', user.id);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
 
-        // Update local counts
+        // Update vote counts in wing_ratings table
+        const { error: updateError } = await supabase
+          .rpc(type === 'up' ? 'decrement_upvotes' : 'decrement_downvotes', {
+            rating_id: rating.id
+          });
+
+        if (updateError) throw updateError;
+
+        // Update local state after successful DB operation
         if (type === 'up') {
-          localUpvotes--;
+          localUpvotes = Math.max(0, localUpvotes - 1);
         } else {
-          localDownvotes--;
+          localDownvotes = Math.max(0, localDownvotes - 1);
         }
         userVote = null;
-      } else {
-        // If user already voted, remove old vote
-        if (userVote) {
-          const { error } = await supabase
-            .from('votes')
-            .delete()
-            .eq('rating_id', rating.id)
-            .eq('user_id', user.id);
 
-          if (error) throw error;
-
-          // Decrement old vote count
-          if (userVote === 'up') {
-            localUpvotes--;
-          } else {
-            localDownvotes--;
-          }
-        }
-
-        // Add new vote
-        const { error } = await supabase
+      } else if (action === 'update') {
+        const { error: updateError } = await supabase
           .from('votes')
-          .insert([{
+          .update({ 
+            vote_type: type,
+            user_id: user.id
+          })
+          .eq('rating_id', rating.id)
+          .eq('user_id', user.id);
+
+        if (updateError) throw updateError;
+
+        // Update vote counts in wing_ratings table
+        if (type === 'up') {
+          await supabase.rpc('increment_upvotes', { rating_id: rating.id });
+          await supabase.rpc('decrement_downvotes', { rating_id: rating.id });
+          localUpvotes++;
+          localDownvotes = Math.max(0, localDownvotes - 1);
+        } else {
+          await supabase.rpc('increment_downvotes', { rating_id: rating.id });
+          await supabase.rpc('decrement_upvotes', { rating_id: rating.id });
+          localDownvotes++;
+          localUpvotes = Math.max(0, localUpvotes - 1);
+        }
+        userVote = type;
+
+      } else { // insert
+        const { error: insertError } = await supabase
+          .from('votes')
+          .insert({
             rating_id: rating.id,
             user_id: user.id,
             vote_type: type
-          }]);
+          });
 
-        if (error) throw error;
+        if (insertError) throw insertError;
 
-        // Increment new vote count
+        // Update vote counts in wing_ratings table
+        const { error: updateError } = await supabase
+          .rpc(type === 'up' ? 'increment_upvotes' : 'increment_downvotes', {
+            rating_id: rating.id
+          });
+
+        if (updateError) throw updateError;
+
+        // Update local state after successful DB operation
         if (type === 'up') {
           localUpvotes++;
         } else {
@@ -103,9 +148,22 @@
         userVote = type;
       }
 
+      // Update the rating object with new vote counts
+      if (rating) {
+        rating.upvotes_count = localUpvotes;
+        rating.downvotes_count = localDownvotes;
+      }
+
       onVoteChange();
     } catch (err) {
       console.error('Error updating vote:', err);
+      // Revert local counts on error
+      if (rating) {
+        localUpvotes = rating.upvotes_count;
+        localDownvotes = rating.downvotes_count;
+      }
+    } finally {
+      isProcessingVote = false;
     }
   }
 
@@ -117,17 +175,12 @@
     
     if (user) {
       // Check if user has already voted
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('votes')
         .select('vote_type')
         .eq('rating_id', rating.id)
         .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error loading user vote:', error);
-        return;
-      }
+        .maybeSingle();
 
       userVote = data?.vote_type as 'up' | 'down' | null;
     } else {
@@ -173,7 +226,8 @@
       <div class="flex items-center justify-center space-x-12">
         <button
           on:click={() => handleVote('up')}
-          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'up' ? 'text-green-500 bg-green-100 dark:bg-green-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+          disabled={isProcessingVote}
+          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'up' ? 'text-green-500 bg-green-100 dark:bg-green-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
         >
           <Icon icon={faThumbsUp} class="text-2xl mb-1" />
           <span class="font-medium">{localUpvotes}</span>
@@ -181,7 +235,8 @@
         
         <button
           on:click={() => handleVote('down')}
-          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'down' ? 'text-red-500 bg-red-100 dark:bg-red-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+          disabled={isProcessingVote}
+          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'down' ? 'text-red-500 bg-red-100 dark:bg-red-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
         >
           <Icon icon={faThumbsDown} class="text-2xl mb-1" />
           <span class="font-medium">{localDownvotes}</span>
