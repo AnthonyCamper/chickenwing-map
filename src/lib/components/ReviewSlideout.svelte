@@ -36,6 +36,23 @@
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   }
 
+  // Update local vote counts based on vote type change
+  function updateLocalCounts(oldVote: 'up' | 'down' | null, newVote: 'up' | 'down' | null) {
+    if (!rating) return;
+
+    // Reset to original counts
+    localUpvotes = rating.upvotes_count;
+    localDownvotes = rating.downvotes_count;
+
+    // Remove old vote if it exists
+    if (oldVote === 'up') localUpvotes--;
+    if (oldVote === 'down') localDownvotes--;
+
+    // Add new vote if it exists
+    if (newVote === 'up') localUpvotes++;
+    if (newVote === 'down') localDownvotes++;
+  }
+
   async function handleVote(type: 'up' | 'down') {
     if (!rating || isProcessingVote) return;
     console.log('Starting vote process for type:', type);
@@ -50,9 +67,22 @@
       return;
     }
 
+    // Store the current vote state before any changes
+    const currentVote = userVote;
+    
     try {
       isProcessingVote = true;
-      console.log('Processing vote...');
+      
+      // Optimistically update UI
+      if (userVote === type) {
+        // Removing vote
+        updateLocalCounts(type, null);
+        userVote = null;
+      } else {
+        // Adding or changing vote
+        updateLocalCounts(userVote, type);
+        userVote = type;
+      }
 
       // Check if user has already voted
       const { data: existingVote, error: checkError } = await supabase
@@ -62,90 +92,63 @@
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (checkError) {
-        console.error('Error checking existing vote:', checkError);
-      }
-      console.log('Existing vote:', existingVote);
+      if (checkError) throw checkError;
 
+      let error = null;
+
+      // Start a transaction using RPC
       if (existingVote?.vote_type === type) {
-        console.log('Removing existing vote');
-        // Remove vote
-        const { error: deleteError } = await supabase
-          .from('votes')
-          .delete()
-          .eq('rating_id', rating.id)
-          .eq('user_id', user.id);
-
-        if (deleteError) {
-          console.error('Error deleting vote:', deleteError);
-          throw deleteError;
-        }
-
-        userVote = null;
-
+        // Remove vote and decrement count
+        const { error: rpcError } = await supabase.rpc('remove_vote', {
+          p_rating_id: rating.id,
+          p_user_id: user.id,
+          p_vote_type: type
+        });
+        error = rpcError;
       } else if (existingVote) {
-        console.log('Updating existing vote');
-        // Update vote
-        const { error: updateError } = await supabase
-          .from('votes')
-          .update({ vote_type: type })
-          .eq('rating_id', rating.id)
-          .eq('user_id', user.id);
-
-        if (updateError) {
-          console.error('Error updating vote:', updateError);
-          throw updateError;
-        }
-
-        userVote = type;
-
+        // Update vote and update counts
+        const { error: rpcError } = await supabase.rpc('update_vote', {
+          p_rating_id: rating.id,
+          p_user_id: user.id,
+          p_old_vote_type: existingVote.vote_type,
+          p_new_vote_type: type
+        });
+        error = rpcError;
       } else {
-        console.log('Creating new vote');
-        // Create new vote
-        console.log(user.id, rating.id, type)
-        const { error: insertError } = await supabase
-          .from('votes')
-          .insert({
-            rating_id: rating.id,
-            user_id: user.id,
-            vote_type: type
-          });
-
-        if (insertError) {
-          console.error('Error inserting vote:', insertError);
-          throw insertError;
-        }
-
-        userVote = type;
+        // Create new vote and increment count
+        const { error: rpcError } = await supabase.rpc('add_vote', {
+          p_rating_id: rating.id,
+          p_user_id: user.id,
+          p_vote_type: type
+        });
+        error = rpcError;
       }
 
-      // Fetch updated rating to get new vote counts
+      if (error) throw error;
+
+      // Fetch updated rating to sync with server
       const { data: updatedRating, error: fetchError } = await supabase
         .from('wing_ratings')
         .select('upvotes_count, downvotes_count')
         .eq('id', rating.id)
         .single();
 
-      if (fetchError) {
-        console.error('Error fetching updated counts:', fetchError);
-        throw fetchError;
-      }
+      if (fetchError) throw fetchError;
 
       if (updatedRating) {
-        localUpvotes = updatedRating.upvotes_count;
-        localDownvotes = updatedRating.downvotes_count;
         rating.upvotes_count = updatedRating.upvotes_count;
         rating.downvotes_count = updatedRating.downvotes_count;
+        localUpvotes = updatedRating.upvotes_count;
+        localDownvotes = updatedRating.downvotes_count;
       }
 
-      console.log('Vote process completed successfully');
-      console.log('New counts - Up:', localUpvotes, 'Down:', localDownvotes);
       onVoteChange();
 
     } catch (err) {
       console.error('Error in vote process:', err);
       // Revert local state on error
       if (rating) {
+        userVote = currentVote;
         localUpvotes = rating.upvotes_count;
         localDownvotes = rating.downvotes_count;
       }
