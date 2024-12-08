@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { faTimes, faStar, faMapMarkerAlt, faCalendar, faRuler, faThumbsUp, faThumbsDown, faUser } from '@fortawesome/free-solid-svg-icons';
+  import { faTimes, faStar, faMapMarkerAlt, faCalendar, faRuler, faThumbsUp, faThumbsDown, faUser, faSearch } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
   import { supabase } from '$lib/supabase';
   import { onMount, onDestroy } from 'svelte';
@@ -43,9 +43,16 @@
   let localUpvotes = 0;
   let localDownvotes = 0;
   let isProcessingVote = false;
+  let locationReviews: Review[] = [];
+  let searchTerm = '';
 
   function getGoogleMapsLink(address: string) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  }
+
+  function truncateText(text: string, maxLength: number) {
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + '...';
   }
 
   // Update local vote counts based on vote type change
@@ -221,6 +228,29 @@
     }
   }
 
+  async function loadLocationReviews() {
+    if (!review?.location_id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*, location(*)')
+        .eq('location_id', review.location_id)
+        .order('date_visited', { ascending: false });
+
+      if (error) throw error;
+      locationReviews = data || [];
+    } catch (err) {
+      console.error('Error loading location reviews:', err);
+      locationReviews = [];
+    }
+  }
+
+  function selectReview(selectedReview: Review) {
+    review = selectedReview;
+    loadUserVote();
+  }
+
   // Reset state when review changes
   $: if (review && review.id !== prevReviewId) {
     console.log('Review changed, resetting state');
@@ -229,7 +259,18 @@
     localUpvotes = review.upvotes_count;
     localDownvotes = review.downvotes_count;
     loadUserVote();
+    loadLocationReviews();
   }
+
+  // Filter reviews based on search
+  $: filteredReviews = locationReviews.filter(r => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      r.review.toLowerCase().includes(searchLower) ||
+      r.rating.toString().includes(searchLower) ||
+      new Date(r.date_visited).toLocaleDateString().toLowerCase().includes(searchLower)
+    );
+  });
 
   onMount(() => {
     if (review) {
@@ -237,17 +278,16 @@
       localUpvotes = review.upvotes_count;
       localDownvotes = review.downvotes_count;
       loadUserVote();
+      loadLocationReviews();
     }
 
     if (browser) {
-      // Add visibility change listener
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
   });
 
   onDestroy(() => {
     if (browser) {
-      // Remove visibility change listener
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
   });
@@ -256,7 +296,7 @@
 {#if review && review.location}
   <div
     transition:fly={{ x: '100%', duration: 300 }}
-    class="fixed inset-y-0 right-0 w-full sm:w-96 bg-white dark:bg-gray-900 shadow-lg z-[2000] flex flex-col"
+    class="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 shadow-lg z-[2000] flex flex-col"
   >
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
       <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">{review.location.restaurant_name}</h2>
@@ -269,72 +309,127 @@
       </button>
     </div>
 
-    <!-- Voting Section -->
-    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-      <div class="flex items-center justify-center space-x-12">
-        <button
-          on:click={() => handleVote('up')}
-          disabled={isProcessingVote}
-          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'up' ? 'text-green-500 bg-green-100 dark:bg-green-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
-          aria-label="Upvote review"
-        >
-          <Icon icon={faThumbsUp} class="text-2xl mb-1" />
-          <span class="font-medium">{localUpvotes}</span>
-        </button>
-        
-        <button
-          on:click={() => handleVote('down')}
-          disabled={isProcessingVote}
-          class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'down' ? 'text-red-500 bg-red-100 dark:bg-red-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
-          aria-label="Downvote review"
-        >
-          <Icon icon={faThumbsDown} class="text-2xl mb-1" />
-          <span class="font-medium">{localDownvotes}</span>
-        </button>
-      </div>
-    </div>
-    
-    <div class="flex-1 overflow-y-auto">
-      <div class="p-4 space-y-4">
-        <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-          <!-- Reviewer Info -->
-          <div class="flex items-center mb-4">
-            <Icon icon={faUser} class="text-gray-400 mr-2" />
-            <span class="text-gray-700 dark:text-gray-200">Anonymous</span>
-          </div>
-
-          <div class="flex items-center mb-2">
-            <Icon icon={faStar} class="text-yellow-400 mr-2" />
-            <span class="text-2xl font-bold text-gray-700 dark:text-gray-200">{review.rating}/10</span>
-          </div>
-          
-          <a 
-            href={getGoogleMapsLink(review.location.address)} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            class="flex items-center mb-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-            aria-label="View on Google Maps"
-          >
-            <Icon icon={faMapMarkerAlt} class="mr-2" />
-            <span class="underline">{review.location.address}</span>
-          </a>
-          
-          <div class="flex items-center mb-2 text-gray-600 dark:text-gray-300">
-            <Icon icon={faCalendar} class="mr-2" />
-            <span>Visited: {new Date(review.date_visited).toLocaleDateString()}</span>
-          </div>
-          
-          {#if review.distance !== undefined}
-            <div class="flex items-center text-gray-600 dark:text-gray-300">
-              <Icon icon={faRuler} class="mr-2" />
-              <span>Distance: {review.distance.toFixed(2)} km</span>
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Reviews List Sidebar -->
+      <div class="w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Icon icon={faSearch} class="text-gray-400" />
             </div>
-          {/if}
+            <input
+              type="text"
+              bind:value={searchTerm}
+              placeholder="Search reviews..."
+              class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
         </div>
-        
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-          <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-200">Review</h3>
-          <p class="text-gray-600 dark:text-gray-300 leading-relaxed">{review.review}</p>
+        <div class="flex-1 overflow-y-auto">
+          {#each filteredReviews as r (r.id)}
+            <button
+              class="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-b border-gray-200 dark:border-gray-700 {r.id === review.id ? 'bg-blue-50 dark:bg-gray-800' : ''}"
+              on:click={() => selectReview(r)}
+            >
+              <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center">
+                  <Icon icon={faStar} class="text-yellow-400 mr-1" />
+                  <span class="font-semibold dark:text-white">{r.rating}/10</span>
+                </div>
+                <span class="text-sm text-gray-500 dark:text-gray-400">
+                  {new Date(r.date_visited).toLocaleDateString()}
+                </span>
+              </div>
+              <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center space-x-3">
+                  <div class="flex items-center">
+                    <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
+                    <span class="text-sm">{r.upvotes_count || 0}</span>
+                  </div>
+                  <div class="flex items-center">
+                    <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
+                    <span class="text-sm">{r.downvotes_count || 0}</span>
+                  </div>
+                </div>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                {truncateText(r.review, 100)}
+              </p>
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Main Review Content -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Voting Section -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-center space-x-12">
+            <button
+              on:click={() => handleVote('up')}
+              disabled={isProcessingVote}
+              class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'up' ? 'text-green-500 bg-green-100 dark:bg-green-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
+              aria-label="Upvote review"
+            >
+              <Icon icon={faThumbsUp} class="text-2xl mb-1" />
+              <span class="font-medium">{localUpvotes}</span>
+            </button>
+            
+            <button
+              on:click={() => handleVote('down')}
+              disabled={isProcessingVote}
+              class="flex flex-col items-center p-3 rounded-lg transition-colors {userVote === 'down' ? 'text-red-500 bg-red-100 dark:bg-red-900' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'} {isProcessingVote ? 'opacity-50 cursor-not-allowed' : ''}"
+              aria-label="Downvote review"
+            >
+              <Icon icon={faThumbsDown} class="text-2xl mb-1" />
+              <span class="font-medium">{localDownvotes}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+          <div class="p-4 space-y-4">
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+              <!-- Reviewer Info -->
+              <div class="flex items-center mb-4">
+                <Icon icon={faUser} class="text-gray-400 mr-2" />
+                <span class="text-gray-700 dark:text-gray-200">Anonymous</span>
+              </div>
+
+              <div class="flex items-center mb-2">
+                <Icon icon={faStar} class="text-yellow-400 mr-2" />
+                <span class="text-2xl font-bold text-gray-700 dark:text-gray-200">{review.rating}/10</span>
+              </div>
+              
+              <a 
+                href={getGoogleMapsLink(review.location.address)} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="flex items-center mb-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                aria-label="View on Google Maps"
+              >
+                <Icon icon={faMapMarkerAlt} class="mr-2" />
+                <span class="underline">{review.location.address}</span>
+              </a>
+              
+              <div class="flex items-center mb-2 text-gray-600 dark:text-gray-300">
+                <Icon icon={faCalendar} class="mr-2" />
+                <span>Visited: {new Date(review.date_visited).toLocaleDateString()}</span>
+              </div>
+              
+              {#if review.distance !== undefined}
+                <div class="flex items-center text-gray-600 dark:text-gray-300">
+                  <Icon icon={faRuler} class="mr-2" />
+                  <span>Distance: {review.distance.toFixed(2)} km</span>
+                </div>
+              {/if}
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+              <h3 class="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-200">Review</h3>
+              <p class="text-gray-600 dark:text-gray-300 leading-relaxed">{review.review}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
