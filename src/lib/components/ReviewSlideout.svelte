@@ -245,14 +245,14 @@
   }
 
   async function loadLocationReviews() {
-    if (!review?.location_id || fromListView) return;
+    if (!review?.location_id) return;
     
     try {
       const { data, error } = await supabase
         .from('reviews')
         .select(`
           *,
-          location(*),
+          locations (*),
           votes (
             vote_type,
             user_id
@@ -267,6 +267,7 @@
         // Process the reviews to include vote counts
         locationReviews = data.map(review => ({
           ...review,
+          location: review.locations,
           upvotes_count: (review.votes as Vote[] || []).filter(vote => vote.vote_type === 'up').length,
           downvotes_count: (review.votes as Vote[] || []).filter(vote => vote.vote_type === 'down').length
         }));
@@ -349,57 +350,55 @@
     </div>
 
     <div class="flex flex-1 overflow-hidden">
-      {#if !fromListView}
-        <!-- Reviews List Sidebar -->
-        <div class="w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-          <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Icon icon={faSearch} class="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                bind:value={searchTerm}
-                placeholder="Search reviews..."
-                class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+      <!-- Reviews List Sidebar -->
+      <div class="w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Icon icon={faSearch} class="text-gray-400" />
             </div>
-          </div>
-          <div class="flex-1 overflow-y-auto">
-            {#each filteredReviews as r (r.id)}
-              <button
-                class="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-b border-gray-200 dark:border-gray-700 {r.id === review.id ? 'bg-blue-50 dark:bg-gray-800' : ''}"
-                on:click={() => selectReview(r)}
-              >
-                <div class="flex justify-between items-start mb-2">
-                  <div class="flex items-center">
-                    <Icon icon={faStar} class="text-yellow-400 mr-1" />
-                    <span class="font-semibold dark:text-white">{r.rating}/10</span>
-                  </div>
-                  <span class="text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(r.date_visited).toLocaleDateString()}
-                  </span>
-                </div>
-                <div class="flex justify-between items-center mb-2">
-                  <div class="flex items-center space-x-3">
-                    <div class="flex items-center">
-                      <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
-                      <span class="text-sm">{r.upvotes_count || 0}</span>
-                    </div>
-                    <div class="flex items-center">
-                      <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
-                      <span class="text-sm">{r.downvotes_count || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                  {truncateText(r.review, 100)}
-                </p>
-              </button>
-            {/each}
+            <input
+              type="text"
+              bind:value={searchTerm}
+              placeholder="Search reviews..."
+              class="w-full pl-10 pr-4 py-2 text-sm rounded-lg border dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
         </div>
-      {/if}
+        <div class="flex-1 overflow-y-auto">
+          {#each filteredReviews as r (r.id)}
+            <button
+              class="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-b border-gray-200 dark:border-gray-700 {r.id === review.id ? 'bg-blue-50 dark:bg-gray-800' : ''}"
+              on:click={() => selectReview(r)}
+            >
+              <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center">
+                  <Icon icon={faStar} class="text-yellow-400 mr-1" />
+                  <span class="font-semibold dark:text-white">{r.rating}/10</span>
+                </div>
+                <span class="text-sm text-gray-500 dark:text-gray-400">
+                  {new Date(r.date_visited).toLocaleDateString()}
+                </span>
+              </div>
+              <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center space-x-3">
+                  <div class="flex items-center">
+                    <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
+                    <span class="text-sm">{r.upvotes_count || 0}</span>
+                  </div>
+                  <div class="flex items-center">
+                    <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
+                    <span class="text-sm">{r.downvotes_count || 0}</span>
+                  </div>
+                </div>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                {truncateText(r.review, 100)}
+              </p>
+            </button>
+          {/each}
+        </div>
+      </div>
 
       <!-- Main Review Content -->
       <div class="flex-1 flex flex-col overflow-hidden">
