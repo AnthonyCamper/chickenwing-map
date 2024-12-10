@@ -111,6 +111,7 @@
       if (userError || !user) {
         console.log('No user found, showing sign in modal');
         showSignInModal = true;
+        isProcessingVote = false; // Reset processing flag if user needs to sign in
         return;
       }
 
@@ -147,12 +148,11 @@
         });
         error = rpcError;
       } else if (existingVote) {
-        // Update vote and update counts
+        // Update vote and update counts - Fixed parameter order
         const { error: rpcError } = await supabase.rpc('update_vote', {
           p_review_id: review.id,
           p_user_id: user.id,
-          p_old_vote_type: existingVote.vote_type,
-          p_new_vote_type: type
+          p_vote_type: type
         });
         error = rpcError;
       } else {
@@ -207,7 +207,10 @@
         localDownvotes = review.downvotes_count;
       }
     } finally {
-      isProcessingVote = false;
+      // Small delay before resetting processing flag to prevent rapid clicking
+      setTimeout(() => {
+        isProcessingVote = false;
+      }, 500);
     }
   }
 
