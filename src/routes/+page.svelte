@@ -58,7 +58,6 @@
 	let sortOrder = writable('desc');
 
 	let searchQuery = '';
-	let searchType = 'name'; // Can be 'name', 'city', or 'zip'
 	let noResultsFound = false;
 	let mapComponent: MapComponent;
 	let autocompleteResults: string[] = [];
@@ -248,28 +247,30 @@
 
 	async function handleSearch() {
 		showAutocomplete = false;
-		if (searchType === 'name') {
-			const matchingReview = reviews.find((review) =>
-				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
+		if (!searchQuery.trim()) return;
+
+		// First try to find matching restaurant names
+		const matchingReview = reviews.find((review) =>
+			review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
+		);
+
+		if (matchingReview && mapComponent) {
+			mapComponent.zoomToLocation(
+				matchingReview.location.latitude,
+				matchingReview.location.longitude,
+				matchingReview.location.restaurant_name
 			);
-			if (matchingReview && mapComponent) {
-				mapComponent.zoomToLocation(
-					matchingReview.location.latitude,
-					matchingReview.location.longitude,
-					matchingReview.location.restaurant_name
-				);
-				noResultsFound = false;
-			} else {
-				noResultsFound = true;
-			}
-		} else if (searchType === 'city' || searchType === 'zip') {
-			const location = await geocode(searchQuery);
-			if (location && mapComponent) {
-				mapComponent.zoomToLocation(location.latitude, location.longitude, searchQuery);
-				noResultsFound = false;
-			} else {
-				noResultsFound = true;
-			}
+			noResultsFound = false;
+			return;
+		}
+
+		// If no matching restaurant, try geocoding the search query
+		const location = await geocode(searchQuery);
+		if (location && mapComponent) {
+			mapComponent.zoomToLocation(location.latitude, location.longitude, searchQuery);
+			noResultsFound = false;
+		} else {
+			noResultsFound = true;
 		}
 	}
 
@@ -282,11 +283,19 @@
 	}
 
 	function updateAutocomplete() {
-		if (searchQuery.length > 0 && searchType === 'name') {
-			autocompleteResults = [...new Set(reviews
+		if (searchQuery.length > 0) {
+			// Get unique restaurant names that match the search query
+			const matchingNames = [...new Set(reviews
 				.map((review) => review.location.restaurant_name))]
-				.filter((name) => name.toLowerCase().includes(searchQuery.toLowerCase()))
-				.slice(0, 5); // Limit to 5 results
+				.filter((name) => name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+			// Get unique addresses that match the search query
+			const matchingAddresses = [...new Set(reviews
+				.map((review) => review.location.address))]
+				.filter((address) => address.toLowerCase().includes(searchQuery.toLowerCase()));
+
+			// Combine and limit results
+			autocompleteResults = [...matchingNames, ...matchingAddresses].slice(0, 5);
 			showAutocomplete = autocompleteResults.length > 0;
 		} else {
 			showAutocomplete = false;
@@ -300,9 +309,10 @@
 	}
 
 	// Filter reviews based on search query
-	$: filteredReviews = searchQuery && searchType === 'name'
+	$: filteredReviews = searchQuery
 		? sortedReviews.filter(review => 
-				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()))
+				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				review.location.address.toLowerCase().includes(searchQuery.toLowerCase()))
 		: sortedReviews;
 
 	$: displayedReviews = filteredReviews;
@@ -349,27 +359,13 @@
 		</div>
 		<div class="mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-4 relative">
 			<div class="flex-grow w-full sm:w-auto">
-				<div class="flex rounded-md shadow-sm mb-2" role="group">
-					<label class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-l-md bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-200 dark:border-gray-600">
-						<input type="radio" bind:group={searchType} value="name" class="sr-only" />
-						<span class={searchType === 'name' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>Name</span>
-					</label>
-					<label class="inline-flex items-center px-3 py-2 text-sm font-medium bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-200 dark:border-gray-600">
-						<input type="radio" bind:group={searchType} value="city" class="sr-only" />
-						<span class={searchType === 'city' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>City</span>
-					</label>
-					<label class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-r-md bg-white dark:bg-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600">
-						<input type="radio" bind:group={searchType} value="zip" class="sr-only" />
-						<span class={searchType === 'zip' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}>ZIP</span>
-					</label>
-				</div>
 				<div class="relative">
 					<input
 						type="text"
 						on:keypress={handleKeyPress}
 						bind:value={searchQuery}
 						on:input={updateAutocomplete}
-						placeholder={`Search by ${searchType}...`}
+						placeholder="Search places..."
 						class="w-full p-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 					/>
 					<button
