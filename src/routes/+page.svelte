@@ -53,6 +53,7 @@
 	let user: any = null;
 	let showAddReviewModal = false;
 	let showSignInModal = false;
+	let reviewFromListView = false;
 
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
@@ -233,10 +234,12 @@
 
 	function handleShowReview(review: Review) {
 		selectedReview = review ? { ...review } : null;
+		reviewFromListView = !isMapView;
 	}
 
 	function closeSlideout() {
 		selectedReview = null;
+		reviewFromListView = false;
 	}
 
 	async function handleVoteChange() {
@@ -434,7 +437,12 @@
 	</div>
 </div>
 
-<ReviewSlideout review={selectedReview} onClose={closeSlideout} onVoteChange={handleVoteChange} />
+<ReviewSlideout 
+	review={selectedReview} 
+	onClose={closeSlideout} 
+	onVoteChange={handleVoteChange} 
+	fromListView={reviewFromListView}
+/>
 <AddReviewModal 
 	show={showAddReviewModal} 
 	onClose={() => showAddReviewModal = false} 
