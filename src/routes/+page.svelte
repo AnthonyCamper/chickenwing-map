@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
-	import type { SvelteComponentTyped } from "svelte";
 	import Map from '$lib/components/Map.svelte';
 	import ListView from '$lib/components/ListView.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -12,6 +11,11 @@
 	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 	import { geocode } from '$lib/geocoding';
+
+	interface Vote {
+		vote_type: 'up' | 'down';
+		user_id: string;
+	}
 
 	interface Location {
 		id: number;
@@ -32,16 +36,13 @@
 		distance?: number;
 		upvotes_count: number;
 		downvotes_count: number;
+		votes?: Vote[];
 	}
 
-	interface MapComponent extends SvelteComponentTyped<{
-		reviews: Review[];
-		onMarkerClick: (review: Review) => void;
-		isSlideoutOpen: boolean;
-		userLocation: { latitude: number; longitude: number } | null;
-	}> {
+	// Import the Map component type directly
+	type MapComponent = InstanceType<typeof Map> & {
 		zoomToLocation: (latitude: number, longitude: number, locationName: string) => void;
-	}
+	};
 
 	let reviews: Review[] = [];
 	let isMapView = true;
@@ -148,12 +149,16 @@
 		isLoading = true;
 		console.log('=== FETCHING REVIEWS ===');
 
-		// Get reviews with locations and vote counts
+		// Get reviews with locations and votes
 		const { data, error } = await supabase
 			.from('reviews')
 			.select(`
 				*,
-				location:locations(*)
+				location:locations(*),
+				votes (
+					vote_type,
+					user_id
+				)
 			`);
 
 		if (error) {
@@ -161,21 +166,23 @@
 		} else {
 			console.log('Fetched data:', JSON.stringify(data, null, 2));
 			const currentLocation = userLocation;
-			reviews = data || [];
-			if (currentLocation) {
-				reviews = reviews.map((review) => ({
-					...review,
-					distance: calculateDistance(
-						currentLocation.latitude,
-						currentLocation.longitude,
-						review.location.latitude,
-						review.location.longitude
-					)
-				}));
-			}
+			
+			// Process reviews to include vote counts
+			reviews = (data || []).map((review: Review) => ({
+				...review,
+				upvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'up').length || 0,
+				downvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'down').length || 0,
+				distance: currentLocation ? calculateDistance(
+					currentLocation.latitude,
+					currentLocation.longitude,
+					review.location.latitude,
+					review.location.longitude
+				) : undefined
+			}));
+
 			// Update selectedReview if it exists
 			if (selectedReview) {
-				const updatedReview = reviews.find(r => r.id === selectedReview.id);
+				const updatedReview = reviews.find((r: Review) => r.id === selectedReview?.id);
 				if (updatedReview) {
 					console.log('Updating selected review:', JSON.stringify(updatedReview, null, 2));
 					selectedReview = { ...updatedReview };

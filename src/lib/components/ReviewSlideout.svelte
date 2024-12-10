@@ -16,6 +16,11 @@
     longitude: number;
   }
 
+  interface Vote {
+    vote_type: 'up' | 'down';
+    user_id: string;
+  }
+
   interface Review {
     id: number;
     location_id: number;
@@ -27,10 +32,7 @@
     distance?: number;
     upvotes_count: number;
     downvotes_count: number;
-  }
-
-  interface Vote {
-    vote_type: 'up' | 'down';
+    votes?: Vote[];
   }
 
   export let review: Review | null = null;
@@ -167,17 +169,30 @@
       // Fetch updated review to sync with server
       const { data: updatedReview, error: fetchError } = await supabase
         .from('reviews')
-        .select('upvotes_count, downvotes_count')
+        .select(`
+          *,
+          votes (
+            vote_type,
+            user_id
+          )
+        `)
         .eq('id', review.id)
         .single();
 
       if (fetchError) throw fetchError;
 
       if (updatedReview) {
-        review.upvotes_count = updatedReview.upvotes_count;
-        review.downvotes_count = updatedReview.downvotes_count;
-        localUpvotes = updatedReview.upvotes_count;
-        localDownvotes = updatedReview.downvotes_count;
+        const upvotes = (updatedReview.votes as Vote[] || []).filter(vote => vote.vote_type === 'up').length;
+        const downvotes = (updatedReview.votes as Vote[] || []).filter(vote => vote.vote_type === 'down').length;
+        
+        review = {
+          ...updatedReview,
+          upvotes_count: upvotes,
+          downvotes_count: downvotes
+        };
+        
+        localUpvotes = upvotes;
+        localDownvotes = downvotes;
       }
 
       onVoteChange();
@@ -234,12 +249,29 @@
     try {
       const { data, error } = await supabase
         .from('reviews')
-        .select('*, location(*)')
+        .select(`
+          *,
+          location(*),
+          votes (
+            vote_type,
+            user_id
+          )
+        `)
         .eq('location_id', review.location_id)
         .order('date_visited', { ascending: false });
 
       if (error) throw error;
-      locationReviews = data || [];
+
+      if (data) {
+        // Process the reviews to include vote counts
+        locationReviews = data.map(review => ({
+          ...review,
+          upvotes_count: (review.votes as Vote[] || []).filter(vote => vote.vote_type === 'up').length,
+          downvotes_count: (review.votes as Vote[] || []).filter(vote => vote.vote_type === 'down').length
+        }));
+      } else {
+        locationReviews = [];
+      }
     } catch (err) {
       console.error('Error loading location reviews:', err);
       locationReviews = [];
@@ -294,9 +326,15 @@
 </script>
 
 {#if review && review.location}
+  <!-- Semi-transparent overlay -->
+  <div 
+    class="fixed inset-0 bg-black bg-opacity-50 z-[9998]"
+    on:click={onClose}
+  ></div>
+
   <div
     transition:fly={{ x: '100%', duration: 300 }}
-    class="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 shadow-lg z-[2000] flex flex-col"
+    class="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 shadow-lg z-[9999] flex flex-col"
   >
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
       <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">{review.location.restaurant_name}</h2>
