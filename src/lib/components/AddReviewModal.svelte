@@ -72,35 +72,51 @@
   }
 
   const ratingDescriptions: RatingDescriptions = {
-    appearance: {
-      1: "Visually unappealing",
-      3: "Below average presentation",
-      5: "Average appearance",
-      7: "Appetizing presentation",
-      10: "Instagram-worthy perfection"
-    },
-    sauceHeat: {
-      1: "No heat at all",
-      3: "Mild tingle",
-      5: "Pleasantly spicy",
-      7: "Getting serious",
-      10: "Call the fire department! 🔥"
-    },
-    meatQuality: {
-      1: "Tough and chewy",
-      3: "Below average",
-      5: "Decent quality",
-      7: "Tender and juicy",
-      10: "Melt-in-your-mouth perfect"
-    },
-    recommendationScore: {
-      0: "Never again",
-      3: "Only if desperate",
-      5: "It's okay",
-      7: "Would return",
-      10: "Life-changing wings!"
-    }
-  };
+  appearance: {
+    1: "Visually unappealing",
+    3: "Below average presentation",
+    5: "Average appearance",
+    7: "Appetizing presentation",
+    10: "Instagram-worthy perfection"
+  },
+  sauceHeat: {
+    1: "No heat at all",
+    3: "Mild tingle",
+    5: "Pleasantly spicy",
+    7: "Getting serious",
+    10: "Call the fire department! 🔥"
+  },
+  meatQuality: {
+    1: "Tough and chewy",
+    3: "Below average",
+    5: "Decent quality",
+    7: "Tender and juicy",
+    10: "Melt-in-your-mouth perfect"
+  },
+  recommendationScore: {
+    0: "Literal biohazard - calling the health department",
+    0.5: "Pretty sure this violated the Geneva Convention",
+    1: "Major regrets, contemplating life choices",
+    1.5: "Stomach is filing for divorce",
+    2: "Absolutely terrible, wouldn't feed to my enemy",
+    2.5: "At least it resembles food... technically",
+    3: "Bad enough to make you swear off wings",
+    3.5: "Disappointingly poor",
+    4: "Edible in emergencies only",
+    4.5: "Below average, but won't ruin your day",
+    5: "Perfectly average wings",
+    5.5: "Slightly above average",
+    6: "Good, but not memorable",
+    6.5: "Better than most",
+    7: "Would definitely return",
+    7.5: "Excellent wings",
+    8: "Outstanding quality",
+    8.5: "Among the best I've had",
+    9: "Exceptional wings",
+    9.5: "Nearly perfect",
+    10: "Life-changing wings!"
+  }
+};
 
   // Function to get rating description with proper typing
   function getRatingDescription(category: keyof RatingDescriptions, value: number): string {
@@ -831,23 +847,53 @@
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Recommendation Score (0-10)
         </label>
-        <div class="slider-container">
-          <span class="slider-value">{formatSliderValue(recommendationScore)}</span>
+        <div class="relative">
           <input
-            type="range"
+            type="number"
             min="0"
             max="10"
+            step="0.1"
             bind:value={recommendationScore}
-            on:input={() => handleRatingChange('recommendationScore')}
-            class="w-full"
+            on:input={(e) => {
+              const value = parseFloat(e.target.value);
+              if (!isNaN(value)) {
+                recommendationScore = Math.round(value * 10) / 10; // Round to 1 decimal place
+              }
+              handleRatingChange('recommendationScore');
+            }}
+            class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 
+                   bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                   focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Enter score (e.g. 7.8)"
           />
+          {#if recommendationScore !== null && recommendationScore >= 0 && recommendationScore <= 10}
+            <div class="mt-2 text-sm">
+              <div class="font-medium text-blue-500">
+                Score: {recommendationScore.toFixed(1)} / 10
+              </div>
+              <div class="mt-1 text-gray-600 dark:text-gray-400">
+                {getRatingDescription('recommendationScore', Math.round(recommendationScore * 2) / 2)}
+              </div>
+            </div>
+          {/if}
+          {#if recommendationScore < 0 || recommendationScore > 10}
+            <div class="mt-1 text-sm text-red-500">
+              Please enter a score between 0 and 10
+            </div>
+          {/if}
         </div>
-        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-          <span>Would Not Recommend</span>
-          <span class="text-blue-500 font-medium">
-            {getRatingDescription('recommendationScore', recommendationScore)}
-          </span>
-          <span>Strongly Recommend</span>
+        <div class="flex flex-col space-y-2 mt-3">
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Score Guide:
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <div>0-2: Poor</div>
+            <div>2.1-4: Below Average</div>
+            <div>4.1-6: Average</div>
+            <div>6.1-8: Above Average</div>
+            <div>8.1-9: Excellent</div>
+            <div>9.1-10: Exceptional</div>
+          </div>
         </div>
       </div>
     </div>
