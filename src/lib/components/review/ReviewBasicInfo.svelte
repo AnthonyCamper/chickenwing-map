@@ -86,7 +86,7 @@
         type="button"
         on:click={verifyAddress}
         disabled={!address || verifyingAddress}
-        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+        class="w-32 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
       >
         {verifyingAddress ? 'Verifying...' : 'Verify Address'}
       </button>
