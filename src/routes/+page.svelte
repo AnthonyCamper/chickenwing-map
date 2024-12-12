@@ -179,15 +179,6 @@
 					review.location.longitude
 				) : undefined
 			}));
-
-			// Update selectedReview if it exists
-			if (selectedReview) {
-				const updatedReview = reviews.find((r: Review) => r.id === selectedReview?.id);
-				if (updatedReview) {
-					console.log('Updating selected review:', JSON.stringify(updatedReview, null, 2));
-					selectedReview = { ...updatedReview };
-				}
-			}
 		}
 		isLoading = false;
 		console.log('=== FETCH COMPLETE ===');
@@ -242,10 +233,29 @@
 		reviewFromListView = false;
 	}
 
-	async function handleVoteChange() {
-		console.log('=== VOTE CHANGED ===');
-		console.log('Refreshing data...');
-		await fetchReviews();
+	function handleVoteChange(updatedReview: Review) {
+		// Update the review in the reviews array without fetching
+		reviews = reviews.map(r => {
+			if (r.id === updatedReview.id) {
+				return {
+					...r,
+					upvotes_count: updatedReview.upvotes_count,
+					downvotes_count: updatedReview.downvotes_count,
+					votes: updatedReview.votes
+				};
+			}
+			return r;
+		});
+
+		// Update selectedReview if it's the one that changed
+		if (selectedReview && selectedReview.id === updatedReview.id) {
+			selectedReview = {
+				...selectedReview,
+				upvotes_count: updatedReview.upvotes_count,
+				downvotes_count: updatedReview.downvotes_count,
+				votes: updatedReview.votes
+			};
+		}
 	}
 
 	async function handleSearch() {
@@ -440,7 +450,7 @@
 <ReviewSlideout 
 	review={selectedReview} 
 	onClose={closeSlideout} 
-	onVoteChange={handleVoteChange} 
+	{handleVoteChange}
 	fromListView={reviewFromListView}
 />
 <AddReviewModal 

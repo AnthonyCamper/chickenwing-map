@@ -37,7 +37,7 @@
 
   export let review: Review | null = null;
   export let onClose: () => void;
-  export let onVoteChange: () => void;
+  export let handleVoteChange: (review: Review) => void;
   export let fromListView = false;
 
   let userVote: 'up' | 'down' | null = null;
@@ -186,17 +186,31 @@
         const upvotes = (updatedReview.votes as Vote[] || []).filter(vote => vote.vote_type === 'up').length;
         const downvotes = (updatedReview.votes as Vote[] || []).filter(vote => vote.vote_type === 'down').length;
         
-        review = {
+        const updatedReviewWithCounts: Review = {
           ...updatedReview,
           upvotes_count: upvotes,
           downvotes_count: downvotes
         };
         
+        review = updatedReviewWithCounts;
         localUpvotes = upvotes;
         localDownvotes = downvotes;
-      }
 
-      onVoteChange();
+        // Update the corresponding review in locationReviews
+        locationReviews = locationReviews.map(r => {
+          if (r.id === updatedReviewWithCounts.id) {
+            return {
+              ...r,
+              upvotes_count: upvotes,
+              downvotes_count: downvotes
+            };
+          }
+          return r;
+        });
+
+        // Notify parent component of the vote change
+        handleVoteChange(updatedReviewWithCounts);
+      }
 
     } catch (err) {
       console.error('Error in vote process:', err);
