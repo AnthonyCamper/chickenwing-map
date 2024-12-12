@@ -16,6 +16,31 @@
   let dateVisited = new Date().toISOString().split('T')[0]; // Default to today
   let error = '';
   let loading = false;
+  let coordinates: { latitude: number; longitude: number } | null = null;
+  let verifyingAddress = false;
+
+  async function verifyAddress() {
+    try {
+      verifyingAddress = true;
+      error = '';
+      coordinates = null;
+
+      if (!address) {
+        error = 'Please enter an address';
+        return;
+      }
+
+      coordinates = await geocode(address);
+      if (!coordinates) {
+        error = 'Could not find coordinates for this address';
+      }
+    } catch (err) {
+      error = 'Error verifying address';
+      coordinates = null;
+    } finally {
+      verifyingAddress = false;
+    }
+  }
 
   async function handleSubmit() {
     try {
@@ -23,8 +48,8 @@
       error = '';
 
       // Validate inputs
-      if (!restaurantName || !address || !reviewNotes || !dateVisited) {
-        error = 'Please fill in all required fields';
+      if (!restaurantName || !address || !reviewNotes || !dateVisited || !coordinates) {
+        error = 'Please fill in all required fields and verify the address';
         return;
       }
 
@@ -53,13 +78,6 @@
         return;
       }
 
-      // Get coordinates from address
-      const location = await geocode(address);
-      if (!location) {
-        error = 'Could not find coordinates for this address';
-        return;
-      }
-
       // First, check if location exists
       const { data: existingLocation, error: locationError } = await supabase
         .from('locations')
@@ -81,8 +99,8 @@
           .insert([{
             restaurant_name: restaurantName,
             address: address,
-            latitude: location.latitude,
-            longitude: location.longitude
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude
           }])
           .select('id')
           .single();
@@ -114,6 +132,7 @@
       rating = 5;
       reviewNotes = '';
       dateVisited = new Date().toISOString().split('T')[0];
+      coordinates = null;
       onReviewAdded();
       onClose();
     } catch (err) {
@@ -126,6 +145,10 @@
       loading = false;
     }
   }
+
+  $: mapUrl = coordinates 
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${coordinates.longitude-0.01},${coordinates.latitude-0.01},${coordinates.longitude+0.01},${coordinates.latitude+0.01}&marker=${coordinates.latitude},${coordinates.longitude}`
+    : '';
 </script>
 
 {#if show}
@@ -169,14 +192,44 @@
           <label for="address" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Address *
           </label>
-          <input
-            type="text"
-            id="address"
-            bind:value={address}
-            class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="Enter full address"
-            required
-          />
+          <div class="flex gap-2">
+            <input
+              type="text"
+              id="address"
+              bind:value={address}
+              class="flex-1 p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              placeholder="Enter full address"
+              required
+            />
+            <button
+              type="button"
+              on:click={verifyAddress}
+              disabled={verifyingAddress || !address}
+              class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md border border-gray-300 dark:border-gray-600 disabled:opacity-50"
+            >
+              {verifyingAddress ? 'Verifying...' : 'Verify'}
+            </button>
+          </div>
+          {#if coordinates}
+            <div class="mt-2">
+              <div class="text-sm text-green-600 dark:text-green-400 mb-2">
+                ✓ Coordinates verified: {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
+              </div>
+              <div class="relative w-full h-48 border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
+                <iframe
+                  title="Location Map"
+                  width="100%"
+                  height="100%"
+                  frameborder="0"
+                  scrolling="no"
+                  marginheight="0"
+                  marginwidth="0"
+                  src={mapUrl}
+                  style="border: none"
+                ></iframe>
+              </div>
+            </div>
+          {/if}
         </div>
 
         <div>
@@ -224,7 +277,7 @@
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !coordinates}
           class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Adding Review...' : 'Add Review'}
