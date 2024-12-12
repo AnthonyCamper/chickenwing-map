@@ -1,26 +1,50 @@
-export interface Location {
-  id: number;
-  restaurant_name: string;
+export interface ReviewBasicInfo {
+  restaurantName: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  dateVisited: string;
+  websiteUrl: string;
+  coordinates: { latitude: number; longitude: number } | null;
+  error: string;
 }
 
-export interface Vote {
-  vote_type: 'up' | 'down';
-  user_id: string;
+export interface ReviewExperienceDetails {
+  moodComparison: number;
+  beerInfluence: boolean;
+  isTakeout: boolean;
+  wingsPerOrder: number;
+  wingSize: number;
+  wingFormat: string;
+  takeoutContainer: string;
+  takeoutWaitTime: number;
 }
 
-export interface Review {
-  id: number;
-  location_id: number;
-  user_id: string;
-  review: string;
-  rating: string;
-  date_visited: string;
-  location?: Location;
-  distance?: number;
-  upvotes_count: number;
-  downvotes_count: number;
-  votes?: Vote[];
+export interface ReviewSauceDetails {
+  sauceAvailability: boolean;
+  selectedSauces: string[];
+}
+
+export interface ReviewRatings {
+  appearance: number;
+  aroma: number;
+  sauceQuantity: number;
+  sauceConsistency: number;
+  sauceHeat: number;
+  skinConsistency: number;
+  meatQuality: number;
+  greasiness: number;
+  blueCheeseQuality: number;
+  blueCheeseNA: boolean;
+  satisfactionScore: number;
+  recommendationScore: number;
+}
+
+export interface RatingDescription {
+  [key: number]: string;
+}
+
+export interface RatingDescriptions {
+  appearance: RatingDescription;
+  sauceHeat: RatingDescription;
+  meatQuality: RatingDescription;
+  recommendationScore: RatingDescription;
 }
