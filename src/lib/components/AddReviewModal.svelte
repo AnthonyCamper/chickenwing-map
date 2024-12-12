@@ -301,11 +301,34 @@
   $: mapUrl = coordinates 
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${coordinates.longitude-0.01},${coordinates.latitude-0.01},${coordinates.longitude+0.01},${coordinates.latitude+0.01}&marker=${coordinates.latitude},${coordinates.longitude}`
     : '';
+
+    function formatSliderValue(value: number, prefix: string = ''): string {
+    return `${prefix}${value}`;
+  }
+
 </script>
 
 <style>
-  /* Add smooth transitions */
-  input[type="range"] {
+  /* Previous styles remain the same */
+
+  /* Add styles for value display */
+  .slider-value {
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-size: 0.875rem;
+    color: #3b82f6;
+    font-weight: 500;
+  }
+
+  /* Ensure consistent slider styling */
+  .slider-container {
+    position: relative;
+    padding-right: 2.5rem;
+  }
+
+   /* Add smooth transitions */
+   input[type="range"] {
     transition: all 0.2s ease;
   }
   input[type="range"]:hover {
@@ -362,9 +385,12 @@
       height: 28px;
     }
   }
-  </style>
 
 
+  /* Rest of styles remain the same */
+</style>
+
+<!-- Previous content remains the same until the ratings section -->
 {#if show}
   <div class="fixed inset-0 bg-black bg-opacity-50 z-[3000] flex items-center justify-center p-4">
     <div 
@@ -560,273 +586,307 @@
             {/if}
           </div>
         </div>
-
-        <!-- Enhanced Ratings Section -->
-        <div class="space-y-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Detailed Ratings</h3>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Visual and Aroma -->
-            <div class="space-y-4">
-              <div class={lastChanged === 'appearance' ? 'rating-changed' : ''}>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Appearance (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={appearance}
-                  on:input={() => handleRatingChange('appearance')}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  <span>Poor</span>
-                  <span class="text-blue-500 font-medium">
-                    {getRatingDescription('appearance', appearance)}
-                  </span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Aroma (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={aroma}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Poor</span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Sauce Ratings -->
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Sauce Quantity (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={sauceQuantity}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Poor</span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Sauce Consistency (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={sauceConsistency}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Poor</span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div class={lastChanged === 'sauceHeat' ? 'rating-changed' : ''}>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Sauce Heat (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={sauceHeat}
-                  on:input={() => handleRatingChange('sauceHeat')}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  <span>No Heat</span>
-                  <span class="text-blue-500 font-medium">
-                    {getRatingDescription('sauceHeat', sauceHeat)}
-                  </span>
-                  <span>Extreme</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Texture Ratings -->
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Skin Consistency (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={skinConsistency}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Poor</span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div class={lastChanged === 'meatQuality' ? 'rating-changed' : ''}>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Meat Quality (1-10)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={meatQuality}
-                  on:input={() => handleRatingChange('meatQuality')}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  <span>Poor</span>
-                  <span class="text-blue-500 font-medium">
-                    {getRatingDescription('meatQuality', meatQuality)}
-                  </span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Greasiness (1-5)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  bind:value={greasiness}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Not Greasy</span>
-                  <span>Very Greasy</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Overall Ratings -->
-            <div class="space-y-4">
-              <div>
-                <div class="flex items-center justify-between mb-1">
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Blue Cheese Quality (1-10)
-                  </label>
-                  <label class="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      bind:checked={blueCheeseNA}
-                      class="rounded border-gray-300 dark:border-gray-600"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">N/A</span>
-                  </label>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  bind:value={blueCheeseQuality}
-                  disabled={blueCheeseNA}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Poor</span>
-                  <span>Excellent</span>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Satisfaction (1-5)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  bind:value={satisfactionScore}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Very Dissatisfied</span>
-                  <span>Very Satisfied</span>
-                </div>
-              </div>
-
-              <div class={lastChanged === 'recommendationScore' ? 'rating-changed' : ''}>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Recommendation Score (0-10)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  bind:value={recommendationScore}
-                  on:input={() => handleRatingChange('recommendationScore')}
-                  class="w-full"
-                />
-                <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  <span>Would Not Recommend</span>
-                  <span class="text-blue-500 font-medium">
-                    {getRatingDescription('recommendationScore', recommendationScore)}
-                  </span>
-                  <span>Strongly Recommend</span>
-                </div>
-              </div>
-            </div>
-          </div>
+<!-- Modified Ratings Section -->
+<div class="space-y-4">
+  <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Detailed Ratings</h3>
+  
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Visual and Aroma -->
+    <div class="space-y-4">
+      <div class={lastChanged === 'appearance' ? 'rating-changed' : ''}>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Appearance (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(appearance)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={appearance}
+            on:input={() => handleRatingChange('appearance')}
+            class="w-full"
+          />
         </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+          <span>Poor</span>
+          <span class="text-blue-500 font-medium">
+            {getRatingDescription('appearance', appearance)}
+          </span>
+          <span>Excellent</span>
+        </div>
+      </div>
 
-        <!-- Additional Notes -->
-        <div>
-          <label for="reviewNotes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Additional Notes
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Aroma (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(aroma)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={aroma}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sauce Ratings -->
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Sauce Quantity (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(sauceQuantity)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={sauceQuantity}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Sauce Consistency (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(sauceConsistency)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={sauceConsistency}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <div class={lastChanged === 'sauceHeat' ? 'rating-changed' : ''}>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Sauce Heat (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(sauceHeat)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={sauceHeat}
+            on:input={() => handleRatingChange('sauceHeat')}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+          <span>No Heat</span>
+          <span class="text-blue-500 font-medium">
+            {getRatingDescription('sauceHeat', sauceHeat)}
+          </span>
+          <span>Extreme</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Texture Ratings -->
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Skin Consistency (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(skinConsistency)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={skinConsistency}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <div class={lastChanged === 'meatQuality' ? 'rating-changed' : ''}>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Meat Quality (1-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(meatQuality)}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={meatQuality}
+            on:input={() => handleRatingChange('meatQuality')}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+          <span>Poor</span>
+          <span class="text-blue-500 font-medium">
+            {getRatingDescription('meatQuality', meatQuality)}
+          </span>
+          <span>Excellent</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Greasiness (1-5)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(greasiness)}</span>
+          <input
+            type="range"
+            min="1"
+            max="5"
+            bind:value={greasiness}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Not Greasy</span>
+          <span>Very Greasy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overall Ratings -->
+    <div class="space-y-4">
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Blue Cheese Quality (1-10)
           </label>
-          <textarea
-            id="reviewNotes"
-            bind:value={reviewNotes}
-            rows="4"
-            class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="Enter any additional notes about your experience"
-          ></textarea>
+          <label class="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              bind:checked={blueCheeseNA}
+              class="rounded border-gray-300 dark:border-gray-600"
+            />
+            <span class="text-sm text-gray-700 dark:text-gray-300">N/A</span>
+          </label>
         </div>
+        <div class="slider-container">
+          <span class="slider-value">{!blueCheeseNA ? formatSliderValue(blueCheeseQuality) : 'N/A'}</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={blueCheeseQuality}
+            disabled={blueCheeseNA}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
 
-        <!-- Enhanced Submit Button -->
-        <button
-          type="submit"
-          disabled={loading || !coordinates}
-          class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium 
-                 disabled:opacity-50 disabled:cursor-not-allowed transform transition-transform 
-                 active:scale-95 hover:scale-[1.02] focus:outline-none focus:ring-2 
-                 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          {#if loading}
-            <span class="inline-block animate-spin mr-2">↻</span>
-            Adding Review...
-          {:else}
-            Add Review
-          {/if}
-        </button>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Satisfaction (1-5)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(satisfactionScore)}</span>
+          <input
+            type="range"
+            min="1"
+            max="5"
+            bind:value={satisfactionScore}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Very Dissatisfied</span>
+          <span>Very Satisfied</span>
+        </div>
+      </div>
+
+      <div class={lastChanged === 'recommendationScore' ? 'rating-changed' : ''}>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Recommendation Score (0-10)
+        </label>
+        <div class="slider-container">
+          <span class="slider-value">{formatSliderValue(recommendationScore)}</span>
+          <input
+            type="range"
+            min="0"
+            max="10"
+            bind:value={recommendationScore}
+            on:input={() => handleRatingChange('recommendationScore')}
+            class="w-full"
+          />
+        </div>
+        <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+          <span>Would Not Recommend</span>
+          <span class="text-blue-500 font-medium">
+            {getRatingDescription('recommendationScore', recommendationScore)}
+          </span>
+          <span>Strongly Recommend</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Additional Notes -->
+<div>
+  <label for="reviewNotes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+    Additional Notes
+  </label>
+  <textarea
+    id="reviewNotes"
+    bind:value={reviewNotes}
+    rows="4"
+    class="w-full p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+    placeholder="Enter any additional notes about your experience"
+  ></textarea>
+</div>
+
+<!-- Enhanced Submit Button -->
+<button
+  type="submit"
+  disabled={loading || !coordinates}
+  class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium 
+         disabled:opacity-50 disabled:cursor-not-allowed transform transition-transform 
+         active:scale-95 hover:scale-[1.02] focus:outline-none focus:ring-2 
+         focus:ring-blue-500 focus:ring-offset-2"
+>
+  {#if loading}
+    <span class="inline-block animate-spin mr-2">↻</span>
+    Adding Review...
+  {:else}
+    Add Review
+  {/if}
+</button>
+
       </form>
     </div>
   </div>
 {/if}
+
