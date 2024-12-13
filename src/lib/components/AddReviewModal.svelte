@@ -101,8 +101,7 @@
             restaurant_name: restaurantName,
             address: address,
             latitude: coordinates.latitude,
-            longitude: coordinates.longitude,
-            website_url: websiteUrl
+            longitude: coordinates.longitude
           }])
           .select('id')
           .single();
@@ -120,8 +119,9 @@
         .insert([{
           location_id: locationId,
           user_id: user.id,
-          review_notes: reviewNotes,
+          review: reviewNotes,
           date_visited: dateVisited,
+          website_url: websiteUrl,
           mood_comparison: moodComparison,
           beer_influence: beerInfluence ? 1 : 0,
           is_takeout: isTakeout ? 1 : 0,
@@ -129,16 +129,16 @@
           wings_per_order: wingsPerOrder,
           wing_size: wingSize,
           sauce_availability: sauceAvailability ? 1 : 0,
-          sauce_selection: selectedSauces,
-          appearance: appearance,
-          aroma: aroma,
-          sauce_quantity: sauceQuantity,
-          sauce_consistency: sauceConsistency,
-          sauce_heat: sauceHeat,
-          skin_consistency: skinConsistency,
-          meat_quality: meatQuality,
-          greasiness: greasiness,
-          blue_cheese_quality: blueCheeseNA ? null : blueCheeseQuality,
+          selected_sauces: selectedSauces,
+          appearance_rating: appearance,
+          aroma_rating: aroma,
+          sauce_quantity_rating: sauceQuantity,
+          sauce_consistency_rating: sauceConsistency,
+          sauce_heat_rating: sauceHeat,
+          skin_consistency_rating: skinConsistency,
+          meat_quality_rating: meatQuality,
+          greasiness_rating: greasiness,
+          blue_cheese_quality_rating: blueCheeseNA ? null : blueCheeseQuality,
           satisfaction_score: satisfactionScore,
           recommendation_score: recommendationScore,
           takeout_container: isTakeout ? takeoutContainer : null,

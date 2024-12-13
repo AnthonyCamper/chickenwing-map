@@ -11,38 +11,7 @@
 	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 	import { geocode } from '$lib/geocoding';
-
-	interface Vote {
-		vote_type: 'up' | 'down';
-		user_id: string;
-	}
-
-	interface Location {
-		id: number;
-		restaurant_name: string;
-		address: string;
-		latitude: number;
-		longitude: number;
-	}
-
-	interface Review {
-		id: number;
-		location_id: number;
-		user_id: string;
-		review: string;
-		rating: string;
-		date_visited: string;
-		location: Location;
-		distance?: number;
-		upvotes_count: number;
-		downvotes_count: number;
-		votes?: Vote[];
-	}
-
-	// Import the Map component type directly
-	type MapComponent = InstanceType<typeof Map> & {
-		zoomToLocation: (latitude: number, longitude: number, locationName: string) => void;
-	};
+	import type { Review, Vote, Location } from '$lib/components/review/types';
 
 	let reviews: Review[] = [];
 	let isMapView = true;
@@ -63,6 +32,11 @@
 	let mapComponent: MapComponent;
 	let autocompleteResults: string[] = [];
 	let showAutocomplete = false;
+
+	// Import the Map component type directly
+	type MapComponent = InstanceType<typeof Map> & {
+		zoomToLocation: (latitude: number, longitude: number, locationName: string) => void;
+	};
 
 	$: isSlideoutOpen = !!selectedReview;
 
@@ -167,17 +141,53 @@
 			console.log('Fetched data:', JSON.stringify(data, null, 2));
 			const currentLocation = userLocation;
 			
-			// Process reviews to include vote counts
-			reviews = (data || []).map((review: Review) => ({
-				...review,
+			// Process reviews to include vote counts and map to Review type
+			reviews = (data || []).map((review: any) => ({
+				id: review.id,
+				location_id: review.location_id,
+				user_id: review.user_id,
+				review: review.review,
+				rating: review.rating,
+				date_visited: review.date_visited,
+				location: review.location,
 				upvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'up').length || 0,
 				downvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'down').length || 0,
+				votes: review.votes,
 				distance: currentLocation ? calculateDistance(
 					currentLocation.latitude,
 					currentLocation.longitude,
 					review.location.latitude,
 					review.location.longitude
-				) : undefined
+				) : undefined,
+				website_url: review.website_url,
+				experience_details: review.experience_details ? {
+					moodComparison: review.experience_details.mood_comparison,
+					beerInfluence: review.experience_details.beer_influence,
+					isTakeout: review.experience_details.is_takeout,
+					wingsPerOrder: review.experience_details.wings_per_order,
+					wingSize: review.experience_details.wing_size,
+					wingFormat: review.experience_details.wing_format,
+					takeoutContainer: review.experience_details.takeout_container,
+					takeoutWaitTime: review.experience_details.takeout_wait_time
+				} : null,
+				sauce_details: review.sauce_details ? {
+					sauceAvailability: review.sauce_details.sauce_availability,
+					selectedSauces: review.sauce_details.selected_sauces || []
+				} : null,
+				ratings: review.ratings ? {
+					appearance: review.ratings.appearance_rating,
+					aroma: review.ratings.aroma_rating,
+					sauceQuantity: review.ratings.sauce_quantity_rating,
+					sauceConsistency: review.ratings.sauce_consistency_rating,
+					sauceHeat: review.ratings.sauce_heat_rating,
+					skinConsistency: review.ratings.skin_consistency_rating,
+					meatQuality: review.ratings.meat_quality_rating,
+					greasiness: review.ratings.greasiness_rating,
+					blueCheeseQuality: review.ratings.blue_cheese_quality_rating,
+					blueCheeseNA: review.ratings.blue_cheese_na,
+					satisfactionScore: review.ratings.satisfaction_score,
+					recommendationScore: review.ratings.recommendation_score
+				} : null
 			}));
 		}
 		isLoading = false;
