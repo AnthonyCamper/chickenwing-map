@@ -160,34 +160,34 @@
 					review.location.longitude
 				) : undefined,
 				website_url: review.website_url,
-				experience_details: review.experience_details ? {
-					moodComparison: review.experience_details.mood_comparison,
-					beerInfluence: review.experience_details.beer_influence,
-					isTakeout: review.experience_details.is_takeout,
-					wingsPerOrder: review.experience_details.wings_per_order,
-					wingSize: review.experience_details.wing_size,
-					wingFormat: review.experience_details.wing_format,
-					takeoutContainer: review.experience_details.takeout_container,
-					takeoutWaitTime: review.experience_details.takeout_wait_time
-				} : null,
-				sauce_details: review.sauce_details ? {
-					sauceAvailability: review.sauce_details.sauce_availability,
-					selectedSauces: review.sauce_details.selected_sauces || []
-				} : null,
-				ratings: review.ratings ? {
-					appearance: review.ratings.appearance_rating,
-					aroma: review.ratings.aroma_rating,
-					sauceQuantity: review.ratings.sauce_quantity_rating,
-					sauceConsistency: review.ratings.sauce_consistency_rating,
-					sauceHeat: review.ratings.sauce_heat_rating,
-					skinConsistency: review.ratings.skin_consistency_rating,
-					meatQuality: review.ratings.meat_quality_rating,
-					greasiness: review.ratings.greasiness_rating,
-					blueCheeseQuality: review.ratings.blue_cheese_quality_rating,
-					blueCheeseNA: review.ratings.blue_cheese_na,
-					satisfactionScore: review.ratings.satisfaction_score,
-					recommendationScore: review.ratings.recommendation_score
-				} : null
+				experience_details: {
+					moodComparison: review.mood_comparison,
+					beerInfluence: review.beer_influence,
+					isTakeout: review.is_takeout,
+					wingsPerOrder: review.wings_per_order,
+					wingSize: review.wing_size,
+					wingFormat: review.wing_format,
+					takeoutContainer: review.takeout_container,
+					takeoutWaitTime: review.takeout_wait_time
+				},
+				sauce_details: {
+					sauceAvailability: review.sauce_availability,
+					selectedSauces: review.selected_sauces || []
+				},
+				ratings: {
+					appearance: review.appearance_rating,
+					aroma: review.aroma_rating,
+					sauceQuantity: review.sauce_quantity_rating,
+					sauceConsistency: review.sauce_consistency_rating,
+					sauceHeat: review.sauce_heat_rating,
+					skinConsistency: review.skin_consistency_rating,
+					meatQuality: review.meat_quality_rating,
+					greasiness: review.greasiness_rating,
+					blueCheeseQuality: review.blue_cheese_quality_rating,
+					blueCheeseNA: review.blue_cheese_na,
+					satisfactionScore: review.satisfaction_score,
+					recommendationScore: review.recommendation_score
+				}
 			}));
 		}
 		isLoading = false;
