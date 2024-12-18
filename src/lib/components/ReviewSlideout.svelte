@@ -26,6 +26,7 @@
   let localDownvotes = 0;
   let isProcessingVote = false;
   let locationReviews: Review[] = [];
+  let showFullReview = false;
 
   // Handle visibility change for auth state
   async function handleVisibilityChange() {
@@ -149,14 +150,16 @@
       const upvotes = (updatedReview.votes as any[] || []).filter(vote => vote.vote_type === 'up').length;
       const downvotes = (updatedReview.votes as any[] || []).filter(vote => vote.vote_type === 'down').length;
       
-      review = {
+      const updatedReviewWithCounts = {
         ...updatedReview,
         upvotes_count: upvotes,
         downvotes_count: downvotes
       };
+      
+      review = updatedReviewWithCounts;
       localUpvotes = upvotes;
       localDownvotes = downvotes;
-      handleVoteChange(review);
+      handleVoteChange(updatedReviewWithCounts);
     }
   }
 
@@ -224,6 +227,7 @@
   function handleReviewSelect(selectedReview: Review) {
     review = selectedReview;
     loadUserVote();
+    showFullReview = true; // Show the full review when selected on mobile
   }
 
   // Reset state when review changes
@@ -276,17 +280,32 @@
     />
 
     <div class="flex flex-1 overflow-hidden">
-      <!-- Reviews List Sidebar - Hidden on mobile -->
-      <div class="hidden sm:block">
-        <ReviewSidebar
-          reviews={locationReviews}
-          selectedReview={review}
-          onReviewSelect={handleReviewSelect}
-        />
-      </div>
+      <!-- Reviews List Sidebar - Always show when multiple reviews exist -->
+      {#if locationReviews.length > 1}
+        <div class="w-full sm:w-auto border-r border-gray-200 dark:border-gray-700 
+                   {showFullReview ? 'hidden sm:block' : 'block'}">
+          <ReviewSidebar
+            reviews={locationReviews}
+            selectedReview={review}
+            onReviewSelect={handleReviewSelect}
+          />
+        </div>
+      {/if}
 
       <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex-1 flex flex-col overflow-hidden 
+                  {showFullReview || locationReviews.length === 1 ? 'block' : 'hidden sm:block'}">
+        <!-- Back to Reviews Button (mobile only) -->
+        {#if locationReviews.length > 1 && showFullReview}
+          <button
+            class="sm:hidden px-4 py-2 text-blue-600 dark:text-blue-400 text-left border-b 
+                   border-gray-200 dark:border-gray-700"
+            on:click={() => showFullReview = false}
+          >
+            ← Back to Reviews
+          </button>
+        {/if}
+
         <!-- Voting Section -->
         <ReviewVoting
           upvotes={localUpvotes}

@@ -93,19 +93,28 @@
       return acc;
     }, {} as Record<number, { location: Location; reviews: Review[] }>);
 
-    Object.values(locationReviews).forEach(({ location, reviews }) => {
+    Object.values(locationReviews).forEach(({ location, reviews: locationReviews }) => {
       if (isValidCoordinate(location.latitude, location.longitude)) {
-        const avgRating = (reviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / reviews.length).toFixed(1);
+        const avgRating = (locationReviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / locationReviews.length).toFixed(1);
         const marker = L.marker([location.latitude, location.longitude], { icon: wingIcon })
           .addTo(map)
           .bindPopup(`
             <b>${location.restaurant_name}</b><br>
             Average Rating: ${avgRating}/10<br>
             ${location.address}<br>
-            ${reviews[0].distance !== undefined ? `Distance: ${reviews[0].distance.toFixed(2)} km<br>` : ''}
-            Number of Reviews: ${reviews.length}
+            ${locationReviews[0].distance !== undefined ? `Distance: ${locationReviews[0].distance.toFixed(2)} km<br>` : ''}
+            Number of Reviews: ${locationReviews.length}
           `)
-          .on('click', () => handleMarkerClick(reviews[0])); // Show the first review when clicked
+          .on('click', () => {
+            // Find the most recent review for this location
+            const mostRecentReview = locationReviews.reduce((latest, current) => {
+              const latestDate = new Date(latest.date_visited);
+              const currentDate = new Date(current.date_visited);
+              return currentDate > latestDate ? current : latest;
+            }, locationReviews[0]);
+            
+            handleMarkerClick(mostRecentReview);
+          });
         markers.push(marker);
       } else {
         console.warn(`Invalid coordinates for location: ${location.restaurant_name}`);
@@ -116,7 +125,7 @@
 
   function handleMarkerClick(review: Review) {
     onMarkerClick(review);
-    // Optionally, you can add any specific behavior here, like panning to the marker
+    // Pan to the marker
     map.panTo([review.location.latitude, review.location.longitude]);
   }
 
