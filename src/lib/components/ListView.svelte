@@ -8,7 +8,6 @@
   export let sortBy: string;
   export let sortOrder: string;
 
-  let searchTerm = '';
   let expandedLocations: Set<number> = new Set();
   let reviewSearchTerm = '';
 
@@ -53,21 +52,13 @@
     return grouped;
   }
 
-  // Filter reviews based on search terms
+  // Filter reviews based on search term
   $: filteredReviews = reviews.filter(review => {
-    const locationSearchLower = searchTerm.toLowerCase();
     const reviewSearchLower = reviewSearchTerm.toLowerCase();
     
-    const matchesLocation = 
-      review.location.restaurant_name.toLowerCase().includes(locationSearchLower) ||
-      review.location.address.toLowerCase().includes(locationSearchLower);
-    
-    const matchesReview = 
-      review.review.toLowerCase().includes(reviewSearchLower) ||
-      review.rating.toString().includes(reviewSearchLower) ||
-      new Date(review.date_visited).toLocaleDateString().toLowerCase().includes(reviewSearchLower);
-    
-    return matchesLocation && matchesReview;
+    return review.review.toLowerCase().includes(reviewSearchLower) ||
+           review.rating.toString().includes(reviewSearchLower) ||
+           new Date(review.date_visited).toLocaleDateString().toLowerCase().includes(reviewSearchLower);
   });
 
   // Sort and group reviews
@@ -92,21 +83,8 @@
 </script>
 
 <div class="space-y-4">
-  <!-- Search Controls -->
+  <!-- Search and Sort Controls -->
   <div class="flex flex-col sm:flex-row gap-4">
-    <!-- Location Search -->
-    <div class="relative flex-1">
-      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Icon icon={faSearch} class="text-gray-400" />
-      </div>
-      <input
-        type="text"
-        bind:value={searchTerm}
-        placeholder="Search locations..."
-        class="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
-    </div>
-
     <!-- Review Search -->
     <div class="relative flex-1">
       <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
