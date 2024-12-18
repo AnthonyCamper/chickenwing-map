@@ -13,6 +13,7 @@
   let markers: any[] = [];
   let searchMarker: any;
   let wingIcon: any;
+  let searchIcon: any;
 
   onMount(async () => {
     console.log("Mount started");
@@ -32,7 +33,7 @@
       if (searchMarker) {
         map.removeLayer(searchMarker);
       }
-      searchMarker = L.marker([latitude, longitude], { icon: wingIcon })
+      searchMarker = L.marker([latitude, longitude], { icon: searchIcon })
         .addTo(map)
         .bindPopup(`Searched: ${locationName}`)
         .openPopup();
@@ -59,6 +60,15 @@
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         popupAnchor: [0, -32]
+      });
+
+      // Create a different icon for search markers
+      searchIcon = L.divIcon({
+        className: 'search-marker',
+        html: '<div class="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
       });
 
       console.log("Tile layer added");
@@ -195,6 +205,13 @@
     }
   }
 </script>
+
+<style>
+  :global(.search-marker) {
+    background: transparent;
+    border: none;
+  }
+</style>
 
 <div class="relative w-full h-full">
   <div bind:this={mapElement} class="absolute inset-0 transition-all duration-300 ease-in-out" class:pr-0={!isSlideoutOpen} class:pr-80={isSlideoutOpen}></div>
