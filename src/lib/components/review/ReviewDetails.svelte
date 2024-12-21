@@ -2,10 +2,35 @@
   import { faStar, faMapMarkerAlt, faCalendar, faRuler, faUser, faThumbsUp, faThumbsDown, faBeer, faTruck, faUtensils } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
   import type { Review } from './types';
+  import { onMount } from 'svelte';
+  import { supabase } from '$lib/supabase';
 
   export let review: Review;
+  let displayName = '';
 
-  console.log("this is a review", review)
+  async function fetchUserProfile() {
+    if (!review.user_id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('display_name')
+        .eq('user_id', review.user_id)
+        .single();
+      
+      if (error) throw error;
+      if (data?.display_name) {
+        displayName = data.display_name;
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  }
+
+  onMount(() => {
+    fetchUserProfile();
+  });
+
   // Debug logs
   console.log('ReviewDetails - Full review data:', review);
   console.log('ReviewDetails - Rating:', review.rating);
@@ -28,7 +53,7 @@
       <div class="flex flex-wrap gap-4 mb-4">
         <div class="flex items-center">
           <Icon icon={faUser} class="text-gray-400 mr-3 text-xl" />
-          <span class="text-gray-700 dark:text-gray-200 text-base sm:text-lg">Anonymous</span>
+          <span class="text-gray-700 dark:text-gray-200 text-base sm:text-lg">{displayName}</span>
         </div>
 
         <div class="flex items-center">
