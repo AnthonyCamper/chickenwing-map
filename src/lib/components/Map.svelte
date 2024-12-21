@@ -109,18 +109,18 @@
         const avgRating = (locationReviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / locationReviews.length).toFixed(1);
         // Create custom popup element
         const popupContent = document.createElement('div');
-        popupContent.className = 'bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors min-w-[200px]';
+        popupContent.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors min-w-[220px] border border-gray-200 dark:border-gray-700';
         popupContent.innerHTML = `
-          <div class="space-y-2">
-            <div class="font-medium text-gray-900 dark:text-white text-base">${location.restaurant_name}</div>
-            <div class="flex items-center gap-2">
-              <div class="flex items-center gap-1">
-                <span class="text-sm font-semibold text-gray-900 dark:text-white">${avgRating}</span>
-                <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+          <div class="p-3">
+            <div class="font-medium text-gray-900 dark:text-white text-[15px] mb-2">${location.restaurant_name}</div>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center">
+                <span class="text-[16px] font-bold text-gray-900 dark:text-white">${avgRating}</span>
+                <svg class="w-4 h-4 text-yellow-400 ml-1" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                 </svg>
               </div>
-              <span class="text-sm text-gray-600 dark:text-gray-300">${locationReviews.length} reviews</span>
+              <span class="text-[13px] text-gray-600 dark:text-gray-400">${locationReviews.length} reviews</span>
             </div>
           </div>
         `;
@@ -243,26 +243,33 @@
   :global(.custom-popup .leaflet-popup-content-wrapper) {
     padding: 0;
     border-radius: 0.75rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     overflow: hidden;
+    transform: translateY(-2px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   :global(.custom-popup .leaflet-popup-content) {
     margin: 0;
-    min-width: 200px;
+    min-width: 220px;
   }
 
   :global(.custom-popup .leaflet-popup-tip-container) {
     display: none;
   }
 
+  :global(.custom-popup:hover .leaflet-popup-content-wrapper) {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
   /* Mobile optimization */
   @media (max-width: 640px) {
     :global(.custom-popup .leaflet-popup-content) {
-      min-width: 180px;
+      min-width: 200px;
     }
-    :global(.custom-popup) {
-      font-size: 14px;
+    :global(.custom-popup .leaflet-popup-content-wrapper) {
+      margin-top: -5px;
     }
   }
 </style>
