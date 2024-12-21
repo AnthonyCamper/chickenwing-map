@@ -103,7 +103,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {#if review.experience_details.moodComparison !== null}
-              <div class="text-gray-600 dark:text-gray-300">Mood: {review.experience_details.moodComparison}/10</div>
+              <div class="text-gray-600 dark:text-gray-300">Ho: {review.experience_details.moodComparison}/10</div>
             {/if}
             {#if review.experience_details.wingsPerOrder !== null}
               <div class="text-gray-600 dark:text-gray-300">Wings Per Order: {review.experience_details.wingsPerOrder}</div>
