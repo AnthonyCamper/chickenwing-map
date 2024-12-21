@@ -5,7 +5,7 @@
   
   <button
     on:click={onChange}
-    class="p-2 rounded-full bg-gray-200 dark:bg-gray-700"
+    class="p-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-sm"
   >
     {#if checked}
       ☀️

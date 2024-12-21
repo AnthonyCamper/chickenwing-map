@@ -2,8 +2,12 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import SignInModal from './SignInModal.svelte';
+  import ThemeToggle from './ThemeToggle.svelte';
   import { faCog, faUserPlus, faTimes } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
+
+  export let isDarkMode: boolean;
+  export let onThemeChange: () => void;
 
   let user: any = null;
   let showSignInModal = false;
@@ -155,7 +159,8 @@
   <!-- Mobile Nav Bar -->
   <div class="sm:hidden fixed top-0 left-0 right-0 z-[2000] bg-white dark:bg-gray-800 shadow-md">
     {#if user}
-      <div class="flex items-center justify-end gap-3 px-4 py-2">
+      <div class="flex items-center justify-end gap-2 px-4 py-2">
+        <ThemeToggle checked={isDarkMode} onChange={onThemeChange} />
         <span class="text-gray-700 dark:text-gray-200 font-medium">{displayName.split(' ')[0]}</span>
         <button
           on:click={openSettingsModal}
@@ -193,7 +198,8 @@
   <!-- Desktop Floating Display -->
   <div class="hidden sm:block fixed top-4 right-4 z-[2000]">
     {#if user}
-      <div class="flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md">
+      <div class="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-md">
+        <ThemeToggle checked={isDarkMode} onChange={onThemeChange} />
         <span class="text-gray-700 dark:text-gray-200 font-medium">{displayName}</span>
         <button
           on:click={openSettingsModal}

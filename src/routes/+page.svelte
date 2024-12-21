@@ -3,10 +3,10 @@
 	import { supabase } from '$lib/supabase';
 	import Map from '$lib/components/Map.svelte';
 	import ListView from '$lib/components/ListView.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
 	import AddReviewModal from '$lib/components/AddReviewModal.svelte';
 	import SignInModal from '$lib/components/SignInModal.svelte';
+	import UserDisplay from '$lib/components/UserDisplay.svelte';
 	import { writable } from 'svelte/store';
 	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
@@ -353,32 +353,29 @@
 >
 	<div class="p-4 sm:p-6">
 		<h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Chicken Wing Ratings</h1>
-		<div class="flex flex-col sm:flex-row justify-between mb-6 gap-4">
-			<div class="flex rounded-md shadow-sm" role="group">
-				<button
-					type="button"
-					on:click={() => setMapView(true)}
-					class={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-						isMapView
-							? 'bg-blue-600 text-white'
-							: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
-					}`}
-				>
-					Map View
-				</button>
-				<button
-					type="button"
-					on:click={() => setMapView(false)}
-					class={`px-4 py-2 text-sm font-medium rounded-r-lg ${
-						!isMapView
-							? 'bg-blue-600 text-white'
-							: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
-					}`}
-				>
-					List View
-				</button>
-			</div>
-			<ThemeToggle checked={isDarkMode} onChange={toggleTheme} />
+		<div class="flex rounded-md shadow-sm mb-6" role="group">
+			<button
+				type="button"
+				on:click={() => setMapView(true)}
+				class={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+					isMapView
+						? 'bg-blue-600 text-white'
+						: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
+				}`}
+			>
+				Map View
+			</button>
+			<button
+				type="button"
+				on:click={() => setMapView(false)}
+				class={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+					!isMapView
+						? 'bg-blue-600 text-white'
+						: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
+				}`}
+			>
+				List View
+			</button>
 		</div>
 		<div class="mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-4 relative">
 			<div class="flex-grow w-full sm:w-auto">
@@ -456,6 +453,8 @@
 		{/if}
 	</div>
 </div>
+
+<UserDisplay {isDarkMode} onThemeChange={toggleTheme} />
 
 <ReviewSlideout 
 	review={selectedReview} 
