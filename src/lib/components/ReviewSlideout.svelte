@@ -359,14 +359,32 @@
 
     <div class="flex flex-1 overflow-hidden">
       <!-- Reviews List Sidebar - Always show when multiple reviews exist -->
-      {#if locationReviews.length > 1}
+      {#if locationReviews.length > 1 || isLoadingReviews}
         <div class="w-full sm:w-auto border-r border-gray-200 dark:border-gray-700 
                    {showFullReview ? 'hidden sm:block' : 'block'}">
-          <ReviewSidebar
-            reviews={locationReviews}
-            selectedReview={review}
-            onReviewSelect={handleReviewSelect}
-          />
+          {#if isLoadingReviews}
+            <!-- Mobile loading skeleton for reviews list -->
+            <div class="p-4 space-y-4">
+              {#each Array(3) as _}
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 animate-pulse">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+                      <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                    </div>
+                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <ReviewSidebar
+              reviews={locationReviews}
+              selectedReview={review}
+              onReviewSelect={handleReviewSelect}
+            />
+          {/if}
         </div>
       {/if}
 
