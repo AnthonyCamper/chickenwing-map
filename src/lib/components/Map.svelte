@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, afterUpdate } from 'svelte';
   import type { Review, Location } from './review/types';
+  import type { LeafletEvent } from 'leaflet';
 
   export let reviews: Review[];
   export let onMarkerClick: (review: Review) => void;
@@ -106,24 +107,42 @@
     Object.values(locationReviews).forEach(({ location, reviews: locationReviews }) => {
       if (isValidCoordinate(location.latitude, location.longitude)) {
         const avgRating = (locationReviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / locationReviews.length).toFixed(1);
+        // Create custom popup element
+        const popupContent = document.createElement('div');
+        popupContent.className = 'bg-white dark:bg-gray-800 p-2 rounded shadow-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors';
+        popupContent.innerHTML = `
+          <div class="text-sm">
+            <div class="font-bold text-gray-900 dark:text-white">${location.restaurant_name}</div>
+            <div class="text-gray-600 dark:text-gray-300">Reviews: ${locationReviews.length}</div>
+          </div>
+        `;
+
+        const customPopup = L.popup({
+          closeButton: false,
+          className: 'custom-popup',
+          offset: [0, -20]
+        }).setContent(popupContent);
+
         const marker = L.marker([location.latitude, location.longitude], { icon: wingIcon })
           .addTo(map)
-          .bindPopup(`
-            <b>${location.restaurant_name}</b><br>
-            Average Rating: ${avgRating}/10<br>
-            ${location.address}<br>
-            ${locationReviews[0].distance !== undefined ? `Distance: ${locationReviews[0].distance.toFixed(2)} km<br>` : ''}
-            Number of Reviews: ${locationReviews.length}
-          `)
-          .on('click', () => {
+          .on('click', (e: LeafletEvent) => {
+            // Close any other open popups
+            markers.forEach(m => m.closePopup());
+            
+            // Open this marker's popup
+            marker.bindPopup(customPopup).openPopup();
+            
             // Find the most recent review for this location
             const mostRecentReview = locationReviews.reduce((latest, current) => {
               const latestDate = new Date(latest.date_visited);
               const currentDate = new Date(current.date_visited);
               return currentDate > latestDate ? current : latest;
             }, locationReviews[0]);
-            
-            handleMarkerClick(mostRecentReview);
+
+            // Add click event to popup content
+            popupContent.onclick = () => {
+              handleMarkerClick(mostRecentReview);
+            };
           });
         markers.push(marker);
       } else {
@@ -210,6 +229,23 @@
   :global(.search-marker) {
     background: transparent;
     border: none;
+  }
+
+  :global(.custom-popup) {
+    margin-bottom: 5px;
+  }
+
+  :global(.custom-popup .leaflet-popup-content-wrapper) {
+    padding: 0;
+    border-radius: 0.375rem;
+  }
+
+  :global(.custom-popup .leaflet-popup-content) {
+    margin: 0;
+  }
+
+  :global(.custom-popup .leaflet-popup-tip) {
+    display: none;
   }
 </style>
 
