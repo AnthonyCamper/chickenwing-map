@@ -27,6 +27,7 @@
   let isProcessingVote = false;
   let locationReviews: Review[] = [];
   let showFullReview = false;
+  let isLoadingReviews = true;
   let touchStartX = 0;
   let touchStartY = 0;
   let slideoutElement: HTMLElement;
@@ -262,6 +263,7 @@
   async function loadLocationReviews() {
     if (!review?.location_id) return;
     
+    isLoadingReviews = true;
     try {
       const { data, error } = await supabase
         .from('reviews')
@@ -289,6 +291,8 @@
     } catch (err) {
       console.error('Error loading location reviews:', err);
       locationReviews = [];
+    } finally {
+      isLoadingReviews = false;
     }
   }
 
@@ -390,7 +394,39 @@
         />
         
         <!-- Review Details -->
-        <ReviewDetails {review} />
+        {#if isLoadingReviews}
+          <div class="p-4 space-y-4">
+            <!-- Loading skeleton for basic info -->
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 sm:p-6 animate-pulse">
+              <div class="space-y-4">
+                <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+              </div>
+            </div>
+            
+            <!-- Loading skeleton for experience details -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow animate-pulse">
+              <div class="space-y-4">
+                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+              </div>
+            </div>
+            
+            <!-- Loading skeleton for review text -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow animate-pulse">
+              <div class="space-y-4">
+                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-4/5"></div>
+              </div>
+            </div>
+          </div>
+        {:else}
+          <ReviewDetails {review} />
+        {/if}
       </div>
     </div>
   </div>

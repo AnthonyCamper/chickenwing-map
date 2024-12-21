@@ -7,6 +7,7 @@
 
   export let review: Review;
   let displayName = '';
+  let isLoadingProfile = true;
 
   async function fetchUserProfile() {
     if (!review.user_id) return;
@@ -24,6 +25,8 @@
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
+    } finally {
+      isLoadingProfile = false;
     }
   }
 
@@ -53,7 +56,11 @@
       <div class="flex flex-wrap gap-4 mb-4">
         <div class="flex items-center">
           <Icon icon={faUser} class="text-gray-400 mr-3 text-xl" />
-          <span class="text-gray-700 dark:text-gray-200 text-base sm:text-lg">{displayName}</span>
+          {#if isLoadingProfile}
+            <div class="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          {:else}
+            <span class="text-gray-700 dark:text-gray-200 text-base sm:text-lg">{displayName}</span>
+          {/if}
         </div>
 
         <div class="flex items-center">
@@ -206,7 +213,7 @@
             <div class="text-gray-600 dark:text-gray-300">Blue Cheese: {formatRating(review.ratings.blueCheeseQuality)}</div>
           {/if}
           {#if review.ratings.satisfactionScore !== null}
-            <div class="text-gray-600 dark:text-gray-300">Satisfaction: {formatRating(review.ratings.satisfactionScore)}</div>
+            <div class="text-gray-600 dark:text-gray-300">Satisfaction with purchase: {formatRating(review.ratings.satisfactionScore)}</div>
           {/if}
           {#if review.ratings.recommendationScore !== null}
             <div class="text-gray-600 dark:text-gray-300">Recommendation: {formatRating(review.ratings.recommendationScore)}</div>
