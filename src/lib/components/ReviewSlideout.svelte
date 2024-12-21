@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { browser } from '$app/environment';
   import SignInModal from './SignInModal.svelte';
@@ -27,6 +27,75 @@
   let isProcessingVote = false;
   let locationReviews: Review[] = [];
   let showFullReview = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let slideoutElement: HTMLElement;
+  let isDragging = false;
+  let currentX = 0;
+
+  // Handle touch start
+  function handleTouchStart(e: TouchEvent) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isDragging = true;
+    currentX = 0;
+    if (slideoutElement) {
+      slideoutElement.style.transition = 'none';
+    }
+  }
+
+  // Handle touch move
+  function handleTouchMove(e: TouchEvent) {
+    if (!isDragging) return;
+    
+    const touchCurrentX = e.touches[0].clientX;
+    const touchCurrentY = e.touches[0].clientY;
+    
+    // Calculate horizontal and vertical distance
+    const deltaX = touchCurrentX - touchStartX;
+    const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+    // If moving more vertically than horizontally, cancel the swipe
+    if (deltaY > Math.abs(deltaX)) {
+      isDragging = false;
+      if (slideoutElement) {
+        slideoutElement.style.transform = '';
+        slideoutElement.style.transition = '';
+      }
+      return;
+    }
+
+    // Only allow right swipe
+    if (deltaX > 0) {
+      currentX = deltaX;
+      if (slideoutElement) {
+        slideoutElement.style.transform = `translateX(${currentX}px)`;
+      }
+    }
+
+    // Prevent default to stop scrolling
+    e.preventDefault();
+  }
+
+  // Handle touch end
+  async function handleTouchEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+
+    if (slideoutElement) {
+      slideoutElement.style.transition = 'transform 0.3s ease-out';
+      
+      // If swiped more than 100px or 30% of the width, close the slideout
+      const threshold = Math.min(window.innerWidth * 0.3, 100);
+      if (currentX > threshold) {
+        onClose();
+      } else {
+        slideoutElement.style.transform = '';
+        await tick();
+        slideoutElement.style.transition = '';
+      }
+    }
+  }
 
   // Handle visibility change for auth state
   async function handleVisibilityChange() {
@@ -269,9 +338,14 @@
 
   <!-- Main slideout container with improved mobile responsiveness -->
   <div
+    bind:this={slideoutElement}
     transition:fly={{ x: '100%', duration: 300 }}
     class="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 
-           shadow-lg z-[9999] flex flex-col overflow-hidden"
+           shadow-lg z-[9999] flex flex-col overflow-hidden touch-pan-y"
+    on:touchstart={handleTouchStart}
+    on:touchmove={handleTouchMove}
+    on:touchend={handleTouchEnd}
+    on:touchcancel={handleTouchEnd}
   >
     <!-- Header -->
     <ReviewHeader 

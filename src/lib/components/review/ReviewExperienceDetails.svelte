@@ -15,7 +15,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        Mood Comparison
+        How is your mood?
       </label>
       <input
         type="range"
