@@ -134,12 +134,13 @@
 
         const marker = L.marker([location.latitude, location.longitude], { icon: wingIcon })
           .addTo(map)
+          .bindPopup(customPopup)
           .on('click', (e: LeafletEvent) => {
             // Close any other open popups
             markers.forEach(m => m.closePopup());
             
             // Open this marker's popup
-            marker.bindPopup(customPopup).openPopup();
+            marker.openPopup();
             
             // Find the most recent review for this location
             const mostRecentReview = locationReviews.reduce((latest, current) => {
