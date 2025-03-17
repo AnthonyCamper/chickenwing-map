@@ -14,8 +14,8 @@
 
   // Props
   export let review: Review | null = null;
-  export let onClose: () => void;
-  export let handleVoteChange: (review: Review) => void;
+  export let closeSlideout: () => void;
+  export let user: any = null;
   export let fromListView = false;
 
   // Local state
@@ -49,409 +49,443 @@
   function handleTouchMove(e: TouchEvent) {
     if (!isDragging) return;
     
-    const touchCurrentX = e.touches[0].clientX;
-    const touchCurrentY = e.touches[0].clientY;
+    const touchX = e.touches[0].clientX;
+    const touchY = e.touches[0].clientY;
     
-    // Calculate horizontal and vertical distance
-    const deltaX = touchCurrentX - touchStartX;
-    const deltaY = Math.abs(touchCurrentY - touchStartY);
-
-    // If moving more vertically than horizontally, cancel the swipe
-    if (deltaY > Math.abs(deltaX)) {
-      isDragging = false;
-      if (slideoutElement) {
-        slideoutElement.style.transform = '';
-        slideoutElement.style.transition = '';
-      }
+    // If scrolling more vertically than horizontally, don't slide
+    if (Math.abs(touchY - touchStartY) > Math.abs(touchX - touchStartX)) {
       return;
     }
-
-    // Only allow right swipe
-    if (deltaX > 0) {
-      currentX = deltaX;
+    
+    // Only slide when dragging right (to close)
+    if (touchX > touchStartX) {
+      currentX = touchX - touchStartX;
       if (slideoutElement) {
         slideoutElement.style.transform = `translateX(${currentX}px)`;
       }
     }
-
-    // Prevent default to stop scrolling
-    e.preventDefault();
   }
 
   // Handle touch end
-  async function handleTouchEnd() {
+  function handleTouchEnd() {
     if (!isDragging) return;
+    
     isDragging = false;
-
+    
     if (slideoutElement) {
       slideoutElement.style.transition = 'transform 0.3s ease-out';
       
-      // If swiped more than 100px or 30% of the width, close the slideout
-      const threshold = Math.min(window.innerWidth * 0.3, 100);
-      if (currentX > threshold) {
-        onClose();
+      // If dragged far enough, close the slideout
+      if (currentX > slideoutElement.offsetWidth * 0.3) {
+        closeSlideout();
       } else {
-        slideoutElement.style.transform = '';
-        await tick();
-        slideoutElement.style.transition = '';
+        slideoutElement.style.transform = 'translateX(0)';
       }
     }
   }
 
-  // Handle visibility change for auth state
-  async function handleVisibilityChange() {
-    if (!browser || document.hidden) return;
-    await refreshAuthState();
+  $: {
     if (review) {
-      await loadUserVote();
+      if (review.id !== prevReviewId) {
+        prevReviewId = review.id;
+        localUpvotes = review.upvotes_count ?? 0;
+        localDownvotes = review.downvotes_count ?? 0;
+        getUserVoteStatus();
+        fetchLocationReviews();
+      }
     }
   }
 
-  // Refresh authentication state
-  async function refreshAuthState(): Promise<boolean> {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error('Error refreshing auth state:', error);
-      return false;
-    }
-    return !!session;
-  }
-
-  // Handle voting action
-  async function handleVoteAction(type: 'up' | 'down') {
-    if (!review || isProcessingVote) return;
-    
-    const previousVote = userVote; // Declare at the start of the function
-    
-    try {
-      isProcessingVote = true;
-
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        showSignInModal = true;
-        return;
-      }
-
-      // Optimistically update UI
-      if (userVote === type) {
-        userVote = null;
-        if (type === 'up') localUpvotes--;
-        else localDownvotes--;
-      } else {
-        if (userVote === 'up') localUpvotes--;
-        if (userVote === 'down') localDownvotes--;
-        userVote = type;
-        if (type === 'up') localUpvotes++;
-        else localDownvotes++;
-      }
-
-      const { data: existingVote, error: checkError } = await supabase
-        .from('votes')
-        .select('vote_type')
-        .eq('review_id', review.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      let error = null;
-      if (existingVote?.vote_type === type) {
-        const { error: rpcError } = await supabase.rpc('remove_vote', {
-          p_review_id: review.id,
-          p_user_id: user.id,
-          p_vote_type: type
-        });
-        error = rpcError;
-      } else if (existingVote) {
-        const { error: rpcError } = await supabase.rpc('update_vote', {
-          p_review_id: review.id,
-          p_user_id: user.id,
-          p_vote_type: type
-        });
-        error = rpcError;
-      } else {
-        const { error: rpcError } = await supabase.rpc('add_vote', {
-          p_review_id: review.id,
-          p_user_id: user.id,
-          p_vote_type: type
-        });
-        error = rpcError;
-      }
-
-      if (error) throw error;
-
-      await refreshReviewData();
-
-    } catch (err) {
-      console.error('Error in vote process:', err);
-      // Revert optimistic updates on error
-      userVote = previousVote;
-      if (review) {
-        localUpvotes = review.upvotes_count;
-        localDownvotes = review.downvotes_count;
-      }
-    } finally {
-      setTimeout(() => {
-        isProcessingVote = false;
-      }, 500);
-    }
-  }
-
-  // Refresh review data after vote
-  async function refreshReviewData() {
+  async function fetchLocationReviews() {
     if (!review) return;
-
-    const { data: updatedReview, error: fetchError } = await supabase
+    
+    isLoadingReviews = true;
+    
+    // Get other reviews for the same location
+    const { data, error } = await supabase
       .from('reviews')
       .select(`
         *,
+        location:locations(*),
         votes (
           vote_type,
           user_id
         )
       `)
-      .eq('id', review.id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    if (updatedReview) {
-      const upvotes = (updatedReview.votes as any[] || []).filter(vote => vote.vote_type === 'up').length;
-      const downvotes = (updatedReview.votes as any[] || []).filter(vote => vote.vote_type === 'down').length;
+      .eq('location_id', review.location_id)
+      .neq('id', review.id)
+      .order('date_visited', { ascending: false });
       
-      const updatedReviewWithCounts = {
-        ...updatedReview,
-        upvotes_count: upvotes,
-        downvotes_count: downvotes
-      };
-      
-      review = updatedReviewWithCounts;
-      localUpvotes = upvotes;
-      localDownvotes = downvotes;
-      handleVoteChange(updatedReviewWithCounts);
+    if (error) {
+      console.error('Error fetching location reviews:', error);
+    } else {
+      // Process reviews to include vote counts
+      locationReviews = (data || []).map((review: any) => ({
+        ...review,
+        upvotes_count: review.votes?.filter((v: any) => v.vote_type === 'up')?.length || 0,
+        downvotes_count: review.votes?.filter((v: any) => v.vote_type === 'down')?.length || 0
+      }));
     }
-  }
-
-  // Load user's vote for current review
-  async function loadUserVote() {
-    if (!review) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data, error } = await supabase
-          .from('votes')
-          .select('vote_type')
-          .eq('review_id', review.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (error) throw error;
-        userVote = data?.vote_type as 'up' | 'down' | null;
-      } else {
-        userVote = null;
-      }
-    } catch (err) {
-      console.error('Error loading user vote:', err);
-      userVote = null;
-    }
-  }
-
-  // Load all reviews for the current location
-  async function loadLocationReviews() {
-    if (!review?.location_id) return;
     
-    isLoadingReviews = true;
-    try {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`
-          *,
-          locations (*),
-          votes (
-            vote_type,
-            user_id
-          )
-        `)
-        .eq('location_id', review.location_id)
-        .order('date_visited', { ascending: false });
+    isLoadingReviews = false;
+  }
 
-      if (error) throw error;
-
-      if (data) {
-        locationReviews = data.map(review => ({
-          ...review,
-          location: review.locations,
-          upvotes_count: (review.votes as any[] || []).filter(vote => vote.vote_type === 'up').length,
-          downvotes_count: (review.votes as any[] || []).filter(vote => vote.vote_type === 'down').length
-        }));
-      }
-    } catch (err) {
-      console.error('Error loading location reviews:', err);
-      locationReviews = [];
-    } finally {
-      isLoadingReviews = false;
+  async function getUserVoteStatus() {
+    if (!review || !user) {
+      userVote = null;
+      return;
+    }
+    
+    const { data, error } = await supabase
+      .from('review_votes')
+      .select('vote_type')
+      .eq('review_id', review.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Error getting vote status:', error);
+      userVote = null;
+    } else {
+      userVote = data?.vote_type || null;
     }
   }
 
-  // Handle review selection from sidebar
-  function handleReviewSelect(selectedReview: Review) {
-    review = selectedReview;
-    loadUserVote();
-    showFullReview = true; // Show the full review when selected on mobile
+  async function handleVote(type: 'up' | 'down') {
+    if (!review || !user) {
+      showSignInModal = true;
+      return;
+    }
+    
+    if (isProcessingVote) return;
+    
+    isProcessingVote = true;
+    
+    // If user already voted the same way, remove the vote
+    if (userVote === type) {
+      await removeVote();
+    } else {
+      // If user voted the opposite way, update the vote
+      if (userVote) {
+        await updateVote(type);
+      } else {
+        // If user hasn't voted, add a new vote
+        await addVote(type);
+      }
+    }
+    
+    isProcessingVote = false;
   }
 
-  // Reset state when review changes
-  $: if (review && review.id !== prevReviewId) {
-    prevReviewId = review.id;
-    userVote = null;
-    localUpvotes = review.upvotes_count;
-    localDownvotes = review.downvotes_count;
-    loadUserVote();
-    loadLocationReviews();
+  async function addVote(type: 'up' | 'down') {
+    if (!review || !user) return;
+    
+    const { error } = await supabase
+      .from('review_votes')
+      .insert({
+        review_id: review.id,
+        user_id: user.id,
+        vote_type: type
+      });
+    
+    if (error) {
+      console.error('Error adding vote:', error);
+    } else {
+      userVote = type;
+      updateLocalVoteCounts();
+    }
+  }
+
+  async function updateVote(type: 'up' | 'down') {
+    if (!review || !user) return;
+    
+    const { error } = await supabase
+      .from('review_votes')
+      .update({ vote_type: type })
+      .eq('review_id', review.id)
+      .eq('user_id', user.id);
+    
+    if (error) {
+      console.error('Error updating vote:', error);
+    } else {
+      userVote = type;
+      updateLocalVoteCounts();
+    }
+  }
+
+  async function removeVote() {
+    if (!review || !user) return;
+    
+    const { error } = await supabase
+      .from('review_votes')
+      .delete()
+      .eq('review_id', review.id)
+      .eq('user_id', user.id);
+    
+    if (error) {
+      console.error('Error removing vote:', error);
+    } else {
+      const oldVote = userVote;
+      userVote = null;
+      
+      // Update local counts
+      if (oldVote === 'up') {
+        localUpvotes = Math.max(0, localUpvotes - 1);
+      } else if (oldVote === 'down') {
+        localDownvotes = Math.max(0, localDownvotes - 1);
+      }
+      
+      updateLocalReview();
+    }
+  }
+
+  function updateLocalVoteCounts() {
+    // Calculate the new vote counts based on previous vote
+    if (userVote === 'up') {
+      if (review?.votes?.find(v => v.user_id === user?.id && v.vote_type === 'down')) {
+        // Changed from down to up
+        localUpvotes += 1;
+        localDownvotes = Math.max(0, localDownvotes - 1);
+      } else if (!review?.votes?.find(v => v.user_id === user?.id)) {
+        // New upvote
+        localUpvotes += 1;
+      }
+    } else if (userVote === 'down') {
+      if (review?.votes?.find(v => v.user_id === user?.id && v.vote_type === 'up')) {
+        // Changed from up to down
+        localDownvotes += 1;
+        localUpvotes = Math.max(0, localUpvotes - 1);
+      } else if (!review?.votes?.find(v => v.user_id === user?.id)) {
+        // New downvote
+        localDownvotes += 1;
+      }
+    }
+    
+    updateLocalReview();
+  }
+
+  function updateLocalReview() {
+    if (!review) return;
+    
+    // Update the local review with new vote counts
+    const updatedReview = {
+      ...review,
+      upvotes_count: localUpvotes,
+      downvotes_count: localDownvotes,
+      votes: [
+        ...(review.votes?.filter(v => v.user_id !== user?.id) || []),
+        ...(userVote ? [{ user_id: user.id, vote_type: userVote }] : [])
+      ]
+    };
+    
+    // Update the parent component
+    review = updatedReview;
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      closeSlideout();
+    }
   }
 
   onMount(() => {
-    if (review) {
-      localUpvotes = review.upvotes_count;
-      localDownvotes = review.downvotes_count;
-      loadUserVote();
-      loadLocationReviews();
-    }
-
     if (browser) {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('keydown', handleKeyDown);
     }
   });
 
   onDestroy(() => {
     if (browser) {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('keydown', handleKeyDown);
     }
   });
 </script>
 
-{#if review && review.location}
-  <!-- Semi-transparent overlay -->
-  <div 
-    class="fixed inset-0 bg-black bg-opacity-50 z-[9998]"
-    on:click={onClose}
-  ></div>
+<style>
+  /* Force the slideout to appear above leaflet map */
+  :global(.leaflet-pane),
+  :global(.leaflet-map-pane),
+  :global(.leaflet-marker-pane),
+  :global(.leaflet-popup-pane),
+  :global(.leaflet-overlay-pane) {
+    z-index: 40 !important;
+  }
+  
+  :global(.leaflet-control) {
+    z-index: 45 !important;
+  }
+  
+  /* Ensure our slideout has a higher z-index than map controls */
+  .slideout-container {
+    z-index: 1000 !important;
+  }
+  
+  .slideout-backdrop {
+    z-index: 990 !important;
+  }
+  
+  .slideout-content {
+    z-index: 1000 !important;
+  }
+</style>
 
-  <!-- Main slideout container with improved mobile responsiveness -->
-  <div
+<svelte:window on:keydown={handleKeyDown} />
+
+{#if review}
+  <div 
+    class="fixed inset-y-0 right-0 flex slideout-container w-full sm:w-[450px] max-w-full"
+    transition:fly={{ x: 500, duration: 300 }}
     bind:this={slideoutElement}
-    transition:fly={{ x: '100%', duration: 300 }}
-    class="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 
-           shadow-lg z-[9999] flex flex-col overflow-hidden touch-pan-y"
     on:touchstart={handleTouchStart}
     on:touchmove={handleTouchMove}
     on:touchend={handleTouchEnd}
-    on:touchcancel={handleTouchEnd}
   >
-    <!-- Header -->
-    <ReviewHeader 
-      restaurantName={review.location.restaurant_name}
-      {onClose}
-    />
-
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Reviews List Sidebar - Always show when multiple reviews exist -->
-      {#if locationReviews.length > 1 || isLoadingReviews}
-        <div class="w-full sm:w-auto border-r border-gray-200 dark:border-gray-700 
-                   {showFullReview ? 'hidden sm:block' : 'block'}">
-          {#if isLoadingReviews}
-            <!-- Mobile loading skeleton for reviews list -->
-            <div class="p-4 space-y-4">
-              {#each Array(3) as _}
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 animate-pulse">
-                  <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                      <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-                      <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
-                    </div>
-                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+    <!-- Backdrop on mobile (visible only on small screens) -->
+    <div 
+      class="fixed inset-0 bg-black bg-opacity-50 sm:hidden slideout-backdrop"
+      on:click={closeSlideout}
+      on:keydown={(e) => e.key === 'Enter' && closeSlideout()}
+      role="button"
+      tabindex="0"
+      aria-label="Close review details"
+    ></div>
+    
+    <!-- Slideout content -->
+    <div class="flex flex-col w-full bg-white dark:bg-gray-800 shadow-xl overflow-hidden slideout-content">
+      <div class="flex flex-col h-full overflow-hidden">
+        <!-- Header with close button -->
+        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            {review.location.restaurant_name}
+          </h2>
+          <button 
+            on:click={closeSlideout}
+            class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Close review details"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Main content with scrollable area -->
+        <div class="flex-1 overflow-y-auto p-4">
+          {#if review}
+            <div class="space-y-6">
+              <!-- Voting section -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <div class="text-3xl font-bold text-primary-600 dark:text-primary-400">
+                    {review.rating}/10
+                  </div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Reviewed on {new Date(review.date_visited).toLocaleDateString()}
                   </div>
                 </div>
-              {/each}
+                
+                <div class="flex items-center space-x-2">
+                  <button 
+                    class="p-1.5 rounded-full {userVote === 'up' ? 'bg-success-50 text-success-600 dark:bg-success-900 dark:text-success-300' : 'text-gray-500 hover:text-success-600 dark:text-gray-400 dark:hover:text-success-300'}"
+                    on:click={() => handleVote('up')}
+                    aria-label="Upvote review"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                    </svg>
+                    <span class="sr-only">Upvote</span>
+                  </button>
+                  <span class="text-sm font-medium">{localUpvotes}</span>
+                  
+                  <button 
+                    class="p-1.5 rounded-full {userVote === 'down' ? 'bg-error-50 text-error-600 dark:bg-error-900 dark:text-error-300' : 'text-gray-500 hover:text-error-600 dark:text-gray-400 dark:hover:text-error-300'}"
+                    on:click={() => handleVote('down')}
+                    aria-label="Downvote review"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    <span class="sr-only">Downvote</span>
+                  </button>
+                  <span class="text-sm font-medium">{localDownvotes}</span>
+                </div>
+              </div>
+              
+              <!-- Location info -->
+              <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div class="text-gray-700 dark:text-gray-200">
+                  <div class="font-medium">{review.location.address}</div>
+                </div>
+              </div>
+              
+              <!-- Review body -->
+              <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Review</h3>
+                <div class="bg-white dark:bg-gray-800 rounded-lg text-gray-700 dark:text-gray-300">
+                  <p class="whitespace-pre-line">{review.review}</p>
+                </div>
+              </div>
+              
+              <!-- Experience details -->
+              {#if review.experience_details}
+                <div>
+                  <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Experience Details</h3>
+                  <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-3">
+                    {#if review.experience_details.wingFormat}
+                      <div class="flex justify-between">
+                        <span class="text-gray-600 dark:text-gray-400">Wing Format:</span>
+                        <span class="font-medium">{review.experience_details.wingFormat}</span>
+                      </div>
+                    {/if}
+                    
+                    {#if review.experience_details.wingSize !== null}
+                      <div class="flex justify-between">
+                        <span class="text-gray-600 dark:text-gray-400">Wing Size:</span>
+                        <span class="font-medium">{review.experience_details.wingSize}/10</span>
+                      </div>
+                    {/if}
+                    
+                    {#if review.experience_details.wingsPerOrder !== null}
+                      <div class="flex justify-between">
+                        <span class="text-gray-600 dark:text-gray-400">Wings Per Order:</span>
+                        <span class="font-medium">{review.experience_details.wingsPerOrder}</span>
+                      </div>
+                    {/if}
+                    
+                    {#if review.experience_details.isTakeout !== null}
+                      <div class="flex justify-between">
+                        <span class="text-gray-600 dark:text-gray-400">Takeout:</span>
+                        <span class="font-medium">{review.experience_details.isTakeout ? 'Yes' : 'No'}</span>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              {/if}
+              
+              <!-- Ratings -->
+              {#if review.ratings}
+                <div>
+                  <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Ratings</h3>
+                  <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-3">
+                    {#each Object.entries(review.ratings).filter(([key, value]) => value !== null && key !== 'blueCheeseNA') as [key, value]}
+                      <div class="flex justify-between">
+                        <span class="text-gray-600 dark:text-gray-400">
+                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                        </span>
+                        <span class="font-medium">{value}/10</span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
             </div>
-          {:else}
-            <ReviewSidebar
-              reviews={locationReviews}
-              selectedReview={review}
-              onReviewSelect={handleReviewSelect}
-            />
           {/if}
         </div>
-      {/if}
-
-      <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col overflow-hidden 
-                  {showFullReview || locationReviews.length === 1 ? 'block' : 'hidden sm:block'}">
-        <!-- Back to Reviews Button (mobile only) -->
-        {#if locationReviews.length > 1 && showFullReview}
-          <button
-            class="sm:hidden px-4 py-2 text-blue-600 dark:text-blue-400 text-left border-b 
-                   border-gray-200 dark:border-gray-700"
-            on:click={() => showFullReview = false}
-          >
-            ← Back to Reviews
-          </button>
-        {/if}
-
-        <!-- Voting Section -->
-        <ReviewVoting
-          upvotes={localUpvotes}
-          downvotes={localDownvotes}
-          {userVote}
-          isProcessing={isProcessingVote}
-          on:vote={e => handleVoteAction(e.detail)}
-        />
-        
-        <!-- Review Details -->
-        {#if isLoadingReviews}
-          <div class="p-4 space-y-4">
-            <!-- Loading skeleton for basic info -->
-            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 sm:p-6 animate-pulse">
-              <div class="space-y-4">
-                <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-              </div>
-            </div>
-            
-            <!-- Loading skeleton for experience details -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow animate-pulse">
-              <div class="space-y-4">
-                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-              </div>
-            </div>
-            
-            <!-- Loading skeleton for review text -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow animate-pulse">
-              <div class="space-y-4">
-                <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-4/5"></div>
-              </div>
-            </div>
-          </div>
-        {:else}
-          <ReviewDetails {review} />
-        {/if}
       </div>
     </div>
   </div>
+{/if}
 
-  <!-- Sign In Modal -->
-  <SignInModal 
-    show={showSignInModal} 
-    onClose={() => showSignInModal = false} 
-  />
+{#if showSignInModal}
+  <SignInModal on:close={() => showSignInModal = false} />
 {/if}

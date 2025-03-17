@@ -13,6 +13,7 @@
   export let show = false;
   export let onClose: () => void;
   export let onReviewAdded: () => void;
+  export let user: any = null;
 
   // Basic Information
   let restaurantName = '';
@@ -260,19 +261,63 @@
       height: 28px;
     }
   }
+
+  .modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999; /* High z-index to ensure modal is on top */
+  }
+
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+
+  .modal-content {
+    position: relative;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    width: 95%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  :global(.dark) .modal-content {
+    background-color: #1f2937;
+    color: #f3f4f6;
+  }
 </style>
 
 {#if show}
-  <div class="fixed inset-0 bg-black bg-opacity-50 z-[3000] flex items-center justify-center p-4">
+  <div
+    class="modal-container"
+    transition:fly={{ y: 20, duration: 300 }}
+  >
     <div 
-      transition:fly={{ y: 20, duration: 300 }}
-      class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6"
-    >
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Add New Review</h2>
-        <button 
-          on:click={onClose}
-          class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+      class="modal-overlay" 
+      on:click={() => onClose()}
+      on:keydown={(e) => e.key === 'Enter' && onClose()}
+      role="button"
+      tabindex="0"
+      aria-label="Close review form"
+    ></div>
+    <div class="modal-content">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Add Review</h2>
+        <button
+          class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full"
+          on:click={() => onClose()}
+          aria-label="Close modal"
         >
           <Icon icon={faTimes} />
         </button>

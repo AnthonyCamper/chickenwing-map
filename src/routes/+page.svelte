@@ -8,7 +8,7 @@
 	import SignInModal from '$lib/components/SignInModal.svelte';
 	import UserDisplay from '$lib/components/UserDisplay.svelte';
 	import { writable } from 'svelte/store';
-	import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
+	import { faSearch, faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp, faTimes } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 	import { geocode } from '$lib/geocoding';
 	import type { Review, Vote, Location } from '$lib/components/review/types';
@@ -23,6 +23,7 @@
 	let showAddReviewModal = false;
 	let showSignInModal = false;
 	let reviewFromListView = false;
+	let showFilterMenu = false;
 
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
@@ -243,6 +244,22 @@
 		reviewFromListView = false;
 	}
 
+	// Watch for changes to the selectedReview object and update the reviews array
+	$: if (selectedReview) {
+		// Update the review in the reviews array when selectedReview changes
+		reviews = reviews.map(r => {
+			if (r.id === selectedReview?.id) {
+				return {
+					...r,
+					upvotes_count: selectedReview.upvotes_count,
+					downvotes_count: selectedReview.downvotes_count,
+					votes: selectedReview.votes
+				};
+			}
+			return r;
+		});
+	}
+
 	function handleVoteChange(updatedReview: Review) {
 		// Update the review in the reviews array without fetching
 		reviews = reviews.map(r => {
@@ -268,33 +285,29 @@
 		}
 	}
 
-	async function handleSearch() {
-		showAutocomplete = false;
-		if (!searchQuery.trim()) return;
-
-		// First try to find matching restaurant names
-		const matchingReview = reviews.find((review) =>
-			review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase())
-		);
-
-		if (matchingReview && mapComponent) {
-			mapComponent.zoomToLocation(
-				matchingReview.location.latitude,
-				matchingReview.location.longitude,
-				matchingReview.location.restaurant_name
-			);
+	function handleSearch() {
+		console.log("Search query:", searchQuery);
+		if (!searchQuery.trim()) {
 			noResultsFound = false;
 			return;
 		}
 
-		// If no matching restaurant, try geocoding the search query
-		const location = await geocode(searchQuery);
-		if (location && mapComponent) {
-			mapComponent.zoomToLocation(location.latitude, location.longitude, searchQuery);
-			noResultsFound = false;
-		} else {
+		geocode(searchQuery).then((location) => {
+			if (location) {
+				if (mapComponent) {
+					mapComponent.zoomToLocation(location.latitude, location.longitude, searchQuery);
+				}
+				noResultsFound = false;
+			} else {
+				console.log("No results found");
+				noResultsFound = true;
+			}
+		}).catch(error => {
+			console.error("Geocoding error:", error);
 			noResultsFound = true;
-		}
+		}).finally(() => {
+			showAutocomplete = false;
+		});
 	}
 
 	function handleAddReview() {
@@ -346,131 +359,213 @@
 		}
 		updateAutocomplete();
 	}
+
+	function toggleMapView() {
+		isMapView = !isMapView;
+	}
+
+	function toggleSortOrder() {
+		$sortOrder = $sortOrder === 'asc' ? 'desc' : 'asc';
+	}
+
+	function handleAddReviewComplete(event: CustomEvent<{ review: Review }>) {
+		const newReview = event.detail.review;
+		reviews = [...reviews, newReview];
+		showAddReviewModal = false;
+	}
 </script>
 
-<div
-	class="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white p-4 sm:p-6 md:p-8"
->
-	<div class="p-4 sm:p-6">
-		<h1 class="text-3xl font-bold mb-6 text-gray-800 dark:text-white">Chicken Wing Ratings</h1>
-		<div class="flex rounded-md shadow-sm mb-6" role="group">
-			<button
-				type="button"
-				on:click={() => setMapView(true)}
-				class={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-					isMapView
-						? 'bg-blue-600 text-white'
-						: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
-				}`}
-			>
-				Map View
-			</button>
-			<button
-				type="button"
-				on:click={() => setMapView(false)}
-				class={`px-4 py-2 text-sm font-medium rounded-r-lg ${
-					!isMapView
-						? 'bg-blue-600 text-white'
-						: 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600'
-				}`}
-			>
-				List View
-			</button>
-		</div>
-		<div class="mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-4 relative">
-			<div class="flex-grow w-full sm:w-auto">
-				<div class="relative">
+<svelte:head>
+	<title>ChickenWing Map | Find the Best Wings</title>
+	<meta name="description" content="Discover and rate the best chicken wings near you." />
+</svelte:head>
+
+<div class="bg-gray-50 dark:bg-gray-900 min-h-full">
+	<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+		<!-- Top Bar: Search, View Toggle, Add Review -->
+		<div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center mb-4">
+			<!-- Search Bar -->
+			<div class="relative flex-grow">
+				<div class="relative rounded-md shadow-sm">
+					<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+						<Icon icon={faSearch} class="h-5 w-5 text-gray-400" />
+					</div>
 					<input
 						type="text"
-						on:keypress={handleKeyPress}
+						class="form-input pl-10 py-2"
+						placeholder="Search locations..."
 						bind:value={searchQuery}
-						on:input={updateAutocomplete}
-						placeholder="Search places by restaurant name or city"
-						class="w-full p-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+						on:keypress={handleKeyPress}
 					/>
-					<button
-						on:click={handleSearch}
-						class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-					>
-						<Icon icon={faSearch} />
-					</button>
+					{#if searchQuery.length > 0}
+						<div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+							<button
+								class="text-gray-400 hover:text-gray-500 focus:outline-none"
+								on:click={() => {
+									searchQuery = '';
+									noResultsFound = false;
+								}}
+							>
+								<Icon icon={faTimes} class="h-5 w-5" />
+							</button>
+						</div>
+					{/if}
 				</div>
-				{#if showAutocomplete}
-					<div
-						class="absolute z-[9999] w-full bg-white dark:bg-gray-700 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600"
-					>
+				{#if noResultsFound}
+					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 px-2 text-sm text-error-500">
+						No results found for "{searchQuery}"
+					</div>
+				{/if}
+				{#if showAutocomplete && autocompleteResults.length > 0}
+					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1">
 						{#each autocompleteResults as result}
-							<div
-								class="p-3 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-gray-800 dark:text-white"
-								on:click={() => selectAutocomplete(result)}
+							<button
+								class="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+								on:click={() => {
+									searchQuery = result;
+									showAutocomplete = false;
+									handleSearch();
+								}}
 							>
 								{result}
-							</div>
+							</button>
 						{/each}
 					</div>
 				{/if}
 			</div>
-			<button
-				on:click={handleAddReview}
-				class="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center whitespace-nowrap"
-			>
-				<Icon icon={faPlus} class="mr-2" />
-				<span>Add Review</span>
-			</button>
+
+			<!-- Controls: View Toggle, Sort, and Add -->
+			<div class="flex space-x-2">
+				<!-- View Toggle Button -->
+				<button 
+					class="btn-secondary flex items-center" 
+					on:click={toggleMapView}
+					aria-label={isMapView ? "Switch to list view" : "Switch to map view"}
+				>
+					<Icon icon={isMapView ? faList : faMap} class="h-5 w-5 mr-2" />
+					<span>{isMapView ? "List" : "Map"}</span>
+				</button>
+
+				<!-- Filter & Sort Dropdown -->
+				<div class="relative">
+					<button 
+						class="btn-secondary flex items-center" 
+						on:click={() => showFilterMenu = !showFilterMenu}
+						aria-label="Filter and sort options"
+					>
+						<Icon icon={faFilter} class="h-5 w-5 mr-2" />
+						<span>Sort</span>
+					</button>
+
+					{#if showFilterMenu}
+						<div class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-30">
+							<div class="py-1" role="menu" aria-orientation="vertical">
+								<!-- Sort options -->
+								<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+									Sort by
+								</div>
+								<button
+									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
+									on:click={() => { $sortBy = 'rating'; }}
+								>
+									Rating
+								</button>
+								<button
+									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
+									on:click={() => { $sortBy = 'name'; }}
+								>
+									Restaurant Name
+								</button>
+								<button
+									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
+									on:click={() => { $sortBy = 'date'; }}
+								>
+									Date Visited
+								</button>
+								{#if userLocation}
+									<button
+										class="w-full text-left px-4 py-2 text-sm {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
+										on:click={() => { $sortBy = 'distance'; }}
+									>
+										Distance
+									</button>
+								{/if}
+
+								<!-- Divider -->
+								<div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+								<!-- Order direction -->
+								<button
+									class="w-full text-left px-4 py-2 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+									on:click={toggleSortOrder}
+								>
+									<span>{$sortOrder === 'desc' ? 'Descending' : 'Ascending'}</span>
+									<Icon icon={$sortOrder === 'desc' ? faSortAmountDown : faSortAmountUp} class="h-4 w-4" />
+								</button>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Add Review Button -->
+				<button class="btn-primary flex items-center" on:click={handleAddReview} aria-label="Add a new review">
+					<Icon icon={faPlus} class="h-5 w-5 mr-2" />
+					<span>Add</span>
+				</button>
+			</div>
 		</div>
 
-		{#if noResultsFound}
-			<p class="text-red-500 mt-2">No places found matching your search.</p>
-		{/if}
-	</div>
-
-	<div class="relative h-[calc(100vh-300px)] sm:h-[calc(100vh-340px)]">
+		<!-- Loading State -->
 		{#if isLoading}
-			<p class="p-4">Loading reviews...</p>
-		{:else if reviews.length === 0}
-			<p class="p-4">
-				No reviews found. <button on:click={fetchReviews} class="text-blue-500"
-					>Refresh</button
-				>
-			</p>
-		{:else if isMapView}
-			<Map
-				bind:this={mapComponent}
-				reviews={displayedReviews}
-				onMarkerClick={handleShowReview}
-				{isSlideoutOpen}
-				{userLocation}
-			/>
+			<div class="flex justify-center items-center h-96">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+			</div>
 		{:else}
-			<div class="p-4 overflow-y-auto h-full">
-				<ListView
-					reviews={displayedReviews}
-					onShowReview={handleShowReview}
-					bind:sortBy={$sortBy}
-					bind:sortOrder={$sortOrder}
-				/>
+			<!-- Main Content: Map or List View -->
+			<div class="relative rounded-lg overflow-hidden shadow-md bg-white dark:bg-gray-800 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
+				{#if isMapView}
+					<Map
+						bind:this={mapComponent}
+						{reviews}
+						onMarkerClick={handleShowReview}
+						{isSlideoutOpen}
+						{userLocation}
+					/>
+				{:else}
+					<ListView
+						reviews={sortedReviews}
+						{userLocation}
+						onItemClick={handleShowReview}
+						selectedReviewId={selectedReview?.id}
+					/>
+				{/if}
+				
+				{#if selectedReview}
+					<ReviewSlideout
+						review={selectedReview}
+						{closeSlideout}
+						{user}
+						fromListView={reviewFromListView}
+					/>
+				{/if}
 			</div>
 		{/if}
 	</div>
 </div>
 
-<UserDisplay {isDarkMode} onThemeChange={toggleTheme} />
+{#if showAddReviewModal}
+	<AddReviewModal
+		{user}
+		on:close={() => (showAddReviewModal = false)}
+		on:reviewAdded={handleAddReviewComplete}
+	/>
+{/if}
 
-<ReviewSlideout 
-	review={selectedReview} 
-	onClose={closeSlideout} 
-	{handleVoteChange}
-	fromListView={reviewFromListView}
-/>
-<AddReviewModal 
-	show={showAddReviewModal} 
-	onClose={() => showAddReviewModal = false} 
-	onReviewAdded={fetchReviews} 
-/>
-<SignInModal
-	show={showSignInModal}
-	onClose={() => showSignInModal = false}
-/>
+{#if showSignInModal}
+	<SignInModal on:close={() => (showSignInModal = false)} />
+{/if}
+
+<svelte:window on:click={() => (showFilterMenu = false)} />
 
 <style>
 	:global(body) {

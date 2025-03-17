@@ -1,210 +1,97 @@
 <script lang="ts">
-  import { faThumbsUp, faThumbsDown, faSearch, faChevronDown, faChevronUp, faStar, faCalendar } from '@fortawesome/free-solid-svg-icons';
+  import { faThumbsUp, faThumbsDown, faSearch, faChevronDown, faChevronUp, faStar, faCalendar, faMapMarkerAlt, faTimes } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
-  import type { Review, Location } from './review/types';
+  import ReviewCard from './review/ReviewCard.svelte';
+  import type { Review } from './review/types';
 
   export let reviews: Review[];
-  export let onShowReview: (review: Review) => void;
-  export let sortBy: string;
-  export let sortOrder: string;
+  export let userLocation: { latitude: number; longitude: number } | null;
+  export let onItemClick: (review: Review) => void;
+  export let selectedReviewId: string | number | undefined;
 
-  let expandedLocations: Set<number> = new Set();
-  let reviewSearchTerm = '';
-
-  function toggleSortOrder() {
-    sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-  }
-
-  function toggleLocation(locationId: number) {
-    if (expandedLocations.has(locationId)) {
-      expandedLocations.delete(locationId);
-    } else {
-      expandedLocations.add(locationId);
-    }
-    expandedLocations = expandedLocations; // trigger reactivity
-  }
-
-  // Helper function to get the value to sort by
-  function getSortValue(review: Review): any {
-    switch (sortBy) {
-      case 'rating':
-        return parseFloat(review.rating);
-      case 'name':
-        return review.location.restaurant_name.toLowerCase();
-      case 'date':
-        return new Date(review.date_visited).getTime();
-      case 'distance':
-        return review.distance ?? Infinity;
-      default:
-        return review.location.restaurant_name.toLowerCase();
-    }
-  }
-
-  // Group reviews by location
-  function groupReviewsByLocation(reviews: Review[]): Map<number, Review[]> {
-    const grouped = new Map();
-    reviews.forEach(review => {
-      if (!grouped.has(review.location_id)) {
-        grouped.set(review.location_id, []);
-      }
-      grouped.get(review.location_id).push(review);
-    });
-    return grouped;
-  }
+  let searchTerm = '';
 
   // Filter reviews based on search term
-  $: filteredReviews = reviews.filter(review => {
-    const reviewSearchLower = reviewSearchTerm.toLowerCase();
-    
-    return review.review.toLowerCase().includes(reviewSearchLower) ||
-           review.rating.toString().includes(reviewSearchLower) ||
-           new Date(review.date_visited).toLocaleDateString().toLowerCase().includes(reviewSearchLower);
-  });
+  $: filteredReviews = searchTerm.trim() 
+    ? reviews.filter(review => 
+        review.location.restaurant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (review.location.address && review.location.address.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        review.review.toLowerCase().includes(searchTerm.toLowerCase()))
+    : reviews;
 
-  // Sort and group reviews
-  $: sortedReviews = [...filteredReviews].sort((a, b) => {
-    const aValue = getSortValue(a);
-    const bValue = getSortValue(b);
-    
-    if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  $: groupedReviews = groupReviewsByLocation(sortedReviews);
-
-  // Calculate average rating for a location
-  function getLocationStats(reviews: Review[]) {
-    const avgRating = reviews.reduce((sum, r) => sum + parseFloat(r.rating), 0) / reviews.length;
-    const totalUpvotes = reviews.reduce((sum, r) => sum + (r.upvotes_count || 0), 0);
-    const totalDownvotes = reviews.reduce((sum, r) => sum + (r.downvotes_count || 0), 0);
-    return { avgRating, totalUpvotes, totalDownvotes };
+  // Format distance for display
+  function formatDistance(distance: number): string {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m`;
+    } else {
+      return `${distance.toFixed(1)} km`;
+    }
   }
 </script>
 
-<div class="space-y-4">
-  <!-- Search and Sort Controls -->
-  <div class="flex flex-col sm:flex-row gap-4">
-    <!-- Review Search -->
-    <div class="relative flex-1">
+<div class="h-full flex flex-col">
+  <!-- Search input for filtering reviews -->
+  <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+    <div class="relative">
       <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Icon icon={faSearch} class="text-gray-400" />
+        <Icon icon={faSearch} class="h-5 w-5 text-gray-400" />
       </div>
       <input
         type="text"
-        bind:value={reviewSearchTerm}
-        placeholder="Search reviews..."
-        class="w-full pl-10 pr-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        class="form-input pl-10 pr-10 py-2 w-full"
+        placeholder="Filter reviews..."
+        bind:value={searchTerm}
       />
-    </div>
-    
-    <!-- Sort Controls -->
-    <div class="flex items-center space-x-2">
-      <select 
-        bind:value={sortBy} 
-        class="p-2 rounded dark:bg-gray-700 dark:text-white border dark:border-gray-600"
-      >
-        <option value="rating">Rating</option>
-        <option value="name">Restaurant Name</option>
-        <option value="date">Date Visited</option>
-        <option value="distance">Distance</option>
-      </select>
-      <button 
-        on:click={toggleSortOrder} 
-        class="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-      >
-        {sortOrder === 'asc' ? '↑' : '↓'}
-      </button>
+      {#if searchTerm}
+        <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+          <button
+            class="text-gray-400 hover:text-gray-500 focus:outline-none"
+            on:click={() => searchTerm = ''}
+            aria-label="Clear search"
+          >
+            <Icon icon={faTimes} class="h-5 w-5" />
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 
-  <!-- Locations List -->
-  <div class="space-y-4">
-    {#each [...groupedReviews] as [locationId, locationReviews]}
-      {@const location = locationReviews[0].location}
-      {@const stats = getLocationStats(locationReviews)}
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <!-- Location Header -->
-        <div 
-          class="p-4 bg-gray-50 dark:bg-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-          on:click={() => toggleLocation(locationId)}
+  <!-- List header with count -->
+  <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="flex justify-between items-center">
+      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400">
+        {filteredReviews.length} {filteredReviews.length === 1 ? 'review' : 'reviews'} found
+      </h2>
+      
+      {#if searchTerm && filteredReviews.length !== reviews.length}
+        <button 
+          class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 text-sm font-medium"
+          on:click={() => searchTerm = ''}
         >
-          <div class="flex justify-between items-start">
-            <div class="space-y-1">
-              <h2 class="text-xl font-bold dark:text-white">{location.restaurant_name}</h2>
-              <p class="text-gray-600 dark:text-gray-300">{location.address}</p>
-              <div class="flex items-center space-x-4">
-                <div class="flex items-center">
-                  <Icon icon={faStar} class="text-yellow-400 mr-1" />
-                  <span class="dark:text-white">{stats.avgRating.toFixed(1)}</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                  <div class="flex items-center">
-                    <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
-                    <span class="dark:text-white">{stats.totalUpvotes}</span>
-                  </div>
-                  <div class="flex items-center">
-                    <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
-                    <span class="dark:text-white">{stats.totalDownvotes}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="flex items-center">
-              <span class="mr-2 text-sm text-gray-500 dark:text-gray-400">
-                {locationReviews.length} {locationReviews.length === 1 ? 'review' : 'reviews'}
-              </span>
-              <Icon 
-                icon={expandedLocations.has(locationId) ? faChevronUp : faChevronDown} 
-                class="text-gray-400"
-              />
-            </div>
-          </div>
-        </div>
+          Clear filter
+        </button>
+      {/if}
+    </div>
+  </div>
 
-        <!-- Reviews for this location -->
-        {#if expandedLocations.has(locationId)}
-          <div class="divide-y divide-gray-200 dark:divide-gray-600">
-            {#each locationReviews as review}
-              <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <div class="flex justify-between items-start">
-                  <div class="space-y-2 flex-1">
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center space-x-4">
-                        <div class="flex items-center">
-                          <Icon icon={faStar} class="text-yellow-400 mr-1" />
-                          <span class="text-lg font-semibold dark:text-white">{review.rating}/10</span>
-                        </div>
-                        <div class="flex items-center text-gray-500 dark:text-gray-400">
-                          <Icon icon={faCalendar} class="mr-1" />
-                          <span>{new Date(review.date_visited).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <div class="flex items-center space-x-4">
-                        <div class="flex items-center">
-                          <Icon icon={faThumbsUp} class="text-green-500 mr-1" />
-                          <span class="dark:text-white">{review.upvotes_count || 0}</span>
-                        </div>
-                        <div class="flex items-center">
-                          <Icon icon={faThumbsDown} class="text-red-500 mr-1" />
-                          <span class="dark:text-white">{review.downvotes_count || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <p class="text-gray-700 dark:text-gray-300">{review.review}</p>
-                    <button 
-                      class="mt-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                      on:click={() => onShowReview(review)}
-                    >
-                      View Full Review
-                    </button>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
+  <!-- Reviews list -->
+  <div class="overflow-y-auto flex-1">
+    {#if filteredReviews.length === 0}
+      <div class="flex flex-col items-center justify-center p-8 text-center h-full">
+        <div class="text-gray-400 mb-2">
+          <Icon icon={faSearch} class="h-8 w-8" />
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mb-1">No reviews found</p>
+        <p class="text-sm text-gray-500 dark:text-gray-500">{searchTerm ? 'Try another search term' : 'Be the first to add a review!'}</p>
       </div>
-    {/each}
+    {:else}
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        {#each filteredReviews as review (review.id)}
+          <div on:click={() => onItemClick(review)} on:keydown={() => {}} role="button" tabindex="0">
+            <ReviewCard {review} isSelected={String(review.id) === String(selectedReviewId)} />
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </div>

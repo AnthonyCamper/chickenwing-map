@@ -1,3 +1,104 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter var', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 transition-colors duration-200 overflow-x-hidden;
+  }
+  
+  /* Typography baseline */
+  h1 {
+    @apply text-3xl font-bold text-gray-900 dark:text-white;
+  }
+  
+  h2 {
+    @apply text-2xl font-semibold text-gray-800 dark:text-gray-100;
+  }
+  
+  h3 {
+    @apply text-xl font-semibold text-gray-800 dark:text-gray-100;
+  }
+
+  p {
+    @apply text-gray-700 dark:text-gray-300;
+  }
+}
+
+@layer components {
+  /* Button styles */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border rounded-md font-medium shadow-sm 
+    transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white border-transparent hover:bg-primary-700 
+    focus:ring-primary-500 dark:bg-primary-700 dark:hover:bg-primary-600;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-white text-gray-700 border-gray-300 hover:bg-gray-50 focus:ring-primary-500
+    dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700;
+  }
+
+  .btn-success {
+    @apply btn bg-success-500 text-white border-transparent hover:bg-success-600 focus:ring-success-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-error-500 text-white border-transparent hover:bg-error-600 focus:ring-error-500;
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden;
+  }
+  
+  /* Form controls */
+  .form-input {
+    @apply block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm
+    focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-900 dark:text-gray-100
+    sm:text-sm transition-colors duration-200;
+  }
+  
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-primary {
+    @apply badge bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-300;
+  }
+  
+  .badge-secondary {
+    @apply badge bg-secondary-100 text-secondary-800 dark:bg-secondary-900 dark:text-secondary-300;
+  }
+  
+  /* Dialog/modal styles */
+  .modal {
+    @apply fixed inset-0 overflow-y-auto z-50;
+  }
+  
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black bg-opacity-50 transition-opacity;
+  }
+  
+  .modal-content {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md mx-auto my-16 p-6
+    transform transition-all w-11/12 sm:w-full;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
