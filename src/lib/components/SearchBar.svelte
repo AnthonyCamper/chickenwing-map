@@ -17,7 +17,8 @@
     selectSearchResult,
     shouldShowResultsDropdown,
     shouldShowNoResults,
-    isResultSelected
+    isResultSelected,
+    selectedResult
   } from '$lib/stores/searchStore';
   import type { Review } from '$lib/components/review/types';
   
@@ -52,8 +53,21 @@
       // This allows autocomplete to work again after selection
       isResultSelected.set(false);
       
+      // Clear previous search results when typing after selection
+      // This prevents old search results from appearing
+      if ($selectedResult !== null) {
+        searchResults.set({ locationMatches: [], reviewMatches: [] });
+        showResults.set(false);
+        selectedResult.set(null);
+      }
+      
       // Update autocomplete on keystroke
       updateAutocomplete(reviews, $searchQuery);
+      
+      // Also perform search while typing if query has at least 2 characters
+      if ($searchQuery.trim().length >= 2) {
+        await search();
+      }
     }
   }
   
