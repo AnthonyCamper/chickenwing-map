@@ -7,11 +7,18 @@
 	import AddReviewModal from '$lib/components/AddReviewModal.svelte';
 	import SignInModal from '$lib/components/SignInModal.svelte';
 	import UserDisplay from '$lib/components/UserDisplay.svelte';
+	import SearchBar from '$lib/components/SearchBar.svelte';
 	import { writable } from 'svelte/store';
-	import { faSearch, faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp, faTimes } from '@fortawesome/free-solid-svg-icons';
+	import { faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
-	import { geocode } from '$lib/geocoding';
 	import type { Review, Vote, Location } from '$lib/components/review/types';
+	import { 
+		searchQuery,
+		searchMode,
+		searchResults,
+		performSearch,
+		clearSearch
+	} from '$lib/stores/searchStore';
 
 	let reviews: Review[] = [];
 	let isMapView = true;
@@ -28,11 +35,7 @@
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
 
-	let searchQuery = '';
-	let noResultsFound = false;
 	let mapComponent: MapComponent;
-	let autocompleteResults: string[] = [];
-	let showAutocomplete = false;
 
 	// Import the Map component type directly
 	type MapComponent = InstanceType<typeof Map> & {
@@ -41,28 +44,7 @@
 
 	$: isSlideoutOpen = !!selectedReview;
 
-	function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-		const R = 6371; // Radius of the earth in km
-		const dLat = deg2rad(lat2 - lat1);
-		const dLon = deg2rad(lon2 - lon1);
-		const a =
-			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-			Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-		const d = R * c; // Distance in km
-		return d;
-	}
-
-	function handleKeyPress(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
-			handleSearch();
-		}
-	}
-
-	function deg2rad(deg: number) {
-		return deg * (Math.PI / 180);
-	}
-
+	// Sorted reviews for list view
 	$: sortedReviews = [...reviews].sort((a, b) => {
 		const order = $sortOrder === 'asc' ? 1 : -1;
 		switch ($sortBy) {
@@ -93,6 +75,22 @@
 				return 0;
 		}
 	});
+
+	function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+		const R = 6371; // Radius of the earth in km
+		const dLat = deg2rad(lat2 - lat1);
+		const dLon = deg2rad(lon2 - lon1);
+		const a =
+			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+			Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		const d = R * c; // Distance in km
+		return d;
+	}
+
+	function deg2rad(deg: number) {
+		return deg * (Math.PI / 180);
+	}
 
 	function applyTheme() {
 		if (isDarkMode) {
@@ -139,7 +137,7 @@
 		if (error) {
 			console.error('Error fetching reviews:', error);
 		} else {
-			console.log('Fetched data:', JSON.stringify(data, null, 2));
+			console.log('Fetched data:', data?.length || 0, 'reviews');
 			const currentLocation = userLocation;
 			
 			// Process reviews to include vote counts and map to Review type
@@ -285,29 +283,105 @@
 		}
 	}
 
-	function handleSearch() {
-		console.log("Search query:", searchQuery);
-		if (!searchQuery.trim()) {
-			noResultsFound = false;
+	// Handle search completion from the SearchBar component
+	function handleSearchComplete(event: CustomEvent<{ query: string, results: { locationMatches: any[], reviewMatches: Review[] } }>) {
+		const { results } = event.detail;
+		
+		// Update the map with any location matches
+		if (results.locationMatches && results.locationMatches.length > 0) {
+			// If we have location matches, zoom to the first one
+			if (mapComponent) {
+				const location = results.locationMatches[0];
+				mapComponent.zoomToLocation(
+					location.latitude, 
+					location.longitude, 
+					location.name || 'Search Result'
+				);
+				console.log('Zooming to location:', location);
+			}
+		}
+		
+		// If we have review matches and we're in map view, select the first one
+		if (results.reviewMatches && results.reviewMatches.length > 0 && isMapView) {
+			// Select the first review
+			const firstReview = results.reviewMatches[0];
+			console.log('Selecting first review:', firstReview.location.restaurant_name);
+			
+			// Show the review and zoom to its location
+			selectedReview = firstReview;
+			isSlideoutOpen = true;
+			
+			// Zoom to the location on the map
+			if (mapComponent) {
+				mapComponent.zoomToLocation(
+					firstReview.location.latitude, 
+					firstReview.location.longitude, 
+					firstReview.location.restaurant_name
+				);
+			}
+		}
+	}
+	
+	// Handle a specific review selection from the search results
+	function handleResultSelect(event: CustomEvent<Review>) {
+		// The event detail contains the selected review
+		const review = event.detail;
+		console.log('handleResultSelect triggered for review:', review.location.restaurant_name);
+		console.log('Review coordinates:', review.location.latitude, review.location.longitude);
+		
+		// Make sure the coordinates are actually valid numbers
+		if (typeof review.location.latitude !== 'number' || 
+			typeof review.location.longitude !== 'number' ||
+			isNaN(review.location.latitude) || 
+			isNaN(review.location.longitude)) {
+			console.error('Invalid coordinates for review:', review.location);
 			return;
 		}
-
-		geocode(searchQuery).then((location) => {
-			if (location) {
-				if (mapComponent) {
-					mapComponent.zoomToLocation(location.latitude, location.longitude, searchQuery);
+		
+		// Set the selected review (will be shown in the slideout)
+		selectedReview = review;
+		
+		// Ensure the slideout is open to show the review
+		isSlideoutOpen = true;
+		
+		// If we're not already in map view, switch to it and wait for the view to update
+		const wasMapView = isMapView;
+		if (!isMapView) {
+			console.log('Switching to map view');
+			isMapView = true;
+		}
+		
+		// Guarantee we're using a proper delay based on whether view changed
+		const zoomDelay = wasMapView ? 50 : 500; // Longer delay if view changed
+		
+		// Delay the zoom operation slightly to ensure the map is ready
+		setTimeout(() => {
+			console.log('Attempting to zoom after delay');
+			
+			// Check if map component is available
+			console.log('Map component available?', !!mapComponent);
+			
+			if (mapComponent) {
+				try {
+					// Ensure coordinates are valid numbers
+					const lat = Number(review.location.latitude);
+					const lng = Number(review.location.longitude);
+					console.log(`Zooming to: ${lat}, ${lng}, ${review.location.restaurant_name}`);
+					
+					// Call the zoom function
+					mapComponent.zoomToLocation(
+						lat, 
+						lng, 
+						review.location.restaurant_name
+					);
+					console.log('Zoom call completed');
+				} catch (error) {
+					console.error('Error zooming to location:', error);
 				}
-				noResultsFound = false;
 			} else {
-				console.log("No results found");
-				noResultsFound = true;
+				console.error('mapComponent is unavailable for zooming');
 			}
-		}).catch(error => {
-			console.error("Geocoding error:", error);
-			noResultsFound = true;
-		}).finally(() => {
-			showAutocomplete = false;
-		});
+		}, zoomDelay);
 	}
 
 	function handleAddReview() {
@@ -318,47 +392,20 @@
 		}
 	}
 
-	function updateAutocomplete() {
-		if (searchQuery.length > 0) {
-			// Get unique restaurant names that match the search query
-			const matchingNames = [...new Set(reviews
-				.map((review) => review.location.restaurant_name))]
-				.filter((name) => name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-			// Get unique addresses that match the search query
-			const matchingAddresses = [...new Set(reviews
-				.map((review) => review.location.address))]
-				.filter((address) => address.toLowerCase().includes(searchQuery.toLowerCase()));
-
-			// Combine and limit results
-			autocompleteResults = [...matchingNames, ...matchingAddresses].slice(0, 5);
-			showAutocomplete = autocompleteResults.length > 0;
-		} else {
-			showAutocomplete = false;
-		}
+	// Handle review added from modal
+	function handleAddReviewComplete(event: CustomEvent<{ review: Review }>) {
+		console.log('Review added:', event.detail.review);
+		showAddReviewModal = false;
+		
+		// Refresh reviews by refetching from the server
+		// For now, just close the modal
+		// TODO: Implement review refresh logic
 	}
 
-	function selectAutocomplete(result: string) {
-		searchQuery = result;
-		showAutocomplete = false;
-		handleSearch();
-	}
-
-	// Filter reviews based on search query
-	$: filteredReviews = searchQuery
-		? sortedReviews.filter(review => 
-				review.location.restaurant_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				review.location.address.toLowerCase().includes(searchQuery.toLowerCase()))
+	// Filter reviews based on search results
+	$: displayedReviews = $searchResults.reviewMatches.length > 0 && $searchQuery 
+		? $searchResults.reviewMatches 
 		: sortedReviews;
-
-	$: displayedReviews = filteredReviews;
-
-	$: {
-		if (!isMapView) {
-			noResultsFound = displayedReviews.length === 0 && searchQuery !== '';
-		}
-		updateAutocomplete();
-	}
 
 	function toggleMapView() {
 		isMapView = !isMapView;
@@ -368,10 +415,9 @@
 		$sortOrder = $sortOrder === 'asc' ? 'desc' : 'asc';
 	}
 
-	function handleAddReviewComplete(event: CustomEvent<{ review: Review }>) {
-		const newReview = event.detail.review;
-		reviews = [...reviews, newReview];
-		showAddReviewModal = false;
+	// After the mapComponent binding, add additional console logging for debugging
+	$: if (mapComponent) {
+		console.log('mapComponent is bound and available');
 	}
 </script>
 
@@ -384,54 +430,15 @@
 	<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 		<!-- Top Bar: Search, View Toggle, Add Review -->
 		<div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center mb-4">
-			<!-- Search Bar -->
+			<!-- Updated: Unified Search Bar -->
 			<div class="relative flex-grow">
-				<div class="relative rounded-md shadow-sm">
-					<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-						<Icon icon={faSearch} class="h-5 w-5 text-gray-400" />
-					</div>
-					<input
-						type="text"
-						class="form-input pl-10 py-2"
-						placeholder="Search locations..."
-						bind:value={searchQuery}
-						on:keypress={handleKeyPress}
-					/>
-					{#if searchQuery.length > 0}
-						<div class="absolute inset-y-0 right-0 pr-3 flex items-center">
-							<button
-								class="text-gray-400 hover:text-gray-500 focus:outline-none"
-								on:click={() => {
-									searchQuery = '';
-									noResultsFound = false;
-								}}
-							>
-								<Icon icon={faTimes} class="h-5 w-5" />
-							</button>
-						</div>
-					{/if}
-				</div>
-				{#if noResultsFound}
-					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 px-2 text-sm text-error-500">
-						No results found for "{searchQuery}"
-					</div>
-				{/if}
-				{#if showAutocomplete && autocompleteResults.length > 0}
-					<div class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1">
-						{#each autocompleteResults as result}
-							<button
-								class="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
-								on:click={() => {
-									searchQuery = result;
-									showAutocomplete = false;
-									handleSearch();
-								}}
-							>
-								{result}
-							</button>
-						{/each}
-					</div>
-				{/if}
+				<SearchBar 
+					{reviews}
+					placeholder="Search for wing places or reviews..."
+					showSearchModeToggle={true}
+					on:search={handleSearchComplete}
+					on:resultSelect={handleResultSelect}
+				/>
 			</div>
 
 			<!-- Controls: View Toggle, Sort, and Add -->
@@ -458,7 +465,7 @@
 					</button>
 
 					{#if showFilterMenu}
-						<div class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-30">
+						<div class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-[1001]">
 							<div class="py-1" role="menu" aria-orientation="vertical">
 								<!-- Sort options -->
 								<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -546,6 +553,7 @@
 						{closeSlideout}
 						{user}
 						fromListView={reviewFromListView}
+						on:voteChanged={e => handleVoteChange(e.detail)}
 					/>
 				{/if}
 			</div>
@@ -555,9 +563,12 @@
 
 {#if showAddReviewModal}
 	<AddReviewModal
+		show={showAddReviewModal}
 		{user}
-		on:close={() => (showAddReviewModal = false)}
-		on:reviewAdded={handleAddReviewComplete}
+		onClose={() => (showAddReviewModal = false)}
+		onReviewAdded={() => {
+			showAddReviewModal = false;
+		}}
 	/>
 {/if}
 
@@ -570,5 +581,17 @@
 <style>
 	:global(body) {
 		@apply bg-gray-100 dark:bg-gray-900;
+	}
+	
+	:global(.btn-primary) {
+		@apply px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 transition-colors;
+	}
+	
+	:global(.btn-secondary) {
+		@apply px-4 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors;
+	}
+	
+	:global(.form-input) {
+		@apply block w-full rounded-md shadow-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-primary-500 dark:focus:border-primary-400 focus:ring focus:ring-primary-500 dark:focus:ring-primary-400 focus:ring-opacity-50;
 	}
 </style>

@@ -2,6 +2,7 @@
   import { onMount, afterUpdate } from 'svelte';
   import type { Review, Location } from './review/types';
   import type { LeafletEvent } from 'leaflet';
+  import { searchResults, searchMode } from '$lib/stores/searchStore';
 
   export let reviews: Review[];
   export let onMarkerClick: (review: Review) => void;
@@ -15,6 +16,12 @@
   let searchMarker: any;
   let wingIcon: any;
   let searchIcon: any;
+  let locationMarkers = new Map<number, any>(); // Map to track markers by location ID
+
+  // Subscribe to search results to highlight matching locations
+  $: if (map && $searchResults) {
+    highlightSearchResults($searchResults);
+  }
 
   onMount(async () => {
     console.log("Mount started");
@@ -29,15 +36,46 @@
   });
 
   export function zoomToLocation(latitude: number, longitude: number, locationName: string) {
-    if (map) {
+    console.log("zoomToLocation called with coords:", latitude, longitude, "and name:", locationName);
+    
+    if (!map) {
+      console.error("Map is not initialized in zoomToLocation!");
+      return;
+    }
+    
+    if (!isValidCoordinate(latitude, longitude)) {
+      console.error("Invalid coordinates provided to zoomToLocation:", latitude, longitude);
+      return;
+    }
+    
+    try {
+      console.log("Setting map view to coordinates");
       map.setView([latitude, longitude], 12);  // Adjust zoom level as needed
+      
+      console.log("Handling search marker");
       if (searchMarker) {
         map.removeLayer(searchMarker);
       }
+      
+      if (!L) {
+        console.error("Leaflet (L) is not initialized!");
+        return;
+      }
+      
+      if (!searchIcon) {
+        console.error("searchIcon is not initialized!");
+        return;
+      }
+      
+      console.log("Creating search marker");
       searchMarker = L.marker([latitude, longitude], { icon: searchIcon })
         .addTo(map)
         .bindPopup(`Searched: ${locationName}`)
         .openPopup();
+        
+      console.log("zoomToLocation completed successfully");
+    } catch (error) {
+      console.error("Error in zoomToLocation:", error);
     }
   }
   
@@ -132,7 +170,10 @@
           maxWidth: 300
         }).setContent(popupContent);
 
-        const marker = L.marker([location.latitude, location.longitude], { icon: wingIcon })
+        const marker = L.marker([location.latitude, location.longitude], { 
+          icon: wingIcon,
+          locationId: location.id // Store location ID in marker for search highlighting
+        })
           .addTo(map)
           .bindPopup(customPopup)
           .on('click', (e: LeafletEvent) => {
@@ -155,6 +196,7 @@
             };
           });
         markers.push(marker);
+        locationMarkers.set(location.id, marker); // Store reference to marker by location ID
       } else {
         console.warn(`Invalid coordinates for location: ${location.restaurant_name}`);
       }
@@ -233,12 +275,74 @@
       }
     }
   }
+
+  function highlightSearchResults(results: { 
+    locationMatches: { latitude: number; longitude: number; name: string }[]; 
+    reviewMatches: Review[] 
+  }) {
+    // Clear any previous highlighting
+    markers.forEach(marker => {
+      marker.setIcon(wingIcon);
+    });
+    
+    if (results.reviewMatches.length > 0) {
+      // Create a set of location IDs that match the search
+      const matchingLocationIds = new Set(
+        results.reviewMatches.map(review => review.location.id)
+      );
+      
+      // Highlight matching markers
+      markers.forEach(marker => {
+        const locationId = marker.options.locationId;
+        if (matchingLocationIds.has(locationId)) {
+          // Create a highlighted version of the icon
+          const highlightedIcon = L.divIcon({
+            className: 'highlighted-marker',
+            html: `<div class="flex items-center justify-center w-8 h-8">
+                    <img src="/assets/wing-icon.png" class="w-7 h-7 drop-shadow-lg filter brightness-110" />
+                    <div class="absolute w-full h-full bg-primary-400 rounded-full opacity-30 animate-pulse"></div>
+                  </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+          });
+          
+          marker.setIcon(highlightedIcon);
+          
+          // If there's just one match, pan to it
+          if (matchingLocationIds.size === 1) {
+            const { latitude, longitude } = results.reviewMatches[0].location;
+            map.setView([latitude, longitude], map.getZoom() || 12);
+          }
+        }
+      });
+      
+      // If there are multiple matches, fit the map to include all of them
+      if (matchingLocationIds.size > 1) {
+        const bounds = L.latLngBounds(
+          results.reviewMatches.map(review => [review.location.latitude, review.location.longitude])
+        );
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }
 </script>
 
 <style>
   :global(.search-marker) {
     background: transparent;
     border: none;
+    z-index: 900 !important;
+  }
+
+  :global(.highlighted-marker) {
+    background: transparent;
+    border: none;
+    z-index: 900 !important;
+  }
+
+  :global(.leaflet-marker-icon) {
+    z-index: 800 !important; 
   }
 
   :global(.custom-popup .leaflet-popup-content-wrapper) {
@@ -264,6 +368,11 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
 
+  /* Ensure buttons on map appear above popups */
+  :global(.leaflet-control-container .leaflet-control) {
+    z-index: 1000 !important;
+  }
+
   /* Mobile optimization */
   @media (max-width: 640px) {
     :global(.custom-popup .leaflet-popup-content) {
@@ -279,7 +388,7 @@
   <div bind:this={mapElement} class="absolute inset-0 transition-all duration-300 ease-in-out" class:pr-0={!isSlideoutOpen} class:pr-80={isSlideoutOpen}></div>
   <button
     on:click={zoomToNearbyPlaces}
-    class="absolute top-4 left-4 z-[1000] bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+    class="absolute top-4 left-4 z-[900] bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
   >
     Zoom to Nearby Places
   </button>
