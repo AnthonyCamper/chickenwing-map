@@ -23,20 +23,21 @@ export const selectedResult = writable<Review | null>(null);
 
 // Flag to control if search results dropdown should be shown
 export const shouldShowResultsDropdown = derived(
-  [searchResults, showNoResults, showAutocomplete, isSearching, searchQuery, selectedResult],
-  ([$results, $showNoResults, $showAutocomplete, $isSearching, $query, $selectedResult]) => {
+  [searchResults, showNoResults, showAutocomplete, isSearching, searchQuery, selectedResult, isResultSelected],
+  ([$results, $showNoResults, $showAutocomplete, $isSearching, $query, $selectedResult, $isResultSelected]) => {
     // Only show results dropdown if:
     // 1. We have results
     // 2. Not showing autocomplete
     // 3. Not showing no results message
     // 4. Not currently searching
-    // 5. There is an actual query
-    // 6. No result is currently selected (new condition)
+    // 5. There is an actual query with at least 2 characters
+    // 6. No result is currently selected
     return $results.reviewMatches.length > 0 && 
            !$showAutocomplete && 
            !$showNoResults && 
            !$isSearching && 
-           $query.trim() !== '';
+           $query.trim().length > 1 &&
+           !$isResultSelected;
   }
 );
 
@@ -71,6 +72,9 @@ export async function performSearch(reviews: Review[], activeMode?: 'location' |
     resetSearch();
     return;
   }
+  
+  // Reset selected result when performing a new search
+  selectedResult.set(null);
   
   // Hide any previous "no results" message while searching
   showNoResults.set(false);
@@ -181,7 +185,13 @@ export function filterReviews(reviews: Review[], query: string): Review[] {
  * Generate autocomplete suggestions based on reviews and query
  */
 export function updateAutocomplete(reviews: Review[], query: string) {
+  // Reset isResultSelected when user is typing to get autocomplete
+  isResultSelected.set(false);
+  
   if (query.length < 2) {
+    // Clear previous search results when typing short queries
+    searchResults.set({ locationMatches: [], reviewMatches: [] });
+    showResults.set(false);
     autocompleteResults.set([]);
     showAutocomplete.set(false);
     return;

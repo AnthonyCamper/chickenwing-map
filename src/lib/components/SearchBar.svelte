@@ -39,11 +39,6 @@
   
   // Handle Enter key
   async function handleKeyPress(event: KeyboardEvent) {
-    // Don't trigger search if a result is already selected
-    if ($isResultSelected && event.key !== 'Enter') {
-      return;
-    }
-    
     if (event.key === 'Enter') {
       await search();
       
@@ -53,6 +48,10 @@
         selectReviewResult($searchResults.reviewMatches[0]);
       }
     } else {
+      // Reset the isResultSelected flag when user starts typing a new query
+      // This allows autocomplete to work again after selection
+      isResultSelected.set(false);
+      
       // Update autocomplete on keystroke
       updateAutocomplete(reviews, $searchQuery);
     }
