@@ -14,32 +14,10 @@ export const searchResults = writable<{
 
 // UI-related search state
 export const showNoResults = writable(false);
-export const showAutocomplete = writable(false);
-export const autocompleteResults = writable<string[]>([]);
 export const showResults = writable(false);
 
 // Store for the last selected result
 export const selectedResult = writable<Review | null>(null);
-
-// Flag to control if search results dropdown should be shown
-export const shouldShowResultsDropdown = derived(
-  [searchResults, showNoResults, showAutocomplete, isSearching, searchQuery, selectedResult, isResultSelected],
-  ([$results, $showNoResults, $showAutocomplete, $isSearching, $query, $selectedResult, $isResultSelected]) => {
-    // Only show results dropdown if:
-    // 1. We have results
-    // 2. Not showing autocomplete
-    // 3. Not showing no results message
-    // 4. Not currently searching
-    // 5. There is an actual query with at least 2 characters
-    // 6. No result is currently selected
-    return $results.reviewMatches.length > 0 && 
-           !$showAutocomplete && 
-           !$showNoResults && 
-           !$isSearching && 
-           $query.trim().length > 1 &&
-           !$isResultSelected;
-  }
-);
 
 // Derived store to control "No results" message visibility
 export const shouldShowNoResults = derived(
@@ -124,7 +102,6 @@ export async function performSearch(reviews: Review[], activeMode?: 'location' |
     showNoResults.set(!isSelected);
   } finally {
     isSearching.set(false);
-    showAutocomplete.set(false);
   }
 }
 
@@ -138,7 +115,6 @@ export function selectSearchResult(review: Review) {
   // When a result is selected, hide all dropdowns and messages
   showResults.set(false);
   showNoResults.set(false);
-  showAutocomplete.set(false);
   
   // This prevents "No results found" from showing
   searchResults.set({
@@ -182,48 +158,11 @@ export function filterReviews(reviews: Review[], query: string): Review[] {
 }
 
 /**
- * Generate autocomplete suggestions based on reviews and query
- */
-export function updateAutocomplete(reviews: Review[], query: string) {
-  // Reset isResultSelected when user is typing to get autocomplete
-  isResultSelected.set(false);
-  
-  if (query.length < 2) {
-    // Clear previous search results when typing short queries
-    searchResults.set({ locationMatches: [], reviewMatches: [] });
-    showResults.set(false);
-    autocompleteResults.set([]);
-    showAutocomplete.set(false);
-    return;
-  }
-  
-  const searchLower = query.toLowerCase();
-  
-  // Get unique restaurant names that match the query
-  const restaurantNames = [...new Set(reviews
-    .map(review => review.location.restaurant_name)
-    .filter(name => name.toLowerCase().includes(searchLower))
-  )];
-  
-  // Get unique addresses that match the query
-  const addresses = [...new Set(reviews
-    .map(review => review.location.address)
-    .filter(address => address && address.toLowerCase().includes(searchLower))
-  )];
-  
-  // Combine and limit results
-  const results = [...restaurantNames, ...addresses].slice(0, 5);
-  autocompleteResults.set(results);
-  showAutocomplete.set(results.length > 0);
-}
-
-/**
  * Clear current search state
  */
 export function resetSearch() {
   searchResults.set({ locationMatches: [], reviewMatches: [] });
   showNoResults.set(false);
-  showAutocomplete.set(false);
   showResults.set(false);
   isResultSelected.set(false);
 }

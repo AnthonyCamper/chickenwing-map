@@ -7,15 +7,11 @@
     searchMode, 
     isSearching, 
     showNoResults, 
-    showAutocomplete,
-    autocompleteResults,
     searchResults,
     showResults,
     performSearch,
-    updateAutocomplete,
     clearSearch,
     selectSearchResult,
-    shouldShowResultsDropdown,
     shouldShowNoResults,
     isResultSelected,
     selectedResult
@@ -42,15 +38,8 @@
   async function handleKeyPress(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       await search();
-      
-      // If Enter is pressed and we have exactly one result, select it automatically
-      // This is a common UX pattern when searching
-      if ($searchResults.reviewMatches.length === 1) {
-        selectReviewResult($searchResults.reviewMatches[0]);
-      }
     } else {
       // Reset the isResultSelected flag when user starts typing a new query
-      // This allows autocomplete to work again after selection
       isResultSelected.set(false);
       
       // Clear previous search results when typing after selection
@@ -61,10 +50,7 @@
         selectedResult.set(null);
       }
       
-      // Update autocomplete on keystroke
-      updateAutocomplete(reviews, $searchQuery);
-      
-      // Also perform search while typing if query has at least 2 characters
+      // Perform search while typing if query has at least 2 characters
       if ($searchQuery.trim().length >= 2) {
         await search();
       }
@@ -88,14 +74,6 @@
     });
   }
   
-  // Handle autocomplete selection
-  function selectAutocomplete(result: string) {
-    isResultSelected.set(true);
-    searchQuery.set(result);
-    showAutocomplete.set(false);
-    search();
-  }
-  
   // Select a specific review result
   function selectReviewResult(review: Review) {
     console.log("Selecting review:", review.location.restaurant_name);
@@ -107,7 +85,6 @@
     // Clear search results to hide dropdown
     showResults.set(false);
     showNoResults.set(false);
-    showAutocomplete.set(false);
     
     // IMPORTANT: First dispatch the event, so the parent component can set up the correct state
     dispatch('resultSelect', review);
@@ -212,25 +189,8 @@
     </div>
   {/if}
   
-  <!-- Autocomplete suggestions -->
-  {#if $showAutocomplete && $autocompleteResults.length > 0}
-    <div class="absolute z-[1002] mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 overflow-hidden">
-      {#each $autocompleteResults as result}
-        <button
-          class="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-white"
-          on:click={() => selectAutocomplete(result)}
-        >
-          <div class="flex items-center space-x-2">
-            <Icon icon={result.includes(',') ? faMapMarkerAlt : faFileAlt} class="text-gray-400" />
-            <span>{result}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-  {/if}
-  
   <!-- Results dropdown -->
-  {#if $shouldShowResultsDropdown}
+  {#if $searchResults.reviewMatches.length > 0 && !$isSearching && $searchQuery.trim().length > 1 && !$isResultSelected}
     <div class="absolute z-[1002] mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 max-h-[400px] overflow-y-auto">
       <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
         Showing {$searchResults.reviewMatches.length} results for "{$searchQuery}"
