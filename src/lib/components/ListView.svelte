@@ -2,6 +2,7 @@
   import { faFilter, faChevronDown, faChevronUp, faStar, faCalendar, faMapMarkerAlt, faSort } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
   import ReviewCard from './review/ReviewCard.svelte';
+  import Button from '$lib/components/Button.svelte';
   import type { Review } from './review/types';
   import { searchQuery, searchResults, performSearch } from '$lib/stores/searchStore';
   import { writable } from 'svelte/store';
@@ -33,8 +34,8 @@
   }
   
   // Handle click on sort button
-  function handleSortClick(event: MouseEvent): void {
-    event.stopPropagation();
+  function handleSortClick(event: CustomEvent<MouseEvent>): void {
+    event.detail.stopPropagation();
     showFilterMenu = !showFilterMenu;
   }
   
@@ -88,70 +89,77 @@
 
 <svelte:window on:click={handleClickOutside} />
 
-<div class="h-full flex flex-col">
-  <!-- List header with count and filters -->
-  <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+<div class="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+  <!-- Modern list header -->
+  <div class="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
     <div class="flex justify-between items-center">
-      <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400">
-        {sortedReviews.length} {sortedReviews.length === 1 ? 'review' : 'reviews'} 
-        {$searchQuery ? `found for "${$searchQuery}"` : 'total'}
-      </h2>
+      <div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Reviews
+        </h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          {sortedReviews.length} {sortedReviews.length === 1 ? 'review' : 'reviews'} 
+          {$searchQuery ? `found for "${$searchQuery}"` : 'total'}
+        </p>
+      </div>
       
-      <!-- Sort and filter dropdown -->
+      <!-- Modern sort dropdown -->
       <div class="relative">
-        <button 
-          class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center space-x-1 text-sm"
+        <Button 
+          variant="ghost"
+          size="sm"
           on:click={handleSortClick}
         >
-          <Icon icon={faSort} class="h-4 w-4" />
-          <span>Sort</span>
-        </button>
+          <Icon icon={faSort} class="h-4 w-4 mr-2" />
+          Sort
+        </Button>
         
         {#if showFilterMenu}
           <div 
-            class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 
-                  ring-1 ring-black ring-opacity-5 z-[1001]"
+            class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-[1001] overflow-hidden"
             on:click={handleDropdownClick}
           >
-            <div class="py-1" role="menu" aria-orientation="vertical">
-              <!-- Sort options -->
-              <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <div class="py-2" role="menu" aria-orientation="vertical">
+              <!-- Sort options header -->
+              <div class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
                 Sort by
               </div>
+              
+              <!-- Sort options -->
               <button
-                class="w-full text-left px-4 py-2 text-sm {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-                on:click={() => setSortBy('rating')}
+                class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+                on:click={() => { setSortBy('rating'); showFilterMenu = false; }}
               >
                 Rating
               </button>
               <button
-                class="w-full text-left px-4 py-2 text-sm {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-                on:click={() => setSortBy('name')}
+                class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+                on:click={() => { setSortBy('name'); showFilterMenu = false; }}
               >
                 Restaurant Name
               </button>
               <button
-                class="w-full text-left px-4 py-2 text-sm {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-                on:click={() => setSortBy('date')}
+                class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+                on:click={() => { setSortBy('date'); showFilterMenu = false; }}
               >
                 Date Visited
               </button>
               {#if userLocation}
                 <button
-                  class="w-full text-left px-4 py-2 text-sm {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-                  on:click={() => setSortBy('distance')}
+                  class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+                  on:click={() => { setSortBy('distance'); showFilterMenu = false; }}
                 >
                   Distance
                 </button>
               {/if}
 
               <!-- Divider -->
-              <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+              <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 
               <!-- Order direction -->
               <button
-                class="w-full text-left px-4 py-2 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                on:click={toggleSortOrder}
+                class="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                on:click={() => { toggleSortOrder(); showFilterMenu = false; }}
               >
                 <span>{$sortOrder === 'desc' ? 'Descending' : 'Ascending'}</span>
                 <Icon icon={$sortOrder === 'desc' ? faChevronDown : faChevronUp} class="h-4 w-4" />
@@ -164,24 +172,24 @@
   </div>
 
   <!-- Reviews list -->
-  <div class="overflow-y-auto flex-1">
+  <div class="overflow-y-auto flex-1 p-4">
     {#if sortedReviews.length === 0}
-      <div class="flex flex-col items-center justify-center p-8 text-center h-full">
-        <div class="text-gray-400 mb-2">
-          <Icon icon={faStar} class="h-8 w-8" />
+      <div class="flex flex-col items-center justify-center h-full text-center py-16">
+        <div class="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+          <Icon icon={faStar} class="h-8 w-8 text-gray-400 dark:text-gray-500" />
         </div>
-        <p class="text-gray-600 dark:text-gray-400 mb-1">No reviews found</p>
-        <p class="text-sm text-gray-500 dark:text-gray-500">{$searchQuery ? 'Try another search term' : 'Be the first to add a review!'}</p>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No reviews found</h3>
+        <p class="text-gray-500 dark:text-gray-400 max-w-sm">
+          {$searchQuery ? 'Try adjusting your search terms or browse all reviews.' : 'Be the first to share your wing experience!'}
+        </p>
       </div>
     {:else}
-      <div class="divide-y divide-gray-200 dark:divide-gray-700">
+      <!-- Modern grid layout -->
+      <div class="grid gap-4 auto-rows-fr">
         {#each sortedReviews as review (review.id)}
           <!-- svelte-ignore a11y-click-events-have-key-events -->
           <div 
             on:click={() => onItemClick(review)} 
-            role="button" 
-            tabindex="0"
-            class="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
             on:keydown={(event) => handleKeyDown(event, review)}
           >
             <ReviewCard {review} isSelected={String(review.id) === String(selectedReviewId)} />

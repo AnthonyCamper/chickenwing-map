@@ -10,6 +10,8 @@
 	import SearchBar from '$lib/components/SearchBar.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import FloatingActionButton from '$lib/components/FloatingActionButton.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { writable } from 'svelte/store';
 	import { faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
@@ -504,23 +506,57 @@
 					{/if}
 				</div>
 
-				<!-- Modern Add Review Button -->
-				<Button 
-					variant="primary" 
-					size="md"
-					on:click={handleAddReview}
-				>
-					<Icon icon={faPlus} class="h-4 w-4 mr-2" />
-					Add Review
-				</Button>
+				<!-- Modern Add Review Button (Desktop) -->
+				<div class="hidden lg:block">
+					<Button 
+						variant="primary" 
+						size="md"
+						on:click={handleAddReview}
+					>
+						<Icon icon={faPlus} class="h-4 w-4 mr-2" />
+						Add Review
+					</Button>
+				</div>
 			</div>
 		</div>
 
 		<!-- Loading State -->
 		{#if isLoading}
-			<div class="flex flex-col justify-center items-center h-96 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-				<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading reviews...</p>
+			<div class="rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
+				{#if isMapView}
+					<!-- Map loading skeleton -->
+					<div class="h-full bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
+						<div class="absolute inset-0 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-800 dark:to-gray-900 animate-pulse"></div>
+						<div class="absolute top-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+							<Skeleton variant="rectangular" width="200px" height="20px" />
+						</div>
+						<div class="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-2">
+							<Skeleton variant="rectangular" width="100px" height="32px" />
+						</div>
+						<div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-2">
+							<Skeleton variant="text" lines={1} width="150px" />
+						</div>
+					</div>
+				{:else}
+					<!-- List loading skeleton -->
+					<div class="h-full overflow-hidden">
+						<!-- Header skeleton -->
+						<div class="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+							<div class="flex justify-between items-center">
+								<div class="space-y-2">
+									<Skeleton variant="rectangular" width="120px" height="24px" />
+									<Skeleton variant="rectangular" width="200px" height="16px" />
+								</div>
+								<Skeleton variant="rectangular" width="80px" height="32px" rounded="md" />
+							</div>
+						</div>
+						
+						<!-- List skeleton -->
+						<div class="p-4">
+							<Skeleton variant="list" lines={4} />
+						</div>
+					</div>
+				{/if}
 			</div>
 		{:else}
 			<!-- Main Content: Map or List View -->
@@ -570,6 +606,18 @@
 {#if showSignInModal}
 	<SignInModal on:close={() => (showSignInModal = false)} />
 {/if}
+
+<!-- Floating Action Button (Mobile/Tablet) -->
+<div class="lg:hidden">
+	<FloatingActionButton
+		label="Add Review"
+		showLabel={false}
+		variant="primary"
+		size="lg"
+		position="bottom-right"
+		on:click={handleAddReview}
+	/>
+</div>
 
 <svelte:window on:click={() => (showFilterMenu = false)} />
 
