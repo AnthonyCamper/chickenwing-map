@@ -8,6 +8,8 @@
 	import SignInModal from '$lib/components/SignInModal.svelte';
 	import UserDisplay from '$lib/components/UserDisplay.svelte';
 	import SearchBar from '$lib/components/SearchBar.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { writable } from 'svelte/store';
 	import { faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
@@ -34,6 +36,14 @@
 
 	let sortBy = writable('rating');
 	let sortOrder = writable('desc');
+	
+	// View toggle options
+	const viewOptions = [
+		{ value: 'map', label: 'Map', icon: faMap },
+		{ value: 'list', label: 'List', icon: faList }
+	];
+	
+	$: currentView = isMapView ? 'map' : 'list';
 
 	let mapComponent: MapComponent;
 
@@ -287,39 +297,15 @@
 	function handleSearchComplete(event: CustomEvent<{ query: string, results: { locationMatches: any[], reviewMatches: Review[] } }>) {
 		const { results } = event.detail;
 		
-		// Update the map with any location matches
-		if (results.locationMatches && results.locationMatches.length > 0) {
-			// If we have location matches, zoom to the first one
-			if (mapComponent) {
-				const location = results.locationMatches[0];
-				mapComponent.zoomToLocation(
-					location.latitude, 
-					location.longitude, 
-					location.name || 'Search Result'
-				);
-				console.log('Zooming to location:', location);
-			}
-		}
+		// Just log the search results - no automatic zooming
+		console.log('Search completed:', {
+			query: event.detail.query,
+			locationMatches: results.locationMatches?.length || 0,
+			reviewMatches: results.reviewMatches?.length || 0
+		});
 		
-		// If we have review matches and we're in map view, select the first one
-		if (results.reviewMatches && results.reviewMatches.length > 0 && isMapView) {
-			// Select the first review
-			const firstReview = results.reviewMatches[0];
-			console.log('Selecting first review:', firstReview.location.restaurant_name);
-			
-			// Show the review and zoom to its location
-			selectedReview = firstReview;
-			isSlideoutOpen = true;
-			
-			// Zoom to the location on the map
-			if (mapComponent) {
-				mapComponent.zoomToLocation(
-					firstReview.location.latitude, 
-					firstReview.location.longitude, 
-					firstReview.location.restaurant_name
-				);
-			}
-		}
+		// Do not automatically zoom or select results
+		// Results will be shown in the dropdown for user to choose from
 	}
 	
 	// Handle a specific review selection from the search results
@@ -407,6 +393,10 @@
 		? $searchResults.reviewMatches 
 		: sortedReviews;
 
+	function handleViewChange(view: string) {
+		isMapView = view === 'map';
+	}
+
 	function toggleMapView() {
 		isMapView = !isMapView;
 	}
@@ -429,9 +419,9 @@
 <div class="bg-gray-50 dark:bg-gray-900 min-h-full">
 	<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 		<!-- Top Bar: Search, View Toggle, Add Review -->
-		<div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center mb-4">
-			<!-- Updated: Unified Search Bar -->
-			<div class="relative flex-grow">
+		<div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center mb-6">
+			<!-- Modern Search Bar -->
+			<div class="flex-1">
 				<SearchBar 
 					{reviews}
 					placeholder="Search for wing places or reviews..."
@@ -441,70 +431,70 @@
 				/>
 			</div>
 
-			<!-- Controls: View Toggle, Sort, and Add -->
-			<div class="flex space-x-2">
-				<!-- View Toggle Button -->
-				<button 
-					class="btn-secondary flex items-center" 
-					on:click={toggleMapView}
-					aria-label={isMapView ? "Switch to list view" : "Switch to map view"}
-				>
-					<Icon icon={isMapView ? faList : faMap} class="h-5 w-5 mr-2" />
-					<span>{isMapView ? "List" : "Map"}</span>
-				</button>
+			<!-- Modern Controls -->
+			<div class="flex items-center gap-3">
+				<!-- Modern View Toggle -->
+				<SegmentedControl 
+					options={viewOptions}
+					value={currentView}
+					size="md"
+					on:change={(e) => handleViewChange(e.detail)}
+				/>
 
 				<!-- Filter & Sort Dropdown -->
 				<div class="relative">
-					<button 
-						class="btn-secondary flex items-center" 
+					<Button 
+						variant="outline" 
+						size="md"
 						on:click={() => showFilterMenu = !showFilterMenu}
-						aria-label="Filter and sort options"
 					>
-						<Icon icon={faFilter} class="h-5 w-5 mr-2" />
-						<span>Sort</span>
-					</button>
+						<Icon icon={faFilter} class="h-4 w-4 mr-2" />
+						Sort
+					</Button>
 
 					{#if showFilterMenu}
-						<div class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-[1001]">
-							<div class="py-1" role="menu" aria-orientation="vertical">
-								<!-- Sort options -->
-								<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+						<div class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-[1001] overflow-hidden">
+							<div class="py-2" role="menu" aria-orientation="vertical">
+								<!-- Sort options header -->
+								<div class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
 									Sort by
 								</div>
+								
+								<!-- Sort options -->
 								<button
-									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-									on:click={() => { $sortBy = 'rating'; }}
+									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+									on:click={() => { $sortBy = 'rating'; showFilterMenu = false; }}
 								>
 									Rating
 								</button>
 								<button
-									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-									on:click={() => { $sortBy = 'name'; }}
+									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+									on:click={() => { $sortBy = 'name'; showFilterMenu = false; }}
 								>
 									Restaurant Name
 								</button>
 								<button
-									class="w-full text-left px-4 py-2 text-sm {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-									on:click={() => { $sortBy = 'date'; }}
+									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+									on:click={() => { $sortBy = 'date'; showFilterMenu = false; }}
 								>
 									Date Visited
 								</button>
 								{#if userLocation}
 									<button
-										class="w-full text-left px-4 py-2 text-sm {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-gray-100 dark:bg-gray-700' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-100 dark:hover:bg-gray-700"
-										on:click={() => { $sortBy = 'distance'; }}
+										class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
+										on:click={() => { $sortBy = 'distance'; showFilterMenu = false; }}
 									>
 										Distance
 									</button>
 								{/if}
 
 								<!-- Divider -->
-								<div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+								<div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 
 								<!-- Order direction -->
 								<button
-									class="w-full text-left px-4 py-2 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-									on:click={toggleSortOrder}
+									class="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+									on:click={() => { toggleSortOrder(); showFilterMenu = false; }}
 								>
 									<span>{$sortOrder === 'desc' ? 'Descending' : 'Ascending'}</span>
 									<Icon icon={$sortOrder === 'desc' ? faSortAmountDown : faSortAmountUp} class="h-4 w-4" />
@@ -514,22 +504,27 @@
 					{/if}
 				</div>
 
-				<!-- Add Review Button -->
-				<button class="btn-primary flex items-center" on:click={handleAddReview} aria-label="Add a new review">
-					<Icon icon={faPlus} class="h-5 w-5 mr-2" />
-					<span>Add</span>
-				</button>
+				<!-- Modern Add Review Button -->
+				<Button 
+					variant="primary" 
+					size="md"
+					on:click={handleAddReview}
+				>
+					<Icon icon={faPlus} class="h-4 w-4 mr-2" />
+					Add Review
+				</Button>
 			</div>
 		</div>
 
 		<!-- Loading State -->
 		{#if isLoading}
-			<div class="flex justify-center items-center h-96">
-				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+			<div class="flex flex-col justify-center items-center h-96 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+				<p class="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading reviews...</p>
 			</div>
 		{:else}
 			<!-- Main Content: Map or List View -->
-			<div class="relative rounded-lg overflow-hidden shadow-md bg-white dark:bg-gray-800 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
+			<div class="relative rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
 				{#if isMapView}
 					<Map
 						bind:this={mapComponent}
@@ -580,18 +575,19 @@
 
 <style>
 	:global(body) {
-		@apply bg-gray-100 dark:bg-gray-900;
+		@apply bg-gray-50 dark:bg-gray-900;
 	}
 	
-	:global(.btn-primary) {
-		@apply px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 transition-colors;
+	/* Utility classes for line clamping */
+	:global(.line-clamp-2) {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 	
-	:global(.btn-secondary) {
-		@apply px-4 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors;
-	}
-	
+	/* Modern form inputs */
 	:global(.form-input) {
-		@apply block w-full rounded-md shadow-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-primary-500 dark:focus:border-primary-400 focus:ring focus:ring-primary-500 dark:focus:ring-primary-400 focus:ring-opacity-50;
+		@apply block w-full rounded-lg shadow-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-primary-500 dark:focus:border-primary-400 focus:ring focus:ring-primary-500/20 dark:focus:ring-primary-400/20 focus:ring-opacity-50 transition-all duration-200;
 	}
 </style>

@@ -21,9 +21,11 @@
         return;
       }
 
-      coordinates = await geocode(address);
-      if (!coordinates) {
-        error = 'Could not find coordinates for this address';
+      const geocodeResponse = await geocode(address);
+      if (geocodeResponse.result) {
+        coordinates = geocodeResponse.result;
+      } else {
+        error = geocodeResponse.error?.message || 'Could not find coordinates for this address';
       }
     } catch (err) {
       error = 'Error verifying address';
