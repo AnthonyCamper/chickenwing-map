@@ -67,7 +67,7 @@ export interface Review {
   location_id: number;
   user_id: string;
   review: string;
-  rating: string;
+  rating: string | null;
   date_visited: string;
   location: Location;
   distance?: number;

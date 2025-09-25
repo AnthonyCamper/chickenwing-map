@@ -55,6 +55,31 @@
   let loading = false;
   let reviewNotes = '';
 
+  // Calculate overall rating based on individual ratings
+  function calculateOverallRating(): number {
+    const ratings = [
+      appearance,
+      aroma,
+      sauceQuantity,
+      sauceConsistency,
+      sauceHeat,
+      skinConsistency,
+      meatQuality,
+      greasiness,
+      blueCheeseNA ? null : blueCheeseQuality, // Only include if not N/A
+      satisfactionScore,
+      recommendationScore
+    ].filter(rating => rating !== null);
+
+    if (ratings.length === 0) return 0;
+
+    const sum = ratings.reduce((acc, rating) => acc + rating, 0);
+    const average = sum / ratings.length;
+
+    // Round to 1 decimal place
+    return Math.round(average * 10) / 10;
+  }
+
   // Add a timeout promise helper at the top of the script
   function timeout(ms: number) {
     return new Promise((_, reject) => 
@@ -169,12 +194,14 @@
           }
 
           console.log('Inserting review...');
+          const overallRating = calculateOverallRating();
           const { error: insertReviewError } = await supabase
             .from('reviews')
             .insert([{
               location_id: locationId,
               user_id: user.id,
               review: reviewNotes,
+              rating: overallRating.toString(),
               date_visited: dateVisited,
               website_url: websiteUrl,
               mood_comparison: moodComparison,

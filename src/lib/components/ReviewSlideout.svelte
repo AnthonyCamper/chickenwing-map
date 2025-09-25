@@ -4,6 +4,7 @@
   import { supabase } from '$lib/supabase';
   import { browser } from '$app/environment';
   import SignInModal from './SignInModal.svelte';
+  import DeleteReviewModal from './DeleteReviewModal.svelte';
   import type { Review } from './review/types';
 
   // Import modular components
@@ -22,6 +23,8 @@
   let userVote: 'up' | 'down' | null = null;
   let prevReviewId: number | null = null;
   let showSignInModal = false;
+  let showDeleteModal = false;
+  let isAdmin = false;
   let localUpvotes = 0;
   let localDownvotes = 0;
   let isProcessingVote = false;
@@ -133,21 +136,37 @@
   async function getUserVoteStatus() {
     if (!review || !user) {
       userVote = null;
+      isAdmin = false;
       return;
     }
-    
-    const { data, error } = await supabase
-      .from('votes')
-      .select('vote_type')
-      .eq('review_id', review.id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    
-    if (error) {
-      console.error('Error getting vote status:', error);
+
+    // Load both vote status and admin status
+    const [voteResult, adminResult] = await Promise.all([
+      supabase
+        .from('votes')
+        .select('vote_type')
+        .eq('review_id', review.id)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('authorized_users')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single()
+    ]);
+
+    if (voteResult.error) {
+      console.error('Error getting vote status:', voteResult.error);
       userVote = null;
     } else {
-      userVote = data?.vote_type || null;
+      userVote = voteResult.data?.vote_type || null;
+    }
+
+    if (adminResult.error) {
+      console.error('Error getting admin status:', adminResult.error);
+      isAdmin = false;
+    } else {
+      isAdmin = adminResult.data?.is_admin || false;
     }
   }
 
@@ -300,6 +319,15 @@
     }
   }
 
+  function handleReviewDeleted() {
+    // Close the slideout since the review was deleted
+    closeSlideout();
+    // The parent component should refresh reviews
+    if (browser) {
+      window.location.reload();
+    }
+  }
+
   onMount(() => {
     if (browser) {
       window.addEventListener('keydown', handleKeyDown);
@@ -344,8 +372,8 @@
 <svelte:window on:keydown={handleKeyDown} />
 
 {#if review}
-  <div 
-    class="fixed inset-y-0 right-0 flex slideout-container w-full sm:w-[450px] max-w-full"
+  <div
+    class="fixed top-16 bottom-0 right-0 flex slideout-container w-full sm:w-[450px] max-w-full"
     transition:fly={{ x: 500, duration: 300 }}
     bind:this={slideoutElement}
     on:touchstart={handleTouchStart}
@@ -370,15 +398,29 @@
           <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
             {review.location.restaurant_name}
           </h2>
-          <button 
-            on:click={closeSlideout}
-            class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Close review details"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
+          <div class="flex items-center space-x-2">
+            {#if isAdmin}
+              <button
+                on:click={() => showDeleteModal = true}
+                class="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                aria-label="Delete review (Admin)"
+                title="Delete review"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              </button>
+            {/if}
+            <button
+              on:click={closeSlideout}
+              class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Close review details"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         
         <!-- Main content with scrollable area -->
@@ -389,7 +431,7 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-4">
                   <div class="text-3xl font-bold text-primary-600 dark:text-primary-400">
-                    {review.rating}/10
+                    {review.rating ? `${review.rating}/10` : 'No rating'}
                   </div>
                   <div class="text-sm text-gray-500 dark:text-gray-400">
                     Reviewed on {new Date(review.date_visited).toLocaleDateString()}
@@ -483,4 +525,13 @@
 
 {#if showSignInModal}
   <SignInModal on:close={() => showSignInModal = false} />
+{/if}
+
+{#if showDeleteModal && review}
+  <DeleteReviewModal
+    reviewId={review.id}
+    restaurantName={review.location.restaurant_name}
+    onClose={() => showDeleteModal = false}
+    onDeleted={handleReviewDeleted}
+  />
 {/if}

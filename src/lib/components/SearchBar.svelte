@@ -29,6 +29,7 @@
   export let fullWidth = true;
   export let mobileFriendly = true;
   export let onResultSelect: ((review: Review) => void) | null = null;
+  export let showDropdown = true;
   
   // Local state
   let isFocused = false;
@@ -271,7 +272,7 @@
   {/if}
   
   <!-- Results dropdown -->
-  {#if $shouldShowResults}
+  {#if $shouldShowResults && showDropdown}
     <div class="absolute z-[1002] mt-3 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden max-h-[420px]">
       
       <!-- Results header -->

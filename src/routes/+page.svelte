@@ -428,10 +428,11 @@
 		<div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center mb-6">
 			<!-- Modern Search Bar -->
 			<div class="flex-1">
-				<SearchBar 
+				<SearchBar
 					{reviews}
 					placeholder="Search for wing places or reviews..."
 					showSearchModeToggle={true}
+					showDropdown={isMapView}
 					on:search={handleSearchComplete}
 					on:resultSelect={handleResultSelect}
 				/>
