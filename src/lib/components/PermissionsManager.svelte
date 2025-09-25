@@ -43,45 +43,25 @@
   });
 
   async function loadAuthorizedUsers() {
-    // First get authorized users
-    const { data: authData, error: err } = await supabase
-      .from('authorized_users')
-      .select(`
-        user_id,
-        is_admin,
-        can_add_reviews,
-        can_delete_reviews,
-        can_edit_reviews,
-        authorized_at,
-        authorized_by,
-        notes
-      `)
-      .order('authorized_at', { ascending: false });
+    try {
+      // Use the enhanced database function to get users with emails from auth.users
+      const { data, error: err } = await supabase.rpc('get_authorized_users_with_auth_emails');
 
-    if (err) {
-      error = `Error loading users: ${err.message}`;
-      return;
-    }
+      if (err) {
+        error = `Error loading users: ${err.message}`;
+        return;
+      }
 
-    if (!authData) {
-      authorizedUsers = [];
-      return;
-    }
+      if (!data) {
+        authorizedUsers = [];
+        return;
+      }
 
-    // Get user profiles for all authorized users
-    const userIds = authData.map(u => u.user_id);
-    const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('user_id, display_name')
-      .in('user_id', userIds);
-
-    // Combine the data
-    authorizedUsers = authData.map(user => {
-      const profile = profileData?.find(p => p.user_id === user.user_id);
-      return {
+      // Map the data from the database function
+      authorizedUsers = data.map(user => ({
         user_id: user.user_id,
-        display_name: profile?.display_name || null,
-        email: null, // Will show partial user ID instead
+        display_name: user.display_name,
+        email: user.email, // Now comes from auth.users
         is_admin: user.is_admin || false,
         can_add_reviews: user.can_add_reviews ?? true,
         can_delete_reviews: user.can_delete_reviews ?? false,
@@ -89,8 +69,11 @@
         authorized_at: user.authorized_at,
         authorized_by: user.authorized_by,
         notes: user.notes
-      };
-    });
+      }));
+    } catch (err) {
+      // If the function fails (e.g., user is not admin), fall back to the old method
+      error = `Access denied: Only administrators can view user details`;
+    }
   }
 
   async function searchUsers() {
@@ -100,12 +83,25 @@
     error = '';
 
     try {
-      // For now, provide a simple input to add users by user ID
-      // In a production app, you'd want a server-side endpoint to search users
-      searchResults = [];
-      error = 'User search requires server-side implementation. Please enter the user ID directly in the format: user-id@example.com';
+      // Use the enhanced auth users search function
+      const { data, error: err } = await supabase.rpc('search_auth_users', {
+        search_term: searchEmail.trim()
+      });
+
+      if (err) {
+        error = `Search failed: ${err.message}`;
+        searchResults = [];
+      } else {
+        searchResults = data || [];
+        if (data && data.length === 0) {
+          error = 'No users found matching that email. You can still add users directly by UUID using the + button.';
+        } else if (data && data.length > 0) {
+          error = ''; // Clear any previous errors
+        }
+      }
     } catch (err) {
       error = `Search failed: ${err}`;
+      searchResults = [];
     }
 
     isSearching = false;
@@ -173,8 +169,8 @@
     }
   }
 
-  async function removeUser(userId: string, displayName: string | null) {
-    const userLabel = displayName || `user ${userId.slice(0, 8)}...`;
+  async function removeUser(userId: string, displayName: string | null, email: string | null) {
+    const userLabel = displayName || email || `user ${userId.slice(0, 8)}...`;
     if (!confirm(`Remove ${userLabel} from authorized users?`)) return;
 
     try {
@@ -223,7 +219,7 @@
         return;
       }
 
-      success = `Successfully updated permissions for ${selectedUser.display_name || 'user ' + selectedUser.user_id.slice(0, 8) + '...'}`;
+      success = `Successfully updated permissions for ${selectedUser.display_name || selectedUser.email || 'user ' + selectedUser.user_id.slice(0, 8) + '...'}`;
       showEditModal = false;
       selectedUser = null;
       await loadAuthorizedUsers();
@@ -285,21 +281,30 @@
     <div class="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
       <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-3">Add New Authorized User</h3>
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-        Enter the user's UUID (found in the database auth.users table) to authorize them.
+        Search for users by email address to authorize them. You can also enter a UUID directly.
       </p>
       <div class="flex space-x-3">
         <div class="flex-1">
           <input
             type="text"
-            placeholder="Enter user UUID (e.g., 0a2095fa-4ca7-45e0-aba1-adf255f9cdb0)"
-            class="form-input w-full font-mono text-sm"
+            placeholder="Enter email address or UUID to search..."
+            class="form-input w-full"
             bind:value={searchEmail}
+            on:input={searchUsers}
           />
         </div>
         <button
           class="btn-primary px-4"
+          on:click={searchUsers}
+          disabled={isSearching || !searchEmail.trim()}
+        >
+          <Icon icon={faSearch} class="w-4 h-4" />
+        </button>
+        <button
+          class="btn-secondary px-4"
           on:click={addUserById}
           disabled={isSearching || !searchEmail.trim()}
+          title="Add directly by UUID"
         >
           <Icon icon={faUserPlus} class="w-4 h-4" />
         </button>
@@ -317,12 +322,16 @@
                 </div>
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{user.email}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">User ID: {user.id.slice(0, 8)}...</p>
+                  {#if user.display_name}
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{user.display_name}</p>
+                  {:else}
+                    <p class="text-xs text-gray-500 dark:text-gray-400">User ID: {user.user_id.slice(0, 8)}...</p>
+                  {/if}
                 </div>
               </div>
               <button
                 class="btn-primary btn-sm"
-                on:click={() => addUser(user.id, user.email)}
+                on:click={() => addUser(user.user_id, user.email)}
               >
                 <Icon icon={faUserPlus} class="w-4 h-4 mr-1" />
                 Add User
@@ -369,7 +378,7 @@
                       {user.is_admin ? 'Admin' : 'User'}
                     </span>
                   </div>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">ID: {user.user_id.slice(0, 8)}...</p>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">{user.email || `ID: ${user.user_id.slice(0, 8)}...`}</p>
                   <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{getPermissionSummary(user)}</p>
                   {#if user.notes}
                     <p class="text-xs text-gray-400 dark:text-gray-500 italic mt-1">"{user.notes}"</p>
@@ -387,7 +396,7 @@
                 {#if user.user_id !== currentUserId}
                   <button
                     class="btn-danger btn-sm"
-                    on:click={() => removeUser(user.user_id, user.display_name)}
+                    on:click={() => removeUser(user.user_id, user.display_name, user.email)}
                     title="Remove user"
                   >
                     <Icon icon={faTrash} class="w-4 h-4" />
@@ -424,7 +433,7 @@
 
       <div class="mb-4">
         <p class="text-sm text-gray-600 dark:text-gray-400">
-          {selectedUser.display_name || 'User'} ({selectedUser.user_id.slice(0, 8)}...)
+          {selectedUser.display_name || 'User'} • {selectedUser.email || selectedUser.user_id.slice(0, 8) + '...'}
         </p>
       </div>
 
