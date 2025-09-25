@@ -13,7 +13,7 @@
 	import FloatingActionButton from '$lib/components/FloatingActionButton.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { writable } from 'svelte/store';
-	import { faPlus, faList, faMap, faFilter, faSortAmountDown, faSortAmountUp } from '@fortawesome/free-solid-svg-icons';
+	import { faPlus, faList, faMap } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 	import type { Review, Vote, Location } from '$lib/components/review/types';
 	import { 
@@ -34,10 +34,6 @@
 	let showAddReviewModal = false;
 	let showSignInModal = false;
 	let reviewFromListView = false;
-	let showFilterMenu = false;
-
-	let sortBy = writable('rating');
-	let sortOrder = writable('desc');
 	
 	// View toggle options
 	const viewOptions = [
@@ -56,37 +52,6 @@
 
 	$: isSlideoutOpen = !!selectedReview;
 
-	// Sorted reviews for list view
-	$: sortedReviews = [...reviews].sort((a, b) => {
-		const order = $sortOrder === 'asc' ? 1 : -1;
-		switch ($sortBy) {
-			case 'rating':
-				return (parseFloat(b.rating || '0') - parseFloat(a.rating || '0')) * order;
-			case 'name':
-				return a.location.restaurant_name.localeCompare(b.location.restaurant_name) * order;
-			case 'date':
-				return (new Date(b.date_visited).getTime() - new Date(a.date_visited).getTime()) * order;
-			case 'distance':
-				if (userLocation) {
-					const distanceA = calculateDistance(
-						userLocation.latitude,
-						userLocation.longitude,
-						a.location.latitude,
-						a.location.longitude
-					);
-					const distanceB = calculateDistance(
-						userLocation.latitude,
-						userLocation.longitude,
-						b.location.latitude,
-						b.location.longitude
-					);
-					return (distanceA - distanceB) * order;
-				}
-				return 0;
-			default:
-				return 0;
-		}
-	});
 
 	function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 		const R = 6371; // Radius of the earth in km
@@ -395,9 +360,9 @@
 	}
 
 	// Filter reviews based on search results
-	$: displayedReviews = $searchResults.reviewMatches.length > 0 && $searchQuery 
-		? $searchResults.reviewMatches 
-		: sortedReviews;
+	$: displayedReviews = $searchResults.reviewMatches.length > 0 && $searchQuery
+		? $searchResults.reviewMatches
+		: reviews;
 
 	function handleViewChange(view: string) {
 		isMapView = view === 'map';
@@ -407,9 +372,6 @@
 		isMapView = !isMapView;
 	}
 
-	function toggleSortOrder() {
-		$sortOrder = $sortOrder === 'asc' ? 'desc' : 'asc';
-	}
 
 	// After the mapComponent binding, add additional console logging for debugging
 	$: if (mapComponent) {
@@ -448,68 +410,6 @@
 					on:change={(e) => handleViewChange(e.detail)}
 				/>
 
-				<!-- Filter & Sort Dropdown -->
-				<div class="relative">
-					<Button 
-						variant="outline" 
-						size="md"
-						on:click={() => showFilterMenu = !showFilterMenu}
-					>
-						<Icon icon={faFilter} class="h-4 w-4 mr-2" />
-						Sort
-					</Button>
-
-					{#if showFilterMenu}
-						<div class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden" style="z-index: var(--z-dropdown)">
-							<div class="py-2" role="menu" aria-orientation="vertical">
-								<!-- Sort options header -->
-								<div class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
-									Sort by
-								</div>
-								
-								<!-- Sort options -->
-								<button
-									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'rating' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
-									on:click={() => { $sortBy = 'rating'; showFilterMenu = false; }}
-								>
-									Rating
-								</button>
-								<button
-									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'name' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
-									on:click={() => { $sortBy = 'name'; showFilterMenu = false; }}
-								>
-									Restaurant Name
-								</button>
-								<button
-									class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'date' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
-									on:click={() => { $sortBy = 'date'; showFilterMenu = false; }}
-								>
-									Date Visited
-								</button>
-								{#if userLocation}
-									<button
-										class="w-full text-left px-4 py-2.5 text-sm transition-colors {$sortBy === 'distance' ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'} hover:bg-gray-50 dark:hover:bg-gray-800"
-										on:click={() => { $sortBy = 'distance'; showFilterMenu = false; }}
-									>
-										Distance
-									</button>
-								{/if}
-
-								<!-- Divider -->
-								<div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-
-								<!-- Order direction -->
-								<button
-									class="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-									on:click={() => { toggleSortOrder(); showFilterMenu = false; }}
-								>
-									<span>{$sortOrder === 'desc' ? 'Descending' : 'Ascending'}</span>
-									<Icon icon={$sortOrder === 'desc' ? faSortAmountDown : faSortAmountUp} class="h-4 w-4" />
-								</button>
-							</div>
-						</div>
-					{/if}
-				</div>
 
 				<!-- Modern Add Review Button (Desktop) -->
 				<div class="hidden lg:block">
@@ -576,7 +476,7 @@
 					/>
 				{:else}
 					<ListView
-						reviews={sortedReviews}
+						reviews={displayedReviews}
 						{userLocation}
 						onItemClick={handleShowReview}
 						selectedReviewId={selectedReview?.id}
@@ -637,7 +537,6 @@
 	/>
 </div>
 
-<svelte:window on:click={() => (showFilterMenu = false)} />
 
 <style>
 	:global(body) {
