@@ -4,7 +4,7 @@
 			"command": "npx",
 			"args": ["-y", "@supabase/mcp-server-supabase", "--project-ref=nzovofzjqjvxbzvelhyd"],
 			"env": {
-				"SUPABASE_ACCESS_TOKEN": "sbp_35c760596331a032f1c21729d93dc5a6555d6a78"
+				"SUPABASE_ACCESS_TOKEN": "sbp_a07da3ebeb757e48f4b99f63d38b1c6dcfe3cefc"
 			}
 		}
 	}
