@@ -30,6 +30,27 @@
       isDeleting = true;
       error = '';
 
+      // Check permissions before deleting
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error('You must be signed in to delete reviews');
+      }
+
+      const { data: authorizedUser, error: authError } = await supabase
+        .from('authorized_users')
+        .select('is_admin, can_delete_reviews')
+        .eq('user_id', user.id)
+        .single();
+
+      if (authError || !authorizedUser) {
+        throw new Error('You are not authorized to delete reviews');
+      }
+
+      if (!authorizedUser.is_admin && !authorizedUser.can_delete_reviews) {
+        throw new Error('You do not have permission to delete reviews');
+      }
+
       const { error: deleteError } = await supabase
         .from('reviews')
         .delete()

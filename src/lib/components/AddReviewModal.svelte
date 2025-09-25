@@ -149,12 +149,16 @@
 
           const { data: authorizedUser, error: authError } = await supabase
             .from('authorized_users')
-            .select('user_id')
+            .select('user_id, can_add_reviews, is_admin')
             .eq('user_id', user.id)
             .single();
 
           if (authError || !authorizedUser) {
-            throw new Error('You are not authorized to add reviews');
+            throw new Error('You are not authorized to add reviews. Please contact an administrator to request access.');
+          }
+
+          if (!authorizedUser.can_add_reviews && !authorizedUser.is_admin) {
+            throw new Error('You do not have permission to add reviews. Please contact an administrator.');
           }
           console.log('User authorized, checking for existing location...');
 

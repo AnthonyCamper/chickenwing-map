@@ -61,7 +61,7 @@
 		const order = $sortOrder === 'asc' ? 1 : -1;
 		switch ($sortBy) {
 			case 'rating':
-				return (parseFloat(b.rating) - parseFloat(a.rating)) * order;
+				return (parseFloat(b.rating || '0') - parseFloat(a.rating || '0')) * order;
 			case 'name':
 				return a.location.restaurant_name.localeCompare(b.location.restaurant_name) * order;
 			case 'date':

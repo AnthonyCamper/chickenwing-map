@@ -150,7 +150,7 @@
         .maybeSingle(),
       supabase
         .from('authorized_users')
-        .select('is_admin')
+        .select('is_admin, can_delete_reviews')
         .eq('user_id', user.id)
         .single()
     ]);
@@ -166,7 +166,8 @@
       console.error('Error getting admin status:', adminResult.error);
       isAdmin = false;
     } else {
-      isAdmin = adminResult.data?.is_admin || false;
+      // User can delete if they are admin OR have explicit delete permission
+      isAdmin = adminResult.data?.is_admin || adminResult.data?.can_delete_reviews || false;
     }
   }
 

@@ -3,6 +3,7 @@
   import { supabase } from '$lib/supabase';
   import SignInModal from './SignInModal.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
+  import PermissionsManager from './PermissionsManager.svelte';
   import { faCog, faUserPlus, faTimes, faUser, faSignOutAlt, faChevronDown } from '@fortawesome/free-solid-svg-icons';
   import Icon from 'svelte-fa';
 
@@ -12,16 +13,13 @@
   let user: any = null;
   let showSignInModal = false;
   let showSettingsModal = false;
-  let showAdminModal = false;
+  let showPermissionsManager = false;
   let showSignOutConfirm = false;
   let showUserMenu = false;
   let displayName = '';
   let tempDisplayName = '';
   let isAdmin = false;
-  let authorizedUsers: any[] = [];
-  let newUserEmail = '';
   let settingsError = '';
-  let adminError = '';
 
   onMount(async () => {
     const { data: { user: initialUser } } = await supabase.auth.getUser();
@@ -98,34 +96,6 @@
     }
   }
 
-  async function addAuthorizedUser() {
-    if (!newUserEmail.trim()) {
-      adminError = 'Email cannot be empty';
-      return;
-    }
-
-    const { error } = await supabase
-      .from('authorized_users')
-      .insert({ email: newUserEmail });
-
-    if (error) {
-      adminError = error.message;
-    } else {
-      await loadAuthorizedUsers();
-      newUserEmail = '';
-      adminError = '';
-    }
-  }
-
-  async function loadAuthorizedUsers() {
-    const { data, error } = await supabase
-      .from('authorized_users')
-      .select('*');
-
-    if (!error && data) {
-      authorizedUsers = data;
-    }
-  }
 
   function openSettings() {
     tempDisplayName = displayName;
@@ -133,18 +103,16 @@
     showUserMenu = false;
   }
 
-  function openAdminPanel() {
-    loadAuthorizedUsers();
-    showAdminModal = true;
+  function openPermissionsManager() {
+    showPermissionsManager = true;
     showUserMenu = false;
   }
 
   function closeModal() {
     showSettingsModal = false;
-    showAdminModal = false;
+    showPermissionsManager = false;
     showSignOutConfirm = false;
     settingsError = '';
-    adminError = '';
   }
 
   // Close dropdown when clicking outside
@@ -194,13 +162,13 @@
             </div>
           </button>
           {#if isAdmin}
-            <button 
+            <button
               class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              on:click={openAdminPanel}
+              on:click={openPermissionsManager}
             >
               <div class="flex items-center">
                 <Icon icon={faUserPlus} class="mr-2 h-4 w-4" />
-                <span>Admin Panel</span>
+                <span>Permissions Manager</span>
               </div>
             </button>
           {/if}
@@ -262,56 +230,12 @@
   </div>
 {/if}
 
-<!-- Admin Modal -->
-{#if showAdminModal}
-  <div class="modal">
-    <div class="modal-backdrop" on:click={closeModal}></div>
-    <div class="modal-content max-w-md">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-semibold">Admin Panel</h2>
-        <button class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300" on:click={closeModal}>
-          <Icon icon={faTimes} />
-        </button>
-      </div>
-      
-      <div class="mb-6">
-        <h3 class="text-lg font-medium mb-2">Authorized Users</h3>
-        
-        <div class="space-y-2 mb-4 max-h-40 overflow-y-auto">
-          {#if authorizedUsers.length === 0}
-            <p class="text-sm text-gray-500 dark:text-gray-400">No authorized users added yet.</p>
-          {:else}
-            {#each authorizedUsers as user}
-              <div class="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                <span class="text-sm">{user.email}</span>
-                <button class="text-gray-500 hover:text-error-500 dark:text-gray-400 dark:hover:text-error-400">
-                  <Icon icon={faTimes} />
-                </button>
-              </div>
-            {/each}
-          {/if}
-        </div>
-        
-        <div class="flex space-x-2">
-          <input
-            type="email"
-            placeholder="user@example.com"
-            class="form-input flex-grow"
-            bind:value={newUserEmail}
-          />
-          <button class="btn-primary" on:click={addAuthorizedUser}>Add</button>
-        </div>
-        
-        {#if adminError}
-          <p class="mt-1 text-sm text-error-500">{adminError}</p>
-        {/if}
-      </div>
-      
-      <div class="flex justify-end">
-        <button class="btn-secondary" on:click={closeModal}>Close</button>
-      </div>
-    </div>
-  </div>
+<!-- Permissions Manager -->
+{#if showPermissionsManager}
+  <PermissionsManager
+    onClose={() => showPermissionsManager = false}
+    currentUserId={user?.id}
+  />
 {/if}
 
 <!-- Sign Out Confirmation -->
