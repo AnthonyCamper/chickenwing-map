@@ -4,18 +4,21 @@
 	import SignInModal from './SignInModal.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import PermissionsManager from './PermissionsManager.svelte';
+	import DraftsList from './DraftsList.svelte';
 	import {
 		faCog,
 		faUserPlus,
 		faTimes,
 		faUser,
 		faSignOutAlt,
-		faChevronDown
+		faChevronDown,
+		faFileAlt
 	} from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 
 	export let isDarkMode: boolean;
 	export let onThemeChange: () => void;
+	export let onShowAddReview: (draftId?: string) => void;
 
 	let user: any = null;
 	let showSignInModal = false;
@@ -23,6 +26,7 @@
 	let showPermissionsManager = false;
 	let showSignOutConfirm = false;
 	let showUserMenu = false;
+	let showDrafts = false;
 	let displayName = '';
 	let tempDisplayName = '';
 	let isAdmin = false;
@@ -114,17 +118,37 @@
 		showUserMenu = false;
 	}
 
+	function openDrafts() {
+		showDrafts = true;
+		showUserMenu = false;
+	}
+
+	function handleEditDraft(draftId: string) {
+		showDrafts = false;
+		onShowAddReview(draftId);
+	}
+
+	function handleNewReview() {
+		showDrafts = false;
+		onShowAddReview();
+	}
+
 	function closeModal() {
 		showSettingsModal = false;
 		showPermissionsManager = false;
 		showSignOutConfirm = false;
+		showDrafts = false;
 		settingsError = '';
 	}
 
 	// Close dropdown when clicking outside
 	function handleClickOutside(event: MouseEvent) {
-		if (showUserMenu && !(event.target as HTMLElement).closest('.user-menu')) {
+		const target = event.target as HTMLElement;
+		if (showUserMenu && !target.closest('.user-menu')) {
 			showUserMenu = false;
+		}
+		if (showDrafts && !target.closest('.drafts-dropdown')) {
+			showDrafts = false;
 		}
 	}
 </script>
@@ -171,6 +195,15 @@
 						<div class="flex items-center">
 							<Icon icon={faCog} class="mr-2 h-4 w-4" />
 							<span>Settings</span>
+						</div>
+					</button>
+					<button
+						class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+						on:click={openDrafts}
+					>
+						<div class="flex items-center">
+							<Icon icon={faFileAlt} class="mr-2 h-4 w-4" />
+							<span>Review Drafts</span>
 						</div>
 					</button>
 					{#if isAdmin}
@@ -258,6 +291,17 @@
 				<button class="btn-danger" on:click={handleSignOut}>Sign Out</button>
 			</div>
 		</div>
+	</div>
+{/if}
+
+<!-- Drafts Dropdown -->
+{#if showDrafts}
+	<div class="drafts-dropdown absolute right-0 mt-2 rounded-md shadow-lg py-1 bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+		<DraftsList
+			onEditDraft={handleEditDraft}
+			onNewReview={handleNewReview}
+			{user}
+		/>
 	</div>
 {/if}
 

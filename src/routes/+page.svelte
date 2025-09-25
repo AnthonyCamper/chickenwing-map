@@ -4,7 +4,7 @@
 	import Map from '$lib/components/Map.svelte';
 	import ListView from '$lib/components/ListView.svelte';
 	import ReviewSlideout from '$lib/components/ReviewSlideout.svelte';
-	import AddReviewModal from '$lib/components/AddReviewModal.svelte';
+	import AddReviewModalMultiStep from '$lib/components/AddReviewModalMultiStep.svelte';
 	import SignInModal from '$lib/components/SignInModal.svelte';
 	import UserDisplay from '$lib/components/UserDisplay.svelte';
 	import SearchBar from '$lib/components/SearchBar.svelte';
@@ -26,6 +26,7 @@
 	let userLocation: { latitude: number; longitude: number } | null = null;
 	let user: any = null;
 	let showAddReviewModal = false;
+	let editingDraftId: string | null = null;
 	let showSignInModal = false;
 	let reviewFromListView = false;
 
@@ -88,6 +89,12 @@
 
 		fetchReviews();
 		getUserLocation();
+
+		// Listen for add review events from header
+		window.addEventListener('showAddReview', (event) => {
+			const { draftId } = (event as CustomEvent).detail;
+			handleAddReview(draftId);
+		});
 	});
 
 	async function fetchReviews() {
@@ -335,10 +342,11 @@
 		}, zoomDelay);
 	}
 
-	function handleAddReview() {
+	function handleAddReview(draftId?: string) {
 		if (user) {
 			// Ensure SignIn modal is closed before opening AddReview modal
 			showSignInModal = false;
+			editingDraftId = draftId || null;
 			showAddReviewModal = true;
 		} else {
 			// Close any existing modals first to prevent layering issues
@@ -409,7 +417,7 @@
 
 				<!-- Modern Add Review Button (Desktop) -->
 				<div class="hidden lg:block">
-					<Button variant="primary" size="md" on:click={handleAddReview}>
+					<Button variant="primary" size="md" on:click={() => handleAddReview()}>
 						<Icon icon={faPlus} class="h-4 w-4 mr-2" />
 						Add Review
 					</Button>
@@ -500,15 +508,18 @@
 </div>
 
 {#if showAddReviewModal}
-	<AddReviewModal
+	<AddReviewModalMultiStep
 		show={showAddReviewModal}
 		{user}
+		draftId={editingDraftId}
 		onClose={() => {
 			showAddReviewModal = false;
+			editingDraftId = null;
 			// Ensure clean state when modal is closed
 		}}
 		onReviewAdded={() => {
 			showAddReviewModal = false;
+			editingDraftId = null;
 			// Refresh reviews after successful submission
 			fetchReviews();
 		}}
@@ -537,7 +548,7 @@
 		variant="primary"
 		size="lg"
 		position="bottom-right"
-		on:click={handleAddReview}
+		on:click={() => handleAddReview()}
 	/>
 </div>
 

@@ -17,6 +17,9 @@ Thumbs.db
 !.env.example
 !.env.test
 
+# MCP Configuration (contains sensitive credentials)
+.mcp.json
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*

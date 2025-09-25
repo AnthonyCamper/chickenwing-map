@@ -30,6 +30,11 @@
 			localStorage.setItem('theme', 'light');
 		}
 	}
+
+	function handleShowAddReview(draftId?: string) {
+		// Dispatch custom event that the page can listen to
+		window.dispatchEvent(new CustomEvent('showAddReview', { detail: { draftId } }));
+	}
 </script>
 
 <div class="min-h-screen flex flex-col">
@@ -51,7 +56,7 @@
 
 				<!-- User Display (positioned at right) -->
 				<div>
-					<UserDisplay {isDarkMode} onThemeChange={toggleTheme} />
+					<UserDisplay {isDarkMode} onThemeChange={toggleTheme} onShowAddReview={handleShowAddReview} />
 				</div>
 			</div>
 		</div>
