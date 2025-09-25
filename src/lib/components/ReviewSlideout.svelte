@@ -179,7 +179,7 @@
 
   async function addVote(type: 'up' | 'down') {
     if (!review || !user) return;
-    
+
     const { error } = await supabase
       .from('votes')
       .insert({
@@ -187,9 +187,13 @@
         user_id: user.id,
         vote_type: type
       });
-    
+
     if (error) {
       console.error('Error adding vote:', error);
+      // If it's an authentication error, show sign-in modal
+      if (error.code === '42501' || error.message.includes('row-level security')) {
+        showSignInModal = true;
+      }
     } else {
       userVote = type;
       updateLocalVoteCounts();
@@ -198,15 +202,19 @@
 
   async function updateVote(type: 'up' | 'down') {
     if (!review || !user) return;
-    
+
     const { error } = await supabase
       .from('votes')
       .update({ vote_type: type })
       .eq('review_id', review.id)
       .eq('user_id', user.id);
-    
+
     if (error) {
       console.error('Error updating vote:', error);
+      // If it's an authentication error, show sign-in modal
+      if (error.code === '42501' || error.message.includes('row-level security')) {
+        showSignInModal = true;
+      }
     } else {
       userVote = type;
       updateLocalVoteCounts();
@@ -215,15 +223,19 @@
 
   async function removeVote() {
     if (!review || !user) return;
-    
+
     const { error } = await supabase
       .from('votes')
       .delete()
       .eq('review_id', review.id)
       .eq('user_id', user.id);
-    
+
     if (error) {
       console.error('Error removing vote:', error);
+      // If it's an authentication error, show sign-in modal
+      if (error.code === '42501' || error.message.includes('row-level security')) {
+        showSignInModal = true;
+      }
     } else {
       const oldVote = userVote;
       userVote = null;

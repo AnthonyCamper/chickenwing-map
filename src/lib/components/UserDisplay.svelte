@@ -64,12 +64,12 @@
 
     // Check if user is an admin
     const { data: admin } = await supabase
-      .from('admins')
-      .select('*')
+      .from('authorized_users')
+      .select('is_admin')
       .eq('user_id', user.id)
       .single();
 
-    isAdmin = !!admin;
+    isAdmin = admin?.is_admin || false;
   }
 
   async function handleSignOut() {
