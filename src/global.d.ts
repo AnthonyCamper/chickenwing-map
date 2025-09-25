@@ -1,7 +1,7 @@
 /// <reference types="svelte" />
 
 declare namespace svelteHTML {
-  interface HTMLAttributes<T> {
-    [key: string]: any;
-  }
+	interface HTMLAttributes<T> {
+		[key: string]: any;
+	}
 }

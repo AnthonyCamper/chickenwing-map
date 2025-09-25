@@ -16,13 +16,7 @@
 	import { faPlus, faList, faMap } from '@fortawesome/free-solid-svg-icons';
 	import Icon from 'svelte-fa';
 	import type { Review, Vote, Location } from '$lib/components/review/types';
-	import { 
-		searchQuery,
-		searchMode,
-		searchResults,
-		performSearch,
-		clearSearch
-	} from '$lib/stores/searchStore';
+	import { searchQuery, searchResults, performSearch, clearSearch } from '$lib/stores/searchStore';
 
 	let reviews: Review[] = [];
 	let isMapView = true;
@@ -34,13 +28,13 @@
 	let showAddReviewModal = false;
 	let showSignInModal = false;
 	let reviewFromListView = false;
-	
+
 	// View toggle options
 	const viewOptions = [
 		{ value: 'map', label: 'Map', icon: faMap },
 		{ value: 'list', label: 'List', icon: faList }
 	];
-	
+
 	$: currentView = isMapView ? 'map' : 'list';
 
 	let mapComponent: MapComponent;
@@ -51,7 +45,6 @@
 	};
 
 	$: isSlideoutOpen = !!selectedReview;
-
 
 	function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 		const R = 6371; // Radius of the earth in km
@@ -83,7 +76,9 @@
 		applyTheme();
 
 		// Get initial auth state
-		const { data: { user: initialUser } } = await supabase.auth.getUser();
+		const {
+			data: { user: initialUser }
+		} = await supabase.auth.getUser();
 		user = initialUser;
 
 		// Listen for auth changes
@@ -100,9 +95,7 @@
 		console.log('=== FETCHING REVIEWS ===');
 
 		// Get reviews with locations and votes
-		const { data, error } = await supabase
-			.from('reviews')
-			.select(`
+		const { data, error } = await supabase.from('reviews').select(`
 				*,
 				location:locations(*),
 				votes (
@@ -116,7 +109,7 @@
 		} else {
 			console.log('Fetched data:', data?.length || 0, 'reviews');
 			const currentLocation = userLocation;
-			
+
 			// Process reviews to include vote counts and map to Review type
 			reviews = (data || []).map((review: any) => ({
 				id: review.id,
@@ -129,12 +122,14 @@
 				upvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'up').length || 0,
 				downvotes_count: review.votes?.filter((v: Vote) => v.vote_type === 'down').length || 0,
 				votes: review.votes,
-				distance: currentLocation ? calculateDistance(
-					currentLocation.latitude,
-					currentLocation.longitude,
-					review.location.latitude,
-					review.location.longitude
-				) : undefined,
+				distance: currentLocation
+					? calculateDistance(
+							currentLocation.latitude,
+							currentLocation.longitude,
+							review.location.latitude,
+							review.location.longitude
+						)
+					: undefined,
 				website_url: review.website_url,
 				experience_details: {
 					moodComparison: review.mood_comparison,
@@ -222,7 +217,7 @@
 	// Watch for changes to the selectedReview object and update the reviews array
 	$: if (selectedReview) {
 		// Update the review in the reviews array when selectedReview changes
-		reviews = reviews.map(r => {
+		reviews = reviews.map((r) => {
 			if (r.id === selectedReview?.id) {
 				return {
 					...r,
@@ -237,7 +232,7 @@
 
 	function handleVoteChange(updatedReview: Review) {
 		// Update the review in the reviews array without fetching
-		reviews = reviews.map(r => {
+		reviews = reviews.map((r) => {
 			if (r.id === updatedReview.id) {
 				return {
 					...r,
@@ -261,72 +256,75 @@
 	}
 
 	// Handle search completion from the SearchBar component
-	function handleSearchComplete(event: CustomEvent<{ query: string, results: { locationMatches: any[], reviewMatches: Review[] } }>) {
+	function handleSearchComplete(
+		event: CustomEvent<{
+			query: string;
+			results: { locationMatches: any[]; reviewMatches: Review[] };
+		}>
+	) {
 		const { results } = event.detail;
-		
+
 		// Just log the search results - no automatic zooming
 		console.log('Search completed:', {
 			query: event.detail.query,
 			locationMatches: results.locationMatches?.length || 0,
 			reviewMatches: results.reviewMatches?.length || 0
 		});
-		
+
 		// Do not automatically zoom or select results
 		// Results will be shown in the dropdown for user to choose from
 	}
-	
+
 	// Handle a specific review selection from the search results
 	function handleResultSelect(event: CustomEvent<Review>) {
 		// The event detail contains the selected review
 		const review = event.detail;
 		console.log('handleResultSelect triggered for review:', review.location.restaurant_name);
 		console.log('Review coordinates:', review.location.latitude, review.location.longitude);
-		
+
 		// Make sure the coordinates are actually valid numbers
-		if (typeof review.location.latitude !== 'number' || 
+		if (
+			typeof review.location.latitude !== 'number' ||
 			typeof review.location.longitude !== 'number' ||
-			isNaN(review.location.latitude) || 
-			isNaN(review.location.longitude)) {
+			isNaN(review.location.latitude) ||
+			isNaN(review.location.longitude)
+		) {
 			console.error('Invalid coordinates for review:', review.location);
 			return;
 		}
-		
+
 		// Set the selected review (will be shown in the slideout)
 		selectedReview = review;
-		
+
 		// Ensure the slideout is open to show the review
 		isSlideoutOpen = true;
-		
+
 		// If we're not already in map view, switch to it and wait for the view to update
 		const wasMapView = isMapView;
 		if (!isMapView) {
 			console.log('Switching to map view');
 			isMapView = true;
 		}
-		
+
 		// Guarantee we're using a proper delay based on whether view changed
 		const zoomDelay = wasMapView ? 50 : 500; // Longer delay if view changed
-		
+
 		// Delay the zoom operation slightly to ensure the map is ready
 		setTimeout(() => {
 			console.log('Attempting to zoom after delay');
-			
+
 			// Check if map component is available
 			console.log('Map component available?', !!mapComponent);
-			
+
 			if (mapComponent) {
 				try {
 					// Ensure coordinates are valid numbers
 					const lat = Number(review.location.latitude);
 					const lng = Number(review.location.longitude);
 					console.log(`Zooming to: ${lat}, ${lng}, ${review.location.restaurant_name}`);
-					
+
 					// Call the zoom function
-					mapComponent.zoomToLocation(
-						lat, 
-						lng, 
-						review.location.restaurant_name
-					);
+					mapComponent.zoomToLocation(lat, lng, review.location.restaurant_name);
 					console.log('Zoom call completed');
 				} catch (error) {
 					console.error('Error zooming to location:', error);
@@ -353,16 +351,17 @@
 	function handleAddReviewComplete(event: CustomEvent<{ review: Review }>) {
 		console.log('Review added:', event.detail.review);
 		showAddReviewModal = false;
-		
+
 		// Refresh reviews by refetching from the server
 		// For now, just close the modal
 		// TODO: Implement review refresh logic
 	}
 
 	// Filter reviews based on search results
-	$: displayedReviews = $searchResults.reviewMatches.length > 0 && $searchQuery
-		? $searchResults.reviewMatches
-		: reviews;
+	$: displayedReviews =
+		$searchResults.reviewMatches.length > 0 && $searchQuery
+			? $searchResults.reviewMatches
+			: reviews;
 
 	function handleViewChange(view: string) {
 		isMapView = view === 'map';
@@ -371,7 +370,6 @@
 	function toggleMapView() {
 		isMapView = !isMapView;
 	}
-
 
 	// After the mapComponent binding, add additional console logging for debugging
 	$: if (mapComponent) {
@@ -392,8 +390,7 @@
 			<div class="flex-1">
 				<SearchBar
 					{reviews}
-					placeholder="Search for wing places or reviews..."
-					showSearchModeToggle={true}
+					placeholder="Search restaurants, reviews, sauces, and more..."
 					showDropdown={isMapView}
 					on:search={handleSearchComplete}
 					on:resultSelect={handleResultSelect}
@@ -403,21 +400,16 @@
 			<!-- Modern Controls -->
 			<div class="flex items-center gap-3">
 				<!-- Modern View Toggle -->
-				<SegmentedControl 
+				<SegmentedControl
 					options={viewOptions}
 					value={currentView}
 					size="md"
 					on:change={(e) => handleViewChange(e.detail)}
 				/>
 
-
 				<!-- Modern Add Review Button (Desktop) -->
 				<div class="hidden lg:block">
-					<Button 
-						variant="primary" 
-						size="md"
-						on:click={handleAddReview}
-					>
+					<Button variant="primary" size="md" on:click={handleAddReview}>
 						<Icon icon={faPlus} class="h-4 w-4 mr-2" />
 						Add Review
 					</Button>
@@ -427,18 +419,24 @@
 
 		<!-- Loading State -->
 		{#if isLoading}
-			<div class="rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
+			<div
+				class="rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]"
+			>
 				{#if isMapView}
 					<!-- Map loading skeleton -->
 					<div class="h-full bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
-						<div class="absolute inset-0 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-800 dark:to-gray-900 animate-pulse"></div>
+						<div
+							class="absolute inset-0 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-800 dark:to-gray-900 animate-pulse"
+						></div>
 						<div class="absolute top-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
 							<Skeleton variant="rectangular" width="200px" height="20px" />
 						</div>
 						<div class="absolute top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-2">
 							<Skeleton variant="rectangular" width="100px" height="32px" />
 						</div>
-						<div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-2">
+						<div
+							class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-2"
+						>
 							<Skeleton variant="text" lines={1} width="150px" />
 						</div>
 					</div>
@@ -446,7 +444,9 @@
 					<!-- List loading skeleton -->
 					<div class="h-full overflow-hidden">
 						<!-- Header skeleton -->
-						<div class="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+						<div
+							class="px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700"
+						>
 							<div class="flex justify-between items-center">
 								<div class="space-y-2">
 									<Skeleton variant="rectangular" width="120px" height="24px" />
@@ -455,7 +455,7 @@
 								<Skeleton variant="rectangular" width="80px" height="32px" rounded="md" />
 							</div>
 						</div>
-						
+
 						<!-- List skeleton -->
 						<div class="p-4">
 							<Skeleton variant="list" lines={4} />
@@ -465,7 +465,9 @@
 			</div>
 		{:else}
 			<!-- Main Content: Map or List View -->
-			<div class="relative rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]">
+			<div
+				class="relative rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)]"
+			>
 				{#if isMapView}
 					<Map
 						bind:this={mapComponent}
@@ -482,14 +484,14 @@
 						selectedReviewId={selectedReview?.id}
 					/>
 				{/if}
-				
+
 				{#if selectedReview}
 					<ReviewSlideout
 						review={selectedReview}
 						{closeSlideout}
 						{user}
 						fromListView={reviewFromListView}
-						on:voteChanged={e => handleVoteChange(e.detail)}
+						on:voteChanged={(e) => handleVoteChange(e.detail)}
 					/>
 				{/if}
 			</div>
@@ -514,15 +516,17 @@
 {/if}
 
 {#if showSignInModal}
-	<SignInModal on:close={() => {
-		showSignInModal = false;
-		// If user just signed in and was trying to add a review, reopen the modal
-		if (user) {
-			setTimeout(() => {
-				showAddReviewModal = true;
-			}, 100); // Small delay to ensure clean modal transition
-		}
-	}} />
+	<SignInModal
+		on:close={() => {
+			showSignInModal = false;
+			// If user just signed in and was trying to add a review, reopen the modal
+			if (user) {
+				setTimeout(() => {
+					showAddReviewModal = true;
+				}, 100); // Small delay to ensure clean modal transition
+			}
+		}}
+	/>
 {/if}
 
 <!-- Floating Action Button (Mobile/Tablet) -->
@@ -537,12 +541,11 @@
 	/>
 </div>
 
-
 <style>
 	:global(body) {
 		@apply bg-gray-50 dark:bg-gray-900;
 	}
-	
+
 	/* Utility classes for line clamping */
 	:global(.line-clamp-2) {
 		display: -webkit-box;
@@ -550,7 +553,7 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
-	
+
 	/* Modern form inputs */
 	:global(.form-input) {
 		@apply block w-full rounded-lg shadow-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:border-primary-500 dark:focus:border-primary-400 focus:ring focus:ring-primary-500/20 dark:focus:ring-primary-400/20 focus:ring-opacity-50 transition-all duration-200;
