@@ -335,43 +335,16 @@
     isolation: isolate; /* Creates a new stacking context */
   }
 
-  /* Force Leaflet container into constrained stacking context */
-  :global(.leaflet-container) {
-    z-index: 1 !important;
-    position: relative !important;
-  }
-
-  /* Override Leaflet's default z-index values to keep them low */
-  :global(.leaflet-control-container) {
-    z-index: 50 !important; /* Much lower than modal z-index */
-  }
-
-  :global(.leaflet-control) {
-    z-index: 45 !important;
-  }
-
-  :global(.leaflet-popup-pane) {
-    z-index: 40 !important;
-  }
-
-  :global(.leaflet-marker-pane) {
-    z-index: 35 !important;
-  }
+  /* Don't interfere with Leaflet's internal z-index management */
 
   :global(.search-marker) {
     background: transparent;
     border: none;
-    z-index: 30 !important;
   }
 
   :global(.highlighted-marker) {
     background: transparent;
     border: none;
-    z-index: 30 !important;
-  }
-
-  :global(.leaflet-marker-icon) {
-    z-index: 25 !important;
   }
 
   :global(.custom-popup .leaflet-popup-content-wrapper) {

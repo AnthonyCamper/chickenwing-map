@@ -35,6 +35,11 @@
     z-index: 1;
     isolation: isolate;
   }
+
+  /* Targeted Leaflet z-index control - only override problematic elements */
+  :global(.leaflet-control-container) {
+    z-index: 100 !important;
+  }
   
   /* Typography baseline */
   h1 {

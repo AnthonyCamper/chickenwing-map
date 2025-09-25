@@ -422,7 +422,7 @@
 	<meta name="description" content="Discover and rate the best chicken wings near you." />
 </svelte:head>
 
-<div class="bg-gray-50 dark:bg-gray-900 min-h-full">
+<div class="bg-gray-50 dark:bg-gray-900 min-h-full main-content">
 	<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 		<!-- Top Bar: Search, View Toggle, Add Review -->
 		<div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center mb-6">
