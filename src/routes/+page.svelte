@@ -374,8 +374,12 @@
 
 	function handleAddReview() {
 		if (user) {
+			// Ensure SignIn modal is closed before opening AddReview modal
+			showSignInModal = false;
 			showAddReviewModal = true;
 		} else {
+			// Close any existing modals first to prevent layering issues
+			showAddReviewModal = false;
 			showSignInModal = true;
 		}
 	}
@@ -455,7 +459,7 @@
 					</Button>
 
 					{#if showFilterMenu}
-						<div class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-[1001] overflow-hidden">
+						<div class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden" style="z-index: var(--z-dropdown)">
 							<div class="py-2" role="menu" aria-orientation="vertical">
 								<!-- Sort options header -->
 								<div class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
@@ -596,15 +600,28 @@
 	<AddReviewModal
 		show={showAddReviewModal}
 		{user}
-		onClose={() => (showAddReviewModal = false)}
+		onClose={() => {
+			showAddReviewModal = false;
+			// Ensure clean state when modal is closed
+		}}
 		onReviewAdded={() => {
 			showAddReviewModal = false;
+			// Refresh reviews after successful submission
+			fetchReviews();
 		}}
 	/>
 {/if}
 
 {#if showSignInModal}
-	<SignInModal on:close={() => (showSignInModal = false)} />
+	<SignInModal on:close={() => {
+		showSignInModal = false;
+		// If user just signed in and was trying to add a review, reopen the modal
+		if (user) {
+			setTimeout(() => {
+				showAddReviewModal = true;
+			}, 100); // Small delay to ensure clean modal transition
+		}
+	}} />
 {/if}
 
 <!-- Floating Action Button (Mobile/Tablet) -->

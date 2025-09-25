@@ -3,6 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Z-Index System - Consistent layering across all components */
+    --z-map: 1;
+    --z-map-controls: 50;
+    --z-slideout: 2000;
+    --z-dropdown: 3000;
+    --z-modal-backdrop: 999998;
+    --z-modal: 999999;
+  }
+
   html {
     font-family: 'Inter var', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -12,6 +22,18 @@
   
   body {
     @apply text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 transition-colors duration-200 overflow-x-hidden;
+  }
+
+  /* Modal open state - prevent background scrolling */
+  body.modal-open {
+    overflow: hidden;
+  }
+
+  /* Ensure main content area has constrained stacking context */
+  .main-content {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
   }
   
   /* Typography baseline */

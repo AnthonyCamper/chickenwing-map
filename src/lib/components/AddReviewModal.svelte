@@ -87,6 +87,17 @@
     };
   });
 
+  // Manage body scroll lock when modal is shown/hidden
+  $: {
+    if (typeof document !== 'undefined') {
+      if (show) {
+        document.body.classList.add('modal-open');
+      } else {
+        document.body.classList.remove('modal-open');
+      }
+    }
+  }
+
   // Update the handleSubmit function
   async function handleSubmit() {
     try {
@@ -271,13 +282,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999; /* High z-index to ensure modal is on top */
+    z-index: var(--z-modal); /* Using CSS variable for consistent z-index */
   }
 
   .modal-overlay {
     position: absolute;
     inset: 0;
     background-color: rgba(0, 0, 0, 0.4);
+    z-index: var(--z-modal-backdrop); /* Separate backdrop layer below modal content */
   }
 
   .modal-content {
@@ -290,6 +302,7 @@
     max-height: 90vh;
     overflow-y: auto;
     padding: 1.5rem;
+    z-index: var(--z-modal); /* Fix: Add explicit z-index to ensure proper stacking */
   }
 
   :global(.dark) .modal-content {

@@ -137,7 +137,7 @@
     }
     
     const { data, error } = await supabase
-      .from('review_votes')
+      .from('votes')
       .select('vote_type')
       .eq('review_id', review.id)
       .eq('user_id', user.id)
@@ -181,7 +181,7 @@
     if (!review || !user) return;
     
     const { error } = await supabase
-      .from('review_votes')
+      .from('votes')
       .insert({
         review_id: review.id,
         user_id: user.id,
@@ -200,7 +200,7 @@
     if (!review || !user) return;
     
     const { error } = await supabase
-      .from('review_votes')
+      .from('votes')
       .update({ vote_type: type })
       .eq('review_id', review.id)
       .eq('user_id', user.id);
@@ -217,7 +217,7 @@
     if (!review || !user) return;
     
     const { error } = await supabase
-      .from('review_votes')
+      .from('votes')
       .delete()
       .eq('review_id', review.id)
       .eq('user_id', user.id);
@@ -308,24 +308,24 @@
   :global(.leaflet-marker-pane),
   :global(.leaflet-popup-pane),
   :global(.leaflet-overlay-pane) {
-    z-index: 40 !important;
+    z-index: var(--z-map) !important;
   }
-  
+
   :global(.leaflet-control) {
-    z-index: 45 !important;
+    z-index: var(--z-map) !important;
   }
   
   /* Ensure our slideout has a higher z-index than map controls */
   .slideout-container {
-    z-index: 1000 !important;
+    z-index: var(--z-slideout) !important;
   }
-  
+
   .slideout-backdrop {
-    z-index: 990 !important;
+    z-index: calc(var(--z-slideout) - 10) !important;
   }
-  
+
   .slideout-content {
-    z-index: 1000 !important;
+    z-index: var(--z-slideout) !important;
   }
 </style>
 
@@ -373,7 +373,7 @@
         <div class="flex-1 overflow-y-auto p-4">
           {#if review}
             <div class="space-y-6">
-              <!-- Voting section -->
+              <!-- Rating and date section -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-4">
                   <div class="text-3xl font-bold text-primary-600 dark:text-primary-400">
@@ -383,33 +383,16 @@
                     Reviewed on {new Date(review.date_visited).toLocaleDateString()}
                   </div>
                 </div>
-                
-                <div class="flex items-center space-x-2">
-                  <button 
-                    class="p-1.5 rounded-full {userVote === 'up' ? 'bg-success-50 text-success-600 dark:bg-success-900 dark:text-success-300' : 'text-gray-500 hover:text-success-600 dark:text-gray-400 dark:hover:text-success-300'}"
-                    on:click={() => handleVote('up')}
-                    aria-label="Upvote review"
-                  >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
-                    </svg>
-                    <span class="sr-only">Upvote</span>
-                  </button>
-                  <span class="text-sm font-medium">{localUpvotes}</span>
-                  
-                  <button 
-                    class="p-1.5 rounded-full {userVote === 'down' ? 'bg-error-50 text-error-600 dark:bg-error-900 dark:text-error-300' : 'text-gray-500 hover:text-error-600 dark:text-gray-400 dark:hover:text-error-300'}"
-                    on:click={() => handleVote('down')}
-                    aria-label="Downvote review"
-                  >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                    <span class="sr-only">Downvote</span>
-                  </button>
-                  <span class="text-sm font-medium">{localDownvotes}</span>
-                </div>
               </div>
+
+              <!-- Voting section -->
+              <ReviewVoting
+                upvotes={localUpvotes}
+                downvotes={localDownvotes}
+                {userVote}
+                isProcessing={isProcessingVote}
+                on:vote={(e) => handleVote(e.detail)}
+              />
               
               <!-- Location info -->
               <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">

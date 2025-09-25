@@ -53,6 +53,15 @@
   function close() {
     dispatch('close');
   }
+
+  // Manage body scroll lock when modal is mounted/unmounted
+  onMount(() => {
+    document.body.classList.add('modal-open');
+
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  });
 </script>
 
 <style>
@@ -65,7 +74,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999; /* High z-index to be above everything */
+    z-index: var(--z-modal); /* Using CSS variable for consistent z-index */
   }
 
   .modal-backdrop {
@@ -75,7 +84,7 @@
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
-    z-index: -1;
+    z-index: var(--z-modal-backdrop); /* Separate backdrop layer below modal content */
   }
 
   .modal-content {
@@ -85,6 +94,8 @@
     width: 90%;
     max-width: 500px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: var(--z-modal); /* Fix: Add explicit z-index to ensure proper stacking */
+    position: relative; /* Ensure z-index works properly */
   }
 
   :global(.dark) .modal-content {

@@ -329,20 +329,49 @@
 </script>
 
 <style>
+  /* Map container stacking context - constrains ALL map elements below modals */
+  .map-container {
+    z-index: 1;
+    isolation: isolate; /* Creates a new stacking context */
+  }
+
+  /* Force Leaflet container into constrained stacking context */
+  :global(.leaflet-container) {
+    z-index: 1 !important;
+    position: relative !important;
+  }
+
+  /* Override Leaflet's default z-index values to keep them low */
+  :global(.leaflet-control-container) {
+    z-index: 50 !important; /* Much lower than modal z-index */
+  }
+
+  :global(.leaflet-control) {
+    z-index: 45 !important;
+  }
+
+  :global(.leaflet-popup-pane) {
+    z-index: 40 !important;
+  }
+
+  :global(.leaflet-marker-pane) {
+    z-index: 35 !important;
+  }
+
   :global(.search-marker) {
     background: transparent;
     border: none;
-    z-index: 900 !important;
+    z-index: 30 !important;
   }
 
   :global(.highlighted-marker) {
     background: transparent;
     border: none;
-    z-index: 900 !important;
+    z-index: 30 !important;
   }
 
   :global(.leaflet-marker-icon) {
-    z-index: 800 !important; 
+    z-index: 25 !important;
   }
 
   :global(.custom-popup .leaflet-popup-content-wrapper) {
@@ -368,11 +397,6 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
 
-  /* Ensure buttons on map appear above popups */
-  :global(.leaflet-control-container .leaflet-control) {
-    z-index: 1000 !important;
-  }
-
   /* Mobile optimization */
   @media (max-width: 640px) {
     :global(.custom-popup .leaflet-popup-content) {
@@ -384,11 +408,12 @@
   }
 </style>
 
-<div class="relative w-full h-full">
+<!-- Map container with constrained stacking context -->
+<div class="relative w-full h-full map-container">
   <div bind:this={mapElement} class="absolute inset-0 transition-all duration-300 ease-in-out" class:pr-0={!isSlideoutOpen} class:pr-80={isSlideoutOpen}></div>
   <button
     on:click={zoomToNearbyPlaces}
-    class="absolute top-4 left-4 z-[900] bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+    class="absolute top-4 left-4 z-[50] bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
   >
     Zoom to Nearby Places
   </button>
