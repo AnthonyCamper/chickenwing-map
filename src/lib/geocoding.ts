@@ -20,6 +20,12 @@ export async function geocode(query: string): Promise<{ result: GeocodeResult | 
           error: { type: 'rate_limit', message: 'Too many requests. Please try again in a moment.' }
         };
       }
+      if (response.status === 503) {
+        return {
+          result: null,
+          error: { type: 'network', message: 'Location service is temporarily unavailable. Please try again later.' }
+        };
+      }
       return {
         result: null,
         error: { type: 'network', message: 'Unable to connect to location service. Please check your internet connection.' }

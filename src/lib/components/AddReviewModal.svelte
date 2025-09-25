@@ -110,14 +110,17 @@
         return;
       }
 
-      // Add timeout handling
+      // Add timeout handling and better error logging
+      console.log('Starting review submission...');
       const result = await Promise.race([
         (async () => {
+          console.log('Checking user authentication...');
           const { data: { user }, error: userError } = await supabase.auth.getUser();
           
           if (userError || !user) {
             throw new Error('You must be signed in to add a review');
           }
+          console.log('User authenticated, checking authorization...');
 
           const { data: authorizedUser, error: authError } = await supabase
             .from('authorized_users')
@@ -128,6 +131,7 @@
           if (authError || !authorizedUser) {
             throw new Error('You are not authorized to add reviews');
           }
+          console.log('User authorized, checking for existing location...');
 
           const { data: existingLocation, error: locationError } = await supabase
             .from('locations')
@@ -143,6 +147,7 @@
           let locationId: number;
 
           if (!existingLocation) {
+            console.log('Creating new location...');
             const { data: newLocation, error: insertLocationError } = await supabase
               .from('locations')
               .insert([{
@@ -159,9 +164,11 @@
             
             locationId = newLocation.id;
           } else {
+            console.log('Using existing location...');
             locationId = existingLocation.id;
           }
 
+          console.log('Inserting review...');
           const { error: insertReviewError } = await supabase
             .from('reviews')
             .insert([{
@@ -195,9 +202,10 @@
 
           if (insertReviewError) throw insertReviewError;
 
+          console.log('Review submitted successfully!');
           return true;
         })(),
-        timeout(30000) // 30 second timeout
+        timeout(60000) // 60 second timeout
       ]);
 
       if (result) {
