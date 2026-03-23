@@ -1,0 +1,484 @@
+import { useEffect, useRef, useState } from 'react'
+import type { Map as LeafletMap } from 'leaflet'
+import Supercluster from 'supercluster'
+import StarRating from './ui/StarRating'
+import ReviewCard from './ReviewCard'
+import PhotoModal from './gallery/PhotoModal'
+import { Lightbox } from './ui/PhotoGallery'
+import { usePhotoDetail, fetchCommentCounts } from '../hooks/usePhotoDetail'
+import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
+
+interface Props {
+  shops: SpotWithReviews[]
+  loading: boolean
+  currentUserId: string
+  isAdmin: boolean
+  onUpdate: (id: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
+  onDelete: (id: string) => Promise<{ error: string | null }>
+}
+
+export default function MapView({ shops, loading, currentUserId, isAdmin, onUpdate, onDelete }: Props) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const leafletRef = useRef<LeafletMap | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderRef = useRef<(() => void) | null>(null)
+  const [mapReady, setMapReady] = useState(false)
+  const [selectedShop, setSelectedShop] = useState<SpotWithReviews | null>(null)
+
+  const photoDetail = usePhotoDetail(currentUserId)
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+
+  const shopsWithReviews = shops.filter(s => s.reviews.length > 0)
+
+  // Keep a ref that always mirrors the latest shopsWithReviews so the map init
+  // effect can read it without needing it in its dependency array.
+  const shopsRef = useRef(shopsWithReviews)
+  useEffect(() => { shopsRef.current = shopsWithReviews })
+
+  // Fetch comment counts for all photos
+  useEffect(() => {
+    const allPhotoIds = shopsWithReviews.flatMap(s => s.photos.map(p => p.id))
+    if (allPhotoIds.length > 0) {
+      fetchCommentCounts(allPhotoIds).then(setCommentCounts)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopsWithReviews.map(s => s.spot.id).join(',')])
+
+  // ── Map initialisation ───────────────────────────────────────────────────
+  // Runs once on mount. Signals readiness via setMapReady(true) so the
+  // markers effect can safely depend on that flag instead of the ref.
+  useEffect(() => {
+    if (!mapRef.current) return
+
+    import('leaflet').then(L => {
+      if (leafletRef.current) return // already initialised (StrictMode double-mount)
+
+      // Derive a sensible initial centre from shops that are already loaded,
+      // or fall back to a neutral world view so we never hard-code Melbourne.
+      const current = shopsRef.current
+      let initialCenter: [number, number]
+      let initialZoom: number
+
+      if (current.length > 0) {
+        const lats = current.map(s => s.spot.lat)
+        const lngs = current.map(s => s.spot.lng)
+        initialCenter = [
+          lats.reduce((a, b) => a + b) / lats.length,
+          lngs.reduce((a, b) => a + b) / lngs.length,
+        ]
+        initialZoom = 13
+      } else {
+        // No shops yet — show the world; fitBounds will reposition once data arrives
+        initialCenter = [20, 0]
+        initialZoom = 2
+      }
+
+      const map = L.map(mapRef.current!, {
+        center: initialCenter,
+        zoom: initialZoom,
+        zoomControl: true,
+      })
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map)
+
+      leafletRef.current = map
+      // Signal readiness — this triggers the markers effect via the dep array
+      setMapReady(true)
+    })
+
+    return () => {
+      renderRef.current = null
+      markersRef.current = []
+      if (leafletRef.current) {
+        leafletRef.current.remove()
+        leafletRef.current = null
+      }
+    }
+  }, [])
+
+  // ── Markers + Clustering ─────────────────────────────────────────────────
+  // Depends on `mapReady` so it re-runs the moment Leaflet is initialised,
+  // even if shops were already loaded before the map mounted (the race that
+  // caused markers to silently disappear).
+  // Uses supercluster (pure ESM) for viewport-aware zoom-based clustering.
+  useEffect(() => {
+    if (!leafletRef.current) return
+
+    import('leaflet').then(L => {
+      const map = leafletRef.current!
+
+      // Detach any previous moveend/zoomend handler before replacing it
+      if (renderRef.current) {
+        map.off('moveend', renderRef.current)
+        map.off('zoomend', renderRef.current)
+        renderRef.current = null
+      }
+
+      // Clear stale markers
+      markersRef.current.forEach(m => m.remove())
+      markersRef.current = []
+
+      if (shopsWithReviews.length === 0) return
+
+      // Build the spatial index for this set of shops
+      const sc = new Supercluster<{ id: string }>({ radius: 60, maxZoom: 16 })
+      sc.load(
+        shopsWithReviews.map(s => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [s.spot.lng, s.spot.lat] },
+          properties: { id: s.spot.id },
+        }))
+      )
+
+      // render() recomputes clusters for the current viewport and replaces markers.
+      // Called once immediately, then on every moveend/zoomend.
+      function render() {
+        markersRef.current.forEach(m => m.remove())
+        markersRef.current = []
+
+        const b = map.getBounds()
+        const zoom = Math.floor(map.getZoom())
+        const bbox: [number, number, number, number] = [
+          b.getWest(), b.getSouth(), b.getEast(), b.getNorth(),
+        ]
+
+        sc.getClusters(bbox, zoom).forEach(feature => {
+          const [lng, lat] = feature.geometry.coordinates
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const props = feature.properties as any
+
+          if (props.cluster) {
+            // Cluster badge — click zooms to the expansion zoom for that cluster
+            const icon = createClusterIcon(L, props.point_count as number)
+            const marker = L.marker([lat, lng], { icon })
+              .on('click', () => {
+                const z = Math.min(sc.getClusterExpansionZoom(props.cluster_id as number), 18)
+                map.flyTo([lat, lng], z, { duration: 0.35 })
+              })
+            marker.addTo(map)
+            markersRef.current.push(marker)
+          } else {
+            // Individual wing pin
+            const shopData = shopsWithReviews.find(s => s.spot.id === props.id)
+            if (!shopData) return
+            const icon = createPinIcon(L, shopData.avg_rating, shopData.photos[0]?.url ?? null)
+            const marker = L.marker([lat, lng], { icon })
+              .on('click', () => setSelectedShop(shopData))
+            marker.addTo(map)
+            markersRef.current.push(marker)
+          }
+        })
+      }
+
+      renderRef.current = render
+      map.on('moveend', render)
+      map.on('zoomend', render)
+
+      // Initial render then fit all shops into view
+      render()
+      if (shopsWithReviews.length === 1) {
+        // Single point — setView avoids degenerate zero-area bounds from fitBounds
+        const s = shopsWithReviews[0]
+        map.setView([s.spot.lat, s.spot.lng], 15)
+      } else {
+        const allBounds = shopsWithReviews.map(s => [s.spot.lat, s.spot.lng]) as [number, number][]
+        map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 15 })
+      }
+    })
+
+    return () => {
+      if (renderRef.current && leafletRef.current) {
+        leafletRef.current.off('moveend', renderRef.current)
+        leafletRef.current.off('zoomend', renderRef.current)
+        renderRef.current = null
+      }
+      markersRef.current.forEach(m => m.remove())
+      markersRef.current = []
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, shopsWithReviews.map(s => s.spot.id).join(',')])
+
+  return (
+    <div className="relative h-[calc(100dvh-64px)]">
+      <div ref={mapRef} className="w-full h-full" />
+
+      {loading && (
+        <div className="absolute inset-0 bg-warmgray-50/60 flex items-center justify-center z-10">
+          <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+        </div>
+      )}
+
+      {!loading && shopsWithReviews.length === 0 && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl px-6 py-5 shadow-card text-center">
+            <div className="text-3xl mb-2">📍</div>
+            <p className="text-sm font-semibold text-charcoal-700">No wing spots on the map yet</p>
+            <p className="text-xs text-charcoal-400 mt-1">Add a review to see it here</p>
+          </div>
+        </div>
+      )}
+
+      {selectedShop && (
+        <ShopPanel
+          shopData={selectedShop}
+          onClose={() => setSelectedShop(null)}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          onPhotoOpen={photoDetail.open}
+          commentCounts={commentCounts}
+        />
+      )}
+
+      {/* Photo detail loading overlay */}
+      {photoDetail.loading && (
+        <div className="fixed inset-0 z-[140] bg-black/40 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-white border-t-transparent animate-spin" />
+        </div>
+      )}
+
+      {/* Photo detail modal */}
+      {photoDetail.photo && (
+        <PhotoModal
+          photo={photoDetail.photo}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          onClose={photoDetail.close}
+          onLike={photoDetail.toggleLike}
+          onCommentAdded={photoDetail.onCommentAdded}
+        />
+      )}
+    </div>
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
+  const score = avgRating.toFixed(1)
+  // Only embed URLs that originate from our own storage (guard against injection)
+  const safePhoto = photoUrl && photoUrl.startsWith('https://') ? photoUrl : null
+  const thumbHtml = safePhoto ? `
+    <div style="
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      margin-bottom: 3px;
+      flex-shrink: 0;
+    ">
+      <img src="${safePhoto}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
+    </div>
+  ` : ''
+
+  const totalHeight = safePhoto ? 96 : 52
+
+  return L.divIcon({
+    className: '',
+    iconSize: [44, totalHeight],
+    iconAnchor: [22, totalHeight],
+    html: `
+      <div style="
+        width:44px;
+        height:${totalHeight}px;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:flex-end;
+        filter: drop-shadow(0 4px 8px rgba(154,122,92,0.3));
+      ">
+        ${thumbHtml}
+        <div style="
+          background: white;
+          border: 2px solid #fbbf24;
+          border-radius: 12px;
+          padding: 4px 6px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #5c4029;
+          white-space: nowrap;
+          line-height: 1;
+          font-family: Inter, system-ui, sans-serif;
+        ">🍗 ${score}</div>
+        <div style="
+          width: 10px;
+          height: 10px;
+          background: #fbbf24;
+          clip-path: polygon(0 0, 100% 0, 50% 100%);
+          margin-top: -1px;
+        "></div>
+      </div>
+    `,
+  })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createClusterIcon(L: any, count: number) {
+  // Scale the badge size slightly with count so large clusters feel distinct
+  const size = count < 10 ? 42 : count < 50 ? 48 : 56
+  const fontSize = count < 10 ? 13 : count < 100 ? 12 : 11
+
+  return L.divIcon({
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `
+      <div style="
+        width: ${size}px;
+        height: ${size}px;
+        background: white;
+        border: 2.5px solid #fbbf24;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        filter: drop-shadow(0 4px 10px rgba(154,122,92,0.32));
+      ">
+        <span style="
+          font-family: Inter, system-ui, sans-serif;
+          font-weight: 700;
+          font-size: ${fontSize}px;
+          color: #5c4029;
+          line-height: 1;
+          white-space: nowrap;
+        ">🍗 ${count}</span>
+      </div>
+    `,
+  })
+}
+
+interface ShopPanelProps {
+  shopData: SpotWithReviews
+  onClose: () => void
+  currentUserId: string
+  isAdmin: boolean
+  onUpdate: Props['onUpdate']
+  onDelete: Props['onDelete']
+  onPhotoOpen: (photoId: string) => void
+  commentCounts: Record<string, number>
+}
+
+function ShopPanel({ shopData, onClose, currentUserId, isAdmin, onUpdate, onDelete, onPhotoOpen, commentCounts }: ShopPanelProps) {
+  const { spot, reviews, avg_rating, photos } = shopData
+
+  return (
+    <>
+      {/* Backdrop on mobile */}
+      <div
+        className="absolute inset-0 z-20 sm:hidden"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-white rounded-t-3xl sm:rounded-3xl shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col">
+        {/* Handle (mobile) */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-8 h-1 rounded-full bg-warmgray-300" />
+        </div>
+
+        {/* Header */}
+        <div className="px-5 pt-3 pb-3 border-b border-warmgray-100 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-base font-semibold text-charcoal-800 leading-snug">
+              {spot.name}
+            </h3>
+            <p className="text-xs text-charcoal-400 mt-0.5">{spot.address}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {reviews.length > 1 && (
+                <span className="text-xs text-charcoal-300">avg of {reviews.length}</span>
+              )}
+              <span className="rating-wing">
+                🍗 <StarRating value={avg_rating} size="sm" />
+                <span className="ml-0.5">{avg_rating.toFixed(1)}</span>
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 transition-colors text-lg leading-none flex-shrink-0 mt-0.5"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1">
+          {/* Photo strip */}
+          {photos.length > 0 && (
+            <div className="px-5 pt-4 pb-2">
+              <PhotoStrip photos={photos} onPhotoOpen={onPhotoOpen} commentCounts={commentCounts} />
+            </div>
+          )}
+
+          {/* Reviews */}
+          <div className="px-5 pb-5 divide-y divide-warmgray-100">
+            {reviews.map((review: Review) => (
+              <ReviewCard
+                key={review.id}
+                review={review}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                compact
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+interface PhotoStripProps {
+  photos: ReviewPhoto[]
+  onPhotoOpen: (photoId: string) => void
+  commentCounts: Record<string, number>
+}
+
+function PhotoStrip({ photos, onPhotoOpen, commentCounts }: PhotoStripProps) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
+  return (
+    <>
+      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {photos.map((photo) => {
+          const count = commentCounts[photo.id] ?? 0
+          return (
+            <button
+              key={photo.id}
+              onClick={() => onPhotoOpen(photo.id)}
+              className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-warmgray-100 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-amber-300"
+            >
+              <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              {count > 0 && (
+                <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-1 py-0.5">
+                  <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span className="text-white text-[9px] font-medium">{count}</span>
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          photos={photos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+    </>
+  )
+}

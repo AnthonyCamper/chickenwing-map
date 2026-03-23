@@ -1,0 +1,223 @@
+// ─── Auth types ───────────────────────────────────────────────────────────────
+
+export type UserStatus = 'pending' | 'approved' | 'rejected' | 'disabled'
+
+export type AuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'pending'
+  | 'rejected'
+  | 'disabled'
+  | 'authorized'
+
+// ─── Database row types ────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  display_name: string | null
+  avatar_url: string | null
+  status: UserStatus
+  is_admin: boolean
+  can_leave_reviews: boolean
+  created_at: string
+}
+
+/** @deprecated Use UserProfile instead */
+export interface Profile {
+  id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  created_at: string
+}
+
+export interface ApprovedUser {
+  email: string
+  is_admin: boolean
+  added_at: string
+}
+
+export interface SiteSettings {
+  is_public: boolean
+}
+
+export interface WingSpot {
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  created_at: string
+}
+
+export interface ReviewPhoto {
+  id: string
+  review_id: string
+  storage_path: string
+  url: string
+  display_order: number
+  created_at: string
+}
+
+export interface Review {
+  id: string
+  wing_spot_id: string
+  user_id: string
+  overall_rating: number  // 1–10
+  wing_size: string | null  // 'small' | 'medium' | 'large' | 'jumbo'
+  wing_flavor: string | null
+  is_takeout: boolean
+  takeout_container: string | null  // 'styrofoam' | 'cardboard' | 'plastic' | 'aluminum' | 'bag_only' | 'other'
+  review_text: string | null
+  legacy_data: any | null
+  visited_at: string
+  created_at: string
+  updated_at: string
+  // Joined from profiles
+  reviewer_name: string | null
+  reviewer_avatar: string | null
+  reviewer_email: string | null
+  // Attached photos
+  photos?: ReviewPhoto[]
+}
+
+// ─── Composite view type used in the UI ───────────────────────────────────────
+
+export interface SpotWithReviews {
+  spot: WingSpot
+  reviews: Review[]
+  avg_rating: number
+  photos: ReviewPhoto[]   // all photos across all reviews for this spot, newest first
+}
+
+// ─── Gallery / Social types ────────────────────────────────────────────────────
+
+export interface GalleryPhoto {
+  photo_id: string
+  photo_url: string
+  display_order: number
+  photo_created_at: string
+  review_id: string
+  overall_rating: number
+  wing_flavor: string | null
+  review_text: string | null
+  visited_at: string
+  wing_spot_id: string
+  spot_name: string
+  spot_address: string
+  reviewer_id: string
+  reviewer_name: string | null
+  reviewer_avatar: string | null
+  reviewer_email: string | null
+  like_count: number
+  comment_count: number
+  is_liked_by_me: boolean
+}
+
+export interface CommentReaction {
+  reaction_type: string
+  count: number
+  is_mine: boolean
+}
+
+export type CommentContentType = 'text' | 'gif' | 'mixed'
+
+export interface PhotoComment {
+  id: string
+  photo_id: string
+  user_id: string
+  text: string | null
+  created_at: string
+  parent_comment_id: string | null
+  content_type: CommentContentType
+  media_url: string | null
+  commenter_name: string | null
+  commenter_avatar: string | null
+  commenter_email: string | null
+  like_count: number
+  is_liked_by_me: boolean
+  reply_count: number
+  reactions: CommentReaction[]
+  replies?: PhotoComment[]
+}
+
+// ─── Notification types ──────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'new_review'
+  | 'photo_comment'
+  | 'comment_reply'
+  | 'photo_like'
+  | 'comment_like'
+  | 'comment_reaction'
+
+export interface Notification {
+  id: string
+  recipient_id: string
+  actor_id: string | null
+  type: NotificationType
+  review_id: string | null
+  photo_id: string | null
+  comment_id: string | null
+  shop_name: string | null
+  preview_text: string | null
+  read: boolean
+  push_sent: boolean
+  created_at: string
+  // Joined actor info (from query)
+  actor_name?: string | null
+  actor_avatar?: string | null
+}
+
+export interface NotificationPreferences {
+  user_id: string
+  enabled: boolean
+  new_review: boolean
+  photo_comment: boolean
+  comment_reply: boolean
+  photo_like: boolean
+  comment_like: boolean
+  comment_react: boolean
+  quiet_mode: boolean
+}
+
+export interface PushSubscriptionRecord {
+  id: string
+  user_id: string
+  endpoint: string
+  p256dh: string
+  auth_key: string
+  user_agent: string | null
+  created_at: string
+}
+
+// ─── Form types ───────────────────────────────────────────────────────────────
+
+export interface ReviewFormData {
+  shop_name: string
+  address: string
+  lat: string
+  lng: string
+  overall_rating: number
+  wing_size?: string
+  wing_flavor?: string
+  is_takeout: boolean
+  takeout_container?: string
+  review_text?: string
+  visited_at: string
+  photos?: File[]
+}
+
+export interface ReviewUpdateData {
+  overall_rating?: number
+  wing_size?: string
+  wing_flavor?: string
+  is_takeout?: boolean
+  takeout_container?: string
+  review_text?: string
+  visited_at?: string
+  photos_to_delete?: string[]   // review_photos IDs to remove from DB + storage
+  new_photos?: File[]           // new photos to upload and attach
+}
