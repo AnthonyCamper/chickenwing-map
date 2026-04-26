@@ -1,23 +1,30 @@
 import { useCallback, useRef, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import type { PhotoComment } from '../../lib/types'
-import type { AddCommentOptions } from '../../hooks/usePhotoInteractions'
+import type { Comment, AddCommentOptions } from '../../lib/types'
+import type { ReactionUser } from '../../lib/reactionDetails'
 import HeartIcon from './HeartIcon'
 import ReactionPicker from './ReactionPicker'
 import GifPicker from './GifPicker'
 import LikedByOverlay from './LikedByOverlay'
-import { fetchCommentLikers, fetchCommentReactors } from '../../lib/reactionDetails'
+import { fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
+
+type UserFetcher = (id: string) => Promise<ReactionUser[]>
 
 interface Props {
-  comments: PhotoComment[]
+  comments: Comment[]
   loading: boolean
   currentUserId: string
   isAdmin: boolean
+  requireAuth?: () => boolean
   onAdd: (opts: string | AddCommentOptions) => Promise<void>
   onDelete: (commentId: string) => Promise<void>
   onToggleLike: (commentId: string) => Promise<void>
   onToggleReaction: (commentId: string, reactionType: string) => Promise<void>
-  onFetchReplies: (parentId: string) => Promise<PhotoComment[]>
+  onFetchReplies: (parentId: string) => Promise<Comment[]>
+  /** Override the default likers fetcher. */
+  likersFetcher?: UserFetcher
+  /** Override the default reactors fetcher. */
+  reactorsFetcher?: UserFetcher
   /**
    * Embedded mode: renders only the comment list items without a scroll
    * wrapper or input bar. Used in the mobile single-scroll layout.
@@ -33,15 +40,21 @@ export default function CommentSection({
   loading,
   currentUserId,
   isAdmin,
+  requireAuth,
   onAdd,
   onDelete,
   onToggleLike,
   onToggleReaction,
   onFetchReplies,
+  likersFetcher,
+  reactorsFetcher,
   embedded = false,
   replyingTo: externalReplyingTo,
   onSetReplyingTo,
 }: Props) {
+  const getLikers = likersFetcher ?? fetchReviewCommentLikers
+  const getReactors = reactorsFetcher ?? fetchReviewCommentReactors
+  const gate = requireAuth ?? (() => true)
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
   const [showGifPicker, setShowGifPicker] = useState(false)
@@ -55,6 +68,7 @@ export default function CommentSection({
 
   const handlePost = async () => {
     if ((!text.trim() && !selectedGif) || posting) return
+    if (!gate()) return
     setPosting(true)
     await onAdd({
       text: text.trim() || undefined,
@@ -76,7 +90,8 @@ export default function CommentSection({
     }
   }
 
-  const handleReply = (comment: PhotoComment) => {
+  const handleReply = (comment: Comment) => {
+    if (!gate()) return
     const name = comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown'
     setReplyingTo({ id: comment.parent_comment_id ?? comment.id, name })
     setShowGifPicker(false)
@@ -110,11 +125,14 @@ export default function CommentSection({
           comment={comment}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
+          requireAuth={gate}
           onDelete={onDelete}
           onToggleLike={onToggleLike}
           onToggleReaction={onToggleReaction}
           onReply={handleReply}
           onFetchReplies={onFetchReplies}
+          getLikers={getLikers}
+          getReactors={getReactors}
         />
       ))}
     </div>
@@ -165,7 +183,7 @@ export default function CommentSection({
       <div className="flex-shrink-0 border-t border-warmgray-100 px-4 py-3 flex items-end gap-2 bg-white">
         <button
           type="button"
-          onClick={() => setShowGifPicker(prev => !prev)}
+          onClick={() => { if (gate()) setShowGifPicker(prev => !prev) }}
           className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-colors ${
             showGifPicker ? 'bg-amber-100 text-amber-600' : 'bg-warmgray-100 text-charcoal-500 hover:bg-warmgray-200'
           }`}
@@ -177,6 +195,7 @@ export default function CommentSection({
           ref={inputRef}
           value={text}
           onChange={e => setText(e.target.value)}
+          onFocus={e => { if (!gate()) e.target.blur() }}
           onKeyDown={handleKeyDown}
           placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
           maxLength={500}
@@ -201,25 +220,31 @@ export default function CommentSection({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface CommentThreadProps {
-  comment: PhotoComment
+  comment: Comment
   currentUserId: string
   isAdmin: boolean
+  requireAuth: () => boolean
   onDelete: (id: string) => Promise<void>
   onToggleLike: (id: string) => Promise<void>
   onToggleReaction: (id: string, type: string) => Promise<void>
-  onReply: (comment: PhotoComment) => void
-  onFetchReplies: (parentId: string) => Promise<PhotoComment[]>
+  onReply: (comment: Comment) => void
+  onFetchReplies: (parentId: string) => Promise<Comment[]>
+  getLikers: UserFetcher
+  getReactors: UserFetcher
 }
 
 function CommentThread({
   comment,
   currentUserId,
   isAdmin,
+  requireAuth,
   onDelete,
   onToggleLike,
   onToggleReaction,
   onReply,
   onFetchReplies,
+  getLikers,
+  getReactors,
 }: CommentThreadProps) {
   const [showReplies, setShowReplies] = useState(false)
   const [loadingReplies, setLoadingReplies] = useState(false)
@@ -241,10 +266,13 @@ function CommentThread({
         comment={comment}
         currentUserId={currentUserId}
         isAdmin={isAdmin}
+        requireAuth={requireAuth}
         onDelete={onDelete}
         onToggleLike={onToggleLike}
         onToggleReaction={onToggleReaction}
         onReply={() => onReply(comment)}
+        getLikers={getLikers}
+        getReactors={getReactors}
       />
 
       {/* Reply count toggle */}
@@ -274,11 +302,14 @@ function CommentThread({
               comment={reply}
               currentUserId={currentUserId}
               isAdmin={isAdmin}
+              requireAuth={requireAuth}
               onDelete={onDelete}
               onToggleLike={onToggleLike}
               onToggleReaction={onToggleReaction}
               onReply={() => onReply(reply)}
               isReply
+              getLikers={getLikers}
+              getReactors={getReactors}
             />
           ))}
         </div>
@@ -292,23 +323,26 @@ function CommentThread({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface CommentItemProps {
-  comment: PhotoComment
+  comment: Comment
   currentUserId: string
   isAdmin: boolean
+  requireAuth: () => boolean
   onDelete: (id: string) => Promise<void>
   onToggleLike: (id: string) => Promise<void>
   onToggleReaction: (id: string, type: string) => Promise<void>
   onReply: () => void
   isReply?: boolean
+  getLikers: UserFetcher
+  getReactors: UserFetcher
 }
 
-function CommentItem({ comment, currentUserId, isAdmin, onDelete, onToggleLike, onToggleReaction, onReply, isReply }: CommentItemProps) {
+function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, onToggleLike, onToggleReaction, onReply, isReply, getLikers, getReactors }: CommentItemProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const canDelete = comment.user_id === currentUserId || isAdmin
   const isTemp = comment.id.startsWith('temp-')
 
-  const fetchLikers = useCallback(() => fetchCommentLikers(comment.id), [comment.id])
-  const fetchReactors = useCallback(() => fetchCommentReactors(comment.id), [comment.id])
+  const fetchLikers = useCallback(() => getLikers(comment.id), [comment.id, getLikers])
+  const fetchReactors = useCallback(() => getReactors(comment.id), [comment.id, getReactors])
   const totalReactionCount = comment.reactions.reduce((sum, r) => sum + r.count, 0)
 
   const name = comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown'
@@ -375,7 +409,7 @@ function CommentItem({ comment, currentUserId, isAdmin, onDelete, onToggleLike, 
           {/* Reply */}
           {!isTemp && (
             <button
-              onClick={onReply}
+              onClick={() => { if (requireAuth()) onReply() }}
               className="text-xs text-charcoal-400 hover:text-charcoal-600 font-medium transition-colors"
             >
               Reply
@@ -385,7 +419,7 @@ function CommentItem({ comment, currentUserId, isAdmin, onDelete, onToggleLike, 
           {/* Like */}
           <LikedByOverlay fetchUsers={fetchLikers} count={comment.like_count} label="Likes">
             <button
-              onClick={() => !isTemp && onToggleLike(comment.id)}
+              onClick={() => { if (!isTemp && requireAuth()) onToggleLike(comment.id) }}
               disabled={isTemp}
               className="flex items-center gap-1 text-xs transition-colors group"
             >
@@ -407,7 +441,7 @@ function CommentItem({ comment, currentUserId, isAdmin, onDelete, onToggleLike, 
           <LikedByOverlay fetchUsers={fetchReactors} count={totalReactionCount} label="Reactions">
             <ReactionPicker
               reactions={comment.reactions}
-              onToggle={type => !isTemp && onToggleReaction(comment.id, type)}
+              onToggle={type => { if (!isTemp && requireAuth()) onToggleReaction(comment.id, type) }}
               disabled={isTemp}
             />
           </LikedByOverlay>

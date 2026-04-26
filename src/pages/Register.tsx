@@ -69,7 +69,7 @@ export default function Register({ onSignUp }: Props) {
           <h2 className="font-display text-2xl text-charcoal-800 mb-3">Check your email</h2>
           <p className="text-sm text-charcoal-500 leading-relaxed mb-6">
             We sent a confirmation link to <strong>{email}</strong>. Click it to verify your address,
-            then come back here — your request will be reviewed by an admin.
+            then come back here — your request will be reviewed by the admin.
           </p>
           <Link to="/" className="btn-secondary inline-flex">
             Back to sign in
@@ -99,7 +99,7 @@ export default function Register({ onSignUp }: Props) {
             Request access
           </h1>
           <p className="mt-2 text-sm text-charcoal-400 text-center leading-relaxed">
-            Fill in your details and an admin will approve your account.
+            Fill in your details and the admin will approve your account.
           </p>
         </div>
 
@@ -202,7 +202,7 @@ export default function Register({ onSignUp }: Props) {
         </div>
 
         <p className="mt-8 text-center text-xs text-charcoal-300">
-          WingMap
+          WingMap Ratings
         </p>
       </div>
     </div>

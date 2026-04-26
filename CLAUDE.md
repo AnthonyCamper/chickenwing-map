@@ -63,9 +63,10 @@ src/
 ├── hooks/
 │   ├── useAuth.ts              # Auth state + approval workflow
 │   ├── useReviews.ts           # Review CRUD + photo management
-│   ├── useGallery.ts           # Paginated gallery feed
-│   ├── usePhotoInteractions.ts # Comments, likes, reactions
-│   ├── usePhotoDetail.ts       # Single photo detail
+│   ├── useGallery.ts           # Paginated gallery feed (groups photos by review)
+│   ├── useReviewComments.ts    # Review-level comments, likes, reactions
+│   ├── useReviewReactions.ts   # Emoji reactions on the review itself
+│   ├── usePhotoDetail.ts       # Open a single photo in PhotoModal from list/map
 │   ├── useNotifications.ts     # Push + in-app notifications
 │   └── useAdminUsers.ts        # Admin user management
 ├── pages/
@@ -90,19 +91,22 @@ src/
 - **reviews** - Simplified wing reviews (overall_rating 1-10, wing_size, wing_flavor, is_takeout, takeout_container, review_text, legacy_data)
 - **profiles** - User profiles with approval status (pending/approved/rejected/disabled)
 - **review_photos** - Photos attached to reviews (Supabase Storage)
-- **photo_likes** - Photo like records
-- **photo_comments** - Threaded comments with GIF support
-- **comment_likes** - Comment like records
-- **comment_reactions** - Emoji reactions (👍 ❤️ 😂 🔥)
+- **review_likes** - Like records on a review (review-level, not per-photo)
+- **review_comments** - Threaded comments with GIF support, attached to a review
+- **review_comment_likes** - Likes on review comments
+- **review_comment_reactions** - Emoji reactions on review comments (👍 ❤️ 😂 🔥)
+- **review_reactions** - Emoji reactions directly on a review
 - **notifications** - In-app + push notification records
 - **notification_preferences** - Per-user notification settings
 - **site_settings** - Public/private site toggle
 
+Engagement (likes, comments, reactions) lives at the review level. Each card in the gallery shows a single review with its photos as a carousel, not one card per photo.
+
 ### Key Views
 
 - **reviews_with_profiles** - Reviews joined with reviewer info + spot info
-- **gallery_feed** - Photos with aggregated like/comment counts
-- **photo_comments_detailed** - Comments with like/reply counts
+- **gallery_feed** - One row per photo joined with review/spot/reviewer + review-level like and comment counts
+- **review_comments_detailed** - Review comments with like/reply counts
 
 ### Review Model (Simplified)
 

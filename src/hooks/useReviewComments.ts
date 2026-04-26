@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { triggerPushDelivery } from '../lib/pushManager'
-import type { PhotoComment, CommentReaction, CommentContentType } from '../lib/types'
+import type { ReviewComment, CommentReaction, CommentContentType, AddCommentOptions } from '../lib/types'
 
 interface RawComment {
   id: string
-  photo_id: string
+  review_id: string
   user_id: string
   text: string | null
   created_at: string
@@ -26,33 +26,25 @@ interface RawReaction {
   user_id: string
 }
 
-export interface AddCommentOptions {
-  text?: string
-  parentCommentId?: string | null
-  mediaUrl?: string | null
-  contentType?: CommentContentType
-}
-
-interface UsePhotoInteractionsReturn {
-  comments: PhotoComment[]
+interface UseReviewCommentsReturn {
+  comments: ReviewComment[]
   loading: boolean
   addComment: (opts: string | AddCommentOptions) => Promise<void>
   deleteComment: (commentId: string) => Promise<void>
   toggleCommentLike: (commentId: string) => Promise<void>
   toggleReaction: (commentId: string, reactionType: string) => Promise<void>
-  fetchReplies: (parentId: string) => Promise<PhotoComment[]>
+  fetchReplies: (parentId: string) => Promise<ReviewComment[]>
 }
 
-export function usePhotoInteractions(
-  photoId: string,
+export function useReviewComments(
+  reviewId: string,
   currentUserId: string
-): UsePhotoInteractionsReturn {
-  const [comments, setComments] = useState<PhotoComment[]>([])
+): UseReviewCommentsReturn {
+  const [comments, setComments] = useState<ReviewComment[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Attach reactions to a list of raw comments
   const attachReactions = useCallback(
-    (rawComments: RawComment[], reactions: RawReaction[]): PhotoComment[] => {
+    (rawComments: RawComment[], reactions: RawReaction[]): ReviewComment[] => {
       const reactionMap = new Map<string, RawReaction[]>()
       for (const r of reactions) {
         const list = reactionMap.get(r.comment_id) ?? []
@@ -81,21 +73,19 @@ export function usePhotoInteractions(
   const fetchComments = useCallback(async () => {
     setLoading(true)
     try {
-      // Fetch only top-level comments (parent_comment_id IS NULL)
       const { data: commentData } = await supabase
-        .from('photo_comments_detailed')
+        .from('review_comments_detailed')
         .select('*')
-        .eq('photo_id', photoId)
+        .eq('review_id', reviewId)
         .is('parent_comment_id', null)
         .order('created_at', { ascending: true })
 
       const rawComments = (commentData ?? []) as RawComment[]
 
-      // Fetch reactions for these comment IDs in one query
       let reactions: RawReaction[] = []
       if (rawComments.length > 0) {
         const { data: rData } = await supabase
-          .from('comment_reactions')
+          .from('review_comment_reactions')
           .select('comment_id, reaction_type, user_id')
           .in('comment_id', rawComments.map(c => c.id))
         reactions = (rData ?? []) as RawReaction[]
@@ -105,17 +95,16 @@ export function usePhotoInteractions(
     } finally {
       setLoading(false)
     }
-  }, [photoId, attachReactions])
+  }, [reviewId, attachReactions])
 
   useEffect(() => {
     fetchComments()
   }, [fetchComments])
 
-  // Fetch replies for a specific parent comment
   const fetchReplies = useCallback(
-    async (parentId: string): Promise<PhotoComment[]> => {
+    async (parentId: string): Promise<ReviewComment[]> => {
       const { data: replyData } = await supabase
-        .from('photo_comments_detailed')
+        .from('review_comments_detailed')
         .select('*')
         .eq('parent_comment_id', parentId)
         .order('created_at', { ascending: true })
@@ -125,7 +114,7 @@ export function usePhotoInteractions(
       let reactions: RawReaction[] = []
       if (rawReplies.length > 0) {
         const { data: rData } = await supabase
-          .from('comment_reactions')
+          .from('review_comment_reactions')
           .select('comment_id, reaction_type, user_id')
           .in('comment_id', rawReplies.map(c => c.id))
         reactions = (rData ?? []) as RawReaction[]
@@ -133,7 +122,6 @@ export function usePhotoInteractions(
 
       const replies = attachReactions(rawReplies, reactions)
 
-      // Update the parent comment's replies in state
       setComments(prev =>
         prev.map(c => (c.id === parentId ? { ...c, replies, reply_count: replies.length } : c))
       )
@@ -145,7 +133,6 @@ export function usePhotoInteractions(
 
   const addComment = useCallback(
     async (opts: string | AddCommentOptions) => {
-      // Normalize: accept plain string for backward compat
       const options: AddCommentOptions =
         typeof opts === 'string' ? { text: opts } : opts
 
@@ -158,9 +145,9 @@ export function usePhotoInteractions(
       if (!trimmedText && !mediaUrl) return
 
       const tempId = `temp-${Date.now()}`
-      const temp: PhotoComment = {
+      const temp: ReviewComment = {
         id: tempId,
-        photo_id: photoId,
+        review_id: reviewId,
         user_id: currentUserId,
         text: trimmedText,
         created_at: new Date().toISOString(),
@@ -177,7 +164,6 @@ export function usePhotoInteractions(
       }
 
       if (parentCommentId) {
-        // Optimistically append reply to parent
         setComments(prev =>
           prev.map(c => {
             if (c.id !== parentCommentId) return c
@@ -193,7 +179,7 @@ export function usePhotoInteractions(
       }
 
       const insertData: Record<string, unknown> = {
-        photo_id: photoId,
+        review_id: reviewId,
         user_id: currentUserId,
         content_type: contentType,
       }
@@ -201,10 +187,9 @@ export function usePhotoInteractions(
       if (mediaUrl) insertData.media_url = mediaUrl
       if (parentCommentId) insertData.parent_comment_id = parentCommentId
 
-      const { error } = await supabase.from('photo_comments').insert(insertData)
+      const { error } = await supabase.from('review_comments').insert(insertData)
 
       if (error) {
-        // Revert optimistic update
         if (parentCommentId) {
           setComments(prev =>
             prev.map(c => {
@@ -221,7 +206,6 @@ export function usePhotoInteractions(
         }
       } else {
         if (parentCommentId) {
-          // Refresh replies for the parent
           await fetchReplies(parentCommentId)
         } else {
           await fetchComments()
@@ -229,18 +213,16 @@ export function usePhotoInteractions(
         triggerPushDelivery()
       }
     },
-    [photoId, currentUserId, fetchComments, fetchReplies]
+    [reviewId, currentUserId, fetchComments, fetchReplies]
   )
 
   const deleteComment = useCallback(
     async (commentId: string) => {
-      // Check if it's a reply (inside a parent's replies array)
       setComments(prev => {
         const isTopLevel = prev.some(c => c.id === commentId)
         if (isTopLevel) {
           return prev.filter(c => c.id !== commentId)
         }
-        // It's a reply — remove from parent
         return prev.map(c => {
           if (!c.replies?.some(r => r.id === commentId)) return c
           return {
@@ -250,14 +232,14 @@ export function usePhotoInteractions(
           }
         })
       })
-      await supabase.from('photo_comments').delete().eq('id', commentId)
+      await supabase.from('review_comments').delete().eq('id', commentId)
     },
     []
   )
 
   const toggleCommentLike = useCallback(
     async (commentId: string) => {
-      const findComment = (list: PhotoComment[]): PhotoComment | undefined => {
+      const findComment = (list: ReviewComment[]): ReviewComment | undefined => {
         for (const c of list) {
           if (c.id === commentId) return c
           const inReplies = c.replies?.find(r => r.id === commentId)
@@ -270,7 +252,7 @@ export function usePhotoInteractions(
       if (!comment) return
       const wasLiked = comment.is_liked_by_me
 
-      const updateLike = (c: PhotoComment): PhotoComment =>
+      const updateLike = (c: ReviewComment): ReviewComment =>
         c.id === commentId
           ? { ...c, is_liked_by_me: !wasLiked, like_count: wasLiked ? c.like_count - 1 : c.like_count + 1 }
           : c.replies
@@ -281,13 +263,13 @@ export function usePhotoInteractions(
 
       try {
         if (wasLiked) {
-          await supabase.from('comment_likes').delete().match({ comment_id: commentId, user_id: currentUserId })
+          await supabase.from('review_comment_likes').delete().match({ comment_id: commentId, user_id: currentUserId })
         } else {
-          await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
+          await supabase.from('review_comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
           triggerPushDelivery()
         }
       } catch {
-        const revertLike = (c: PhotoComment): PhotoComment =>
+        const revertLike = (c: ReviewComment): ReviewComment =>
           c.id === commentId
             ? { ...c, is_liked_by_me: wasLiked, like_count: comment.like_count }
             : c.replies
@@ -301,7 +283,7 @@ export function usePhotoInteractions(
 
   const toggleReaction = useCallback(
     async (commentId: string, reactionType: string) => {
-      const findComment = (list: PhotoComment[]): PhotoComment | undefined => {
+      const findComment = (list: ReviewComment[]): ReviewComment | undefined => {
         for (const c of list) {
           if (c.id === commentId) return c
           const inReplies = c.replies?.find(r => r.id === commentId)
@@ -316,7 +298,7 @@ export function usePhotoInteractions(
       const existing = comment.reactions.find(r => r.reaction_type === reactionType)
       const isMine = existing?.is_mine ?? false
 
-      const updateReactions = (c: PhotoComment): PhotoComment => {
+      const updateReactions = (c: ReviewComment): ReviewComment => {
         if (c.id === commentId) {
           const updated = c.reactions.filter(r => r.reaction_type !== reactionType)
           if (!isMine) {
@@ -334,17 +316,17 @@ export function usePhotoInteractions(
       try {
         if (isMine) {
           await supabase
-            .from('comment_reactions')
+            .from('review_comment_reactions')
             .delete()
             .match({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
         } else {
           await supabase
-            .from('comment_reactions')
+            .from('review_comment_reactions')
             .insert({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
           triggerPushDelivery()
         }
       } catch {
-        const revertReactions = (c: PhotoComment): PhotoComment =>
+        const revertReactions = (c: ReviewComment): ReviewComment =>
           c.id === commentId
             ? { ...c, reactions: comment.reactions }
             : c.replies
@@ -357,4 +339,21 @@ export function usePhotoInteractions(
   )
 
   return { comments, loading, addComment, deleteComment, toggleCommentLike, toggleReaction, fetchReplies }
+}
+
+/**
+ * Batch-fetch review comment counts for a set of review IDs.
+ * Returns a map of reviewId -> count.
+ */
+export async function fetchReviewCommentCounts(reviewIds: string[]): Promise<Record<string, number>> {
+  if (reviewIds.length === 0) return {}
+  const { data } = await supabase
+    .from('review_comments')
+    .select('review_id')
+    .in('review_id', reviewIds)
+  const counts: Record<string, number> = {}
+  for (const row of (data ?? []) as { review_id: string }[]) {
+    counts[row.review_id] = (counts[row.review_id] ?? 0) + 1
+  }
+  return counts
 }

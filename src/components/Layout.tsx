@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AuthState } from '../hooks/useAuth'
 import { useNotifications } from '../hooks/useNotifications'
+import { useHistoryModal } from '../hooks/useHistoryModal'
 import ProfileModal from './ProfileModal'
 import NotificationBell from './NotificationBell'
 import NotificationSettings from './NotificationSettings'
@@ -29,6 +30,10 @@ export default function Layout({ auth, view, onViewChange, onAddReview, readOnly
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showNotifSettings, setShowNotifSettings] = useState(false)
   const notificationsHook = useNotifications(auth.user?.id)
+
+  // Browser back / swipe-back closes these modals
+  useHistoryModal(showProfileModal, () => setShowProfileModal(false))
+  useHistoryModal(showNotifSettings, () => setShowNotifSettings(false))
 
   const user = auth.user
   const profile = auth.profile

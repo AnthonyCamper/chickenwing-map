@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import type { GalleryPhoto } from '../../lib/types'
 import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
-import { fetchPhotoLikers } from '../../lib/reactionDetails'
+import { fetchReviewLikers } from '../../lib/reactionDetails'
 
 interface Props {
   photo: GalleryPhoto
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function PhotoCard({ photo, onOpen, onLike }: Props) {
-  const fetchLikers = useCallback(() => fetchPhotoLikers(photo.photo_id), [photo.photo_id])
+  const fetchLikers = useCallback(() => fetchReviewLikers(photo.review_id), [photo.review_id])
 
   return (
     <div className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer">

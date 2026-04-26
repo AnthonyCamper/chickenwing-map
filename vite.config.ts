@@ -11,4 +11,10 @@ export default defineConfig({
   // or '/repo-name/' if deploying to a project namespace.
   // Update this to match your GitLab Pages URL path.
   base: '/',
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+  },
 })

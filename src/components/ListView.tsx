@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo } from 'react'
 import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import PhotoGallery from './ui/PhotoGallery'
 import PhotoModal from './gallery/PhotoModal'
-import { usePhotoDetail, fetchCommentCounts } from '../hooks/usePhotoDetail'
+import { usePhotoDetail } from '../hooks/usePhotoDetail'
+import { useHistoryModal } from '../hooks/useHistoryModal'
 import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
 
 type SortKey = 'name' | 'rating'
@@ -16,23 +17,25 @@ interface Props {
   isAdmin: boolean
   onUpdate: (id: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
   onDelete: (id: string) => Promise<{ error: string | null }>
+  onViewOnMap?: (shopId: string) => void
+  sortBy: SortKey
+  onSortChange: (sort: SortKey) => void
+  filterReviewer: string
+  onFilterChange: (reviewer: string) => void
+  expandedShop: string | null
+  onExpandShop: (shopId: string | null) => void
 }
 
-export default function ListView({ shops, loading, error, currentUserId, isAdmin, onUpdate, onDelete }: Props) {
-  const [sortBy, setSortBy] = useState<SortKey>('name')
-  const [filterReviewer, setFilterReviewer] = useState<string>('all')
-  const [expandedSpot, setExpandedSpot] = useState<string | null>(null)
+export default function ListView({
+  shops, loading, error, currentUserId, isAdmin, onUpdate, onDelete, onViewOnMap,
+  sortBy, onSortChange: setSortBy, filterReviewer, onFilterChange: setFilterReviewer,
+  expandedShop, onExpandShop: setExpandedShop,
+}: Props) {
 
   const photoDetail = usePhotoDetail(currentUserId)
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
 
-  // Fetch comment counts for all photos
-  useEffect(() => {
-    const allPhotoIds = shops.flatMap(s => s.photos.map(p => p.id))
-    if (allPhotoIds.length > 0) {
-      fetchCommentCounts(allPhotoIds).then(setCommentCounts)
-    }
-  }, [shops])
+  // Browser back / swipe-back closes the photo detail modal
+  useHistoryModal(!!photoDetail.photo, photoDetail.close)
 
   // Collect all unique reviewers
   const reviewers = useMemo(() => {
@@ -125,22 +128,22 @@ export default function ListView({ shops, loading, error, currentUserId, isAdmin
         ) : (
           <div className="space-y-3">
             {shopsWithReviews.map(({ spot, reviews, avg_rating, photos }) => (
-              <SpotCard
+              <ShopCard
                 key={spot.id}
-                spotId={spot.id}
+                shopId={spot.id}
                 name={spot.name}
                 address={spot.address}
                 reviews={reviews}
                 avgRating={avg_rating}
                 photos={photos}
-                expanded={expandedSpot === spot.id}
-                onToggle={() => setExpandedSpot(expandedSpot === spot.id ? null : spot.id)}
+                expanded={expandedShop === spot.id}
+                onToggle={() => setExpandedShop(expandedShop === spot.id ? null : spot.id)}
                 currentUserId={currentUserId}
                 isAdmin={isAdmin}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onPhotoOpen={photoDetail.open}
-                commentCounts={commentCounts}
+                onViewOnMap={onViewOnMap}
               />
             ))}
           </div>
@@ -163,14 +166,15 @@ export default function ListView({ shops, loading, error, currentUserId, isAdmin
           onClose={photoDetail.close}
           onLike={photoDetail.toggleLike}
           onCommentAdded={photoDetail.onCommentAdded}
+          onViewOnMap={onViewOnMap ? (shopId) => { photoDetail.close(); onViewOnMap(shopId) } : undefined}
         />
       )}
     </>
   )
 }
 
-interface SpotCardProps {
-  spotId: string
+interface ShopCardProps {
+  shopId: string
   name: string
   address: string
   reviews: Review[]
@@ -183,14 +187,14 @@ interface SpotCardProps {
   onUpdate: Props['onUpdate']
   onDelete: Props['onDelete']
   onPhotoOpen: (photoId: string) => void
-  commentCounts: Record<string, number>
+  onViewOnMap?: (shopId: string) => void
 }
 
-function SpotCard({
-  name, address, reviews, avgRating, photos,
+function ShopCard({
+  shopId, name, address, reviews, avgRating, photos,
   expanded, onToggle, currentUserId, isAdmin, onUpdate, onDelete,
-  onPhotoOpen, commentCounts,
-}: SpotCardProps) {
+  onPhotoOpen, onViewOnMap,
+}: ShopCardProps) {
   return (
     <div className="card animate-slide-up">
       {/* Shop header — always visible */}
@@ -202,7 +206,25 @@ function SpotCard({
           <h3 className="font-display text-base font-semibold text-charcoal-800 leading-snug">
             {name}
           </h3>
-          <p className="text-xs text-charcoal-400 mt-0.5 truncate">{address}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+            <p className="text-xs text-charcoal-400 truncate">{address}</p>
+            {onViewOnMap && (
+              <span
+                onClick={e => { e.stopPropagation(); onViewOnMap(shopId) }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onViewOnMap(shopId) } }}
+                role="button"
+                tabIndex={0}
+                className="flex-shrink-0 flex items-center gap-1 text-xs text-amber-400 hover:text-amber-500 font-medium transition-colors cursor-pointer"
+                aria-label="View on map"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span className="hidden sm:inline">Map</span>
+              </span>
+            )}
+          </div>
 
           {/* Rating summary */}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -263,7 +285,6 @@ function SpotCard({
               <PhotoGallery
                 photos={photos}
                 onPhotoOpen={onPhotoOpen}
-                commentCounts={commentCounts}
               />
             </div>
           )}

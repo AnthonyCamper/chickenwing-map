@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="120" x2="0" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff7ed"/>
+      <stop offset="100%" stop-color="#fed7aa"/>
+    </linearGradient>
+    <radialGradient id="sauce" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0.0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background — full bleed (iOS adds its own corner mask) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Subtle radial highlight top-left -->
+  <ellipse cx="160" cy="80" rx="220" ry="130" fill="white" opacity="0.07"/>
+
+  <!-- Drumstick body — meaty rounded form -->
+  <path d="M168 376
+           C 128 348 116 296 144 252
+           C 168 214 220 198 264 210
+           C 312 222 348 200 360 156
+           C 372 110 414 96 444 124
+           C 472 152 460 196 416 212
+           C 372 228 358 268 372 308
+           C 388 356 360 412 304 418
+           C 248 424 208 408 168 376 Z"
+        fill="url(#wing)"/>
+
+  <!-- Sauce glaze on the meat -->
+  <ellipse cx="280" cy="280" rx="120" ry="80" fill="url(#sauce)" opacity="0.7"/>
+  <path d="M210 252 C 250 240 300 248 340 268 C 320 296 270 304 230 296 Z"
+        fill="#dc2626" opacity="0.35"/>
+
+  <!-- Exposed bone — protruding tip -->
+  <path d="M138 388
+           C 118 384 108 372 112 358
+           C 116 346 130 340 144 348
+           C 138 358 138 372 138 388 Z"
+        fill="#fef3c7"/>
+  <ellipse cx="124" cy="368" rx="14" ry="11" fill="#fef3c7"/>
+
+  <!-- Highlights -->
+  <path d="M218 232 C 246 222 280 224 308 234"
+        fill="none" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.45"/>
+  <path d="M398 130 C 412 122 428 124 436 138"
+        fill="none" stroke="white" stroke-width="5" stroke-linecap="round" opacity="0.55"/>
+</svg>

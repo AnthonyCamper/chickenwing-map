@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Modal from './ui/Modal'
-import StarRating from './ui/StarRating'
+import RatingPicker from './ui/RatingPicker'
 import PhotoUpload from './ui/PhotoUpload'
 import type { Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
 
@@ -54,26 +54,14 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   return (
     <Modal title="Edit Review" onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-        <div>
-          <label className="label">🍗 Wing Rating</label>
-          <div className="flex items-center gap-3">
-            <StarRating value={overallRating} interactive onChange={v => setOverallRating(v)} size="lg" />
-            <input
-              type="number"
-              min="1"
-              max="10"
-              step="0.1"
-              value={overallRating || ''}
-              onChange={e => {
-                const v = parseFloat(e.target.value)
-                if (!isNaN(v) && v >= 1 && v <= 10) setOverallRating(Math.round(v * 10) / 10)
-                else if (e.target.value === '') setOverallRating(0)
-              }}
-              className="input w-16 text-center text-sm font-semibold"
-            />
-            <span className="text-sm text-charcoal-400">/10</span>
-          </div>
-        </div>
+        <RatingPicker
+          value={overallRating}
+          onChange={setOverallRating}
+          accent="amber"
+          icon="🍗"
+          label="Wing Rating"
+        />
+
 
         <div>
           <label className="label" htmlFor="edit-wing-size">Wing Size (optional)</label>

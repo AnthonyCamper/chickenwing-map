@@ -6,14 +6,15 @@ interface Props {
   onSignInEmail: (email: string, password: string) => Promise<{ error: string | null }>
   isPublic: boolean
   onBrowse?: () => void
+  authError?: string | null
 }
 
-export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrowse }: Props) {
+export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrowse, authError }: Props) {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(authError ?? null)
 
   const handleGoogle = async () => {
     setGoogleLoading(true)
@@ -50,7 +51,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
             WingMap
           </h1>
           <p className="mt-2 text-sm text-charcoal-400 text-center leading-relaxed">
-            Your spot for rating the best chicken wings around.
+            A private corner for rating the wing spots we love.
           </p>
         </div>
 
@@ -59,6 +60,10 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           <p className="text-center text-xs uppercase tracking-widest font-semibold text-charcoal-400">
             Sign in to continue
           </p>
+
+          {error && (
+            <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          )}
 
           {/* Google */}
           <button
@@ -142,7 +147,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
         </div>
 
         <p className="mt-8 text-center text-xs text-charcoal-300">
-          WingMap
+          WingMap Ratings
         </p>
       </div>
     </div>

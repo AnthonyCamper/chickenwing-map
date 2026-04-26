@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 
-const MAX_MB = 5
+const MAX_MB = 50
 
 interface Props {
   files: File[]

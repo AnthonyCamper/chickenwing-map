@@ -1,27 +1,26 @@
-node_modules
+# Dependencies
+node_modules/
 
-# Output
-.output
-.vercel
-/dist
-/build
-/.svelte-kit
-.cursor/
-src_old_svelte/
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Env
-.env
-.env.*
-!.env.example
-!.env.test
+# Logs
+npm-debug.log*
 
 # MCP Configuration (contains sensitive credentials)
 .mcp.json
-
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*

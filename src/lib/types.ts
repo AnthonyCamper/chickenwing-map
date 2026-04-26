@@ -116,6 +116,32 @@ export interface GalleryPhoto {
   is_liked_by_me: boolean
 }
 
+/** A review-level gallery item grouping all photos belonging to one review. */
+export interface GalleryReviewItem {
+  review_id: string
+  overall_rating: number
+  wing_flavor: string | null
+  review_text: string | null
+  visited_at: string
+  wing_spot_id: string
+  spot_name: string
+  spot_address: string
+  reviewer_id: string
+  reviewer_name: string | null
+  reviewer_avatar: string | null
+  reviewer_email: string | null
+  like_count: number
+  comment_count: number
+  is_liked_by_me: boolean
+  /** All photos attached to this review, ordered by display_order. */
+  photos: Array<{
+    photo_id: string
+    photo_url: string
+    display_order: number
+    photo_created_at: string
+  }>
+}
+
 export interface CommentReaction {
   reaction_type: string
   count: number
@@ -124,9 +150,9 @@ export interface CommentReaction {
 
 export type CommentContentType = 'text' | 'gif' | 'mixed'
 
-export interface PhotoComment {
+/** Shared comment fields used by CommentSection (display-only, no target ref). */
+export interface Comment {
   id: string
-  photo_id: string
   user_id: string
   text: string | null
   created_at: string
@@ -140,7 +166,19 @@ export interface PhotoComment {
   is_liked_by_me: boolean
   reply_count: number
   reactions: CommentReaction[]
-  replies?: PhotoComment[]
+  replies?: Comment[]
+}
+
+export interface ReviewComment extends Comment {
+  review_id: string
+  replies?: ReviewComment[]
+}
+
+export interface AddCommentOptions {
+  text?: string
+  parentCommentId?: string | null
+  mediaUrl?: string | null
+  contentType?: CommentContentType
 }
 
 // ─── Notification types ──────────────────────────────────────────────────────

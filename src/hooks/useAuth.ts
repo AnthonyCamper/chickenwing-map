@@ -11,6 +11,7 @@ export interface AuthState {
   canLeaveReviews: boolean
   profile: UserProfile | null
   siteSettings: SiteSettings | null
+  authError: string | null
   signInWithGoogle: () => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>
   signUpWithEmail: (
@@ -31,6 +32,20 @@ export function useAuth(): AuthState {
   const [canLeaveReviews, setCanLeaveReviews] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  // Detect OAuth callback errors in URL and clean them up
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'))
+    const errorDesc = params.get('error_description') || hashParams.get('error_description')
+
+    if (errorDesc) {
+      setAuthError(errorDesc)
+      // Clean error params from URL without reload
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   // Load site settings once (readable by anon)
   useEffect(() => {
@@ -230,6 +245,7 @@ export function useAuth(): AuthState {
     canLeaveReviews,
     profile,
     siteSettings,
+    authError,
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,

@@ -60,7 +60,7 @@ export default function App() {
             padding: '12px 16px',
           },
           success: {
-            iconTheme: { primary: '#f59e0b', secondary: '#fff' },
+            iconTheme: { primary: '#f43f5e', secondary: '#fff' },
           },
         }}
       />
@@ -73,6 +73,7 @@ export default function App() {
               onSignInEmail={auth.signInWithEmail}
               isPublic={isPublic}
               onBrowse={isPublic ? () => window.history.back() : undefined}
+              authError={auth.authError}
             />
           ) : (
             <Navigate to="/" replace />
@@ -106,6 +107,7 @@ export default function App() {
                   onSignInGoogle={auth.signInWithGoogle}
                   onSignInEmail={auth.signInWithEmail}
                   isPublic={isPublic}
+                  authError={auth.authError}
                 />
               )
             ) : auth.status === 'pending' ? (
@@ -114,13 +116,13 @@ export default function App() {
               <StatusScreen
                 title="Access not approved"
                 onSignOut={auth.signOut}
-                message="Your access request was not approved. Contact an admin if you think this is a mistake."
+                message="Your access request was not approved. Contact the admin if you think this is a mistake."
               />
             ) : auth.status === 'disabled' ? (
               <StatusScreen
                 title="Account disabled"
                 onSignOut={auth.signOut}
-                message="Your account has been disabled. Contact an admin for more information."
+                message="Your account has been disabled. Contact the admin for more information."
               />
             ) : (
               <Home auth={auth} />

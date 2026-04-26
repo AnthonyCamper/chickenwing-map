@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGallery } from '../../hooks/useGallery'
-import PhotoCard from './PhotoCard'
+import { useHistoryModal } from '../../hooks/useHistoryModal'
+import { useAuthGate } from '../AuthGateModal'
+import ReviewCard from './ReviewCard'
 import PhotoModal from './PhotoModal'
-import type { GalleryPhoto } from '../../lib/types'
+import type { GalleryReviewItem } from '../../lib/types'
 
 interface Props {
   currentUserId: string
   isAdmin: boolean
+  onViewOnMap?: (spotId: string) => void
 }
 
-export default function GalleryView({ currentUserId, isAdmin }: Props) {
+export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Props) {
   const gallery = useGallery(currentUserId)
-  const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null)
+  const { requireAuth } = useAuthGate()
+  const [selectedReview, setSelectedReview] = useState<GalleryReviewItem | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // Infinite scroll via IntersectionObserver
+  // Browser back / swipe-back closes the photo modal
+  useHistoryModal(!!selectedReview, () => setSelectedReview(null))
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
@@ -26,9 +32,9 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
     return () => observer.disconnect()
   }, [gallery.loadMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep modal photo data in sync with optimistic like updates
-  const syncedPhoto = selectedPhoto
-    ? (gallery.photos.find(p => p.photo_id === selectedPhoto.photo_id) ?? selectedPhoto)
+  // Keep modal review data in sync with optimistic like updates
+  const syncedReview = selectedReview
+    ? (gallery.reviews.find(r => r.review_id === selectedReview.review_id) ?? selectedReview)
     : null
 
   if (gallery.loading) {
@@ -47,7 +53,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
     )
   }
 
-  if (gallery.photos.length === 0) {
+  if (gallery.reviews.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center px-6">
         <div className="text-5xl mb-4">📷</div>
@@ -62,26 +68,23 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   return (
     <>
       <div className="max-w-2xl mx-auto px-4 py-4 pb-safe-8">
-        {/* Compact filter/title row */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-base font-semibold text-charcoal-700">
-            {gallery.photos.length} {gallery.photos.length === 1 ? 'photo' : 'photos'}
+            {gallery.reviews.length} {gallery.reviews.length === 1 ? 'review' : 'reviews'}
           </h2>
         </div>
 
-        {/* Photo grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {gallery.photos.map(photo => (
-            <PhotoCard
-              key={photo.photo_id}
-              photo={photo}
-              onOpen={() => setSelectedPhoto(photo)}
-              onLike={() => gallery.toggleLike(photo.photo_id)}
+          {gallery.reviews.map(review => (
+            <ReviewCard
+              key={review.review_id}
+              review={review}
+              onOpen={() => setSelectedReview(review)}
+              onLike={() => { if (requireAuth()) gallery.toggleLike(review.review_id) }}
             />
           ))}
         </div>
 
-        {/* Infinite scroll sentinel */}
         {gallery.hasMore && (
           <div ref={sentinelRef} className="flex justify-center py-6">
             {gallery.loadingMore && (
@@ -90,20 +93,20 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
           </div>
         )}
 
-        {!gallery.hasMore && gallery.photos.length > 0 && (
+        {!gallery.hasMore && gallery.reviews.length > 0 && (
           <p className="text-center text-xs text-charcoal-300 py-6">All caught up 🍗</p>
         )}
       </div>
 
-      {/* Modal */}
-      {syncedPhoto && (
+      {syncedReview && (
         <PhotoModal
-          photo={syncedPhoto}
+          review={syncedReview}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
-          onClose={() => setSelectedPhoto(null)}
-          onLike={() => gallery.toggleLike(syncedPhoto.photo_id)}
-          onCommentAdded={() => gallery.refreshPhoto(syncedPhoto.photo_id)}
+          onClose={() => setSelectedReview(null)}
+          onLike={() => { if (requireAuth()) gallery.toggleLike(syncedReview.review_id) }}
+          onCommentAdded={() => gallery.refreshReview(syncedReview.review_id)}
+          onViewOnMap={onViewOnMap ? (spotId) => { setSelectedReview(null); onViewOnMap(spotId) } : undefined}
         />
       )}
     </>

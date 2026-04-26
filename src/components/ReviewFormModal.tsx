@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import Modal from './ui/Modal'
-import StarRating from './ui/StarRating'
+import RatingPicker from './ui/RatingPicker'
 import BusinessAutocomplete from './ui/BusinessAutocomplete'
 import PhotoUpload from './ui/PhotoUpload'
 import type { ReviewFormData } from '../lib/types'
@@ -230,27 +230,14 @@ export default function ReviewFormModal({ onClose, onSubmit }: Props) {
             <p className="text-xs text-charcoal-400 mt-0.5">{address}</p>
           </div>
 
-          <div>
-            <label className="label">🍗 Wing Rating</label>
-            <div className="flex items-center gap-3">
-              <StarRating value={overallRating} interactive onChange={v => setOverallRating(v)} size="lg" />
-              <input
-                type="number"
-                min="1"
-                max="10"
-                step="0.1"
-                value={overallRating || ''}
-                onChange={e => {
-                  const v = parseFloat(e.target.value)
-                  if (!isNaN(v) && v >= 1 && v <= 10) setOverallRating(Math.round(v * 10) / 10)
-                  else if (e.target.value === '') setOverallRating(0)
-                }}
-                placeholder="0.0"
-                className="input w-16 text-center text-sm font-semibold"
-              />
-              <span className="text-sm text-charcoal-400">/10</span>
-            </div>
-          </div>
+          <RatingPicker
+            value={overallRating}
+            onChange={setOverallRating}
+            accent="amber"
+            icon="🍗"
+            label="Wing Rating"
+          />
+
 
           <div>
             <label className="label" htmlFor="wing-size">Wing Size (optional)</label>

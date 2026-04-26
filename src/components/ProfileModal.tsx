@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
 import type { AuthState } from '../hooks/useAuth'
 
 interface Props {
@@ -19,6 +20,10 @@ export default function ProfileModal({ auth, onClose }: Props) {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
+    defaultMaxHeight: 'calc(90dvh - env(safe-area-inset-top))',
+  })
 
   const currentAvatar = avatarPreview ?? profile?.avatar_url ?? null
   const name = profile?.display_name ?? profile?.full_name ?? user?.email ?? ''
@@ -78,13 +83,25 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
       {/* Sheet */}
       <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-3xl shadow-elevated overflow-hidden animate-slide-up">
+        <div
+          className="w-full max-w-sm bg-white rounded-3xl shadow-elevated overflow-hidden animate-slide-up flex flex-col"
+          style={sheetStyle}
+        >
           {/* Handle */}
-          <div className="flex justify-center pt-3 pb-1 sm:hidden">
-            <div className="w-10 h-1 rounded-full bg-warmgray-200" />
+          <div
+            className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0 cursor-grab active:cursor-grabbing touch-none select-none"
+            role="slider"
+            aria-label={expanded ? 'Drag down to collapse' : 'Drag up to expand'}
+            aria-valuemin={0}
+            aria-valuemax={1}
+            aria-valuenow={expanded ? 1 : 0}
+            tabIndex={0}
+            {...handleProps}
+          >
+            <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-warmgray-300' : 'bg-warmgray-200'}`} />
           </div>
 
-          <div className="px-6 py-5">
+          <div className="px-6 py-5 overflow-y-auto flex-1">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-display text-xl text-charcoal-800">My Profile</h2>
               <button onClick={onClose} className="btn-ghost w-8 h-8 p-0 text-charcoal-400 text-lg">

@@ -5,7 +5,7 @@ import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import PhotoModal from './gallery/PhotoModal'
 import { Lightbox } from './ui/PhotoGallery'
-import { usePhotoDetail, fetchCommentCounts } from '../hooks/usePhotoDetail'
+import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
 
 interface Props {
@@ -15,9 +15,11 @@ interface Props {
   isAdmin: boolean
   onUpdate: (id: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
   onDelete: (id: string) => Promise<{ error: string | null }>
+  focusShopId?: string | null
+  onFocusHandled?: () => void
 }
 
-export default function MapView({ shops, loading, currentUserId, isAdmin, onUpdate, onDelete }: Props) {
+export default function MapView({ shops, loading, currentUserId, isAdmin, onUpdate, onDelete, focusShopId, onFocusHandled }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const leafletRef = useRef<LeafletMap | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,10 +27,9 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderRef = useRef<(() => void) | null>(null)
   const [mapReady, setMapReady] = useState(false)
-  const [selectedShop, setSelectedShop] = useState<SpotWithReviews | null>(null)
+  const [selectedSpot, setSelectedShop] = useState<SpotWithReviews | null>(null)
 
   const photoDetail = usePhotoDetail(currentUserId)
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
 
   const shopsWithReviews = shops.filter(s => s.reviews.length > 0)
 
@@ -36,15 +37,6 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   // effect can read it without needing it in its dependency array.
   const shopsRef = useRef(shopsWithReviews)
   useEffect(() => { shopsRef.current = shopsWithReviews })
-
-  // Fetch comment counts for all photos
-  useEffect(() => {
-    const allPhotoIds = shopsWithReviews.flatMap(s => s.photos.map(p => p.id))
-    if (allPhotoIds.length > 0) {
-      fetchCommentCounts(allPhotoIds).then(setCommentCounts)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopsWithReviews.map(s => s.spot.id).join(',')])
 
   // ── Map initialisation ───────────────────────────────────────────────────
   // Runs once on mount. Signals readiness via setMapReady(true) so the
@@ -164,11 +156,11 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
             markersRef.current.push(marker)
           } else {
             // Individual wing pin
-            const shopData = shopsWithReviews.find(s => s.spot.id === props.id)
-            if (!shopData) return
-            const icon = createPinIcon(L, shopData.avg_rating, shopData.photos[0]?.url ?? null)
+            const spotData = shopsWithReviews.find(s => s.spot.id === props.id)
+            if (!spotData) return
+            const icon = createPinIcon(L, spotData.avg_rating, spotData.photos[0]?.url ?? null)
             const marker = L.marker([lat, lng], { icon })
-              .on('click', () => setSelectedShop(shopData))
+              .on('click', () => setSelectedShop(spotData))
             marker.addTo(map)
             markersRef.current.push(marker)
           }
@@ -203,6 +195,18 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, shopsWithReviews.map(s => s.spot.id).join(',')])
 
+  // ── Focus on a specific shop (triggered from list/gallery "View on Map") ──
+  useEffect(() => {
+    if (!focusShopId || !mapReady || !leafletRef.current) return
+    const spotData = shopsWithReviews.find(s => s.spot.id === focusShopId)
+    if (!spotData) return
+
+    leafletRef.current.setView([spotData.spot.lat, spotData.spot.lng], 16, { animate: true, duration: 0.5 })
+    // Small delay so the map finishes panning and markers re-render at the new viewport
+    setTimeout(() => setSelectedShop(spotData), 350)
+    onFocusHandled?.()
+  }, [focusShopId, mapReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="relative h-[calc(100dvh-64px)]">
       <div ref={mapRef} className="w-full h-full" />
@@ -217,22 +221,21 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl px-6 py-5 shadow-card text-center">
             <div className="text-3xl mb-2">📍</div>
-            <p className="text-sm font-semibold text-charcoal-700">No wing spots on the map yet</p>
+            <p className="text-sm font-semibold text-charcoal-700">No shops on the map yet</p>
             <p className="text-xs text-charcoal-400 mt-1">Add a review to see it here</p>
           </div>
         </div>
       )}
 
-      {selectedShop && (
+      {selectedSpot && (
         <ShopPanel
-          shopData={selectedShop}
+          spotData={selectedSpot}
           onClose={() => setSelectedShop(null)}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           onUpdate={onUpdate}
           onDelete={onDelete}
           onPhotoOpen={photoDetail.open}
-          commentCounts={commentCounts}
         />
       )}
 
@@ -355,18 +358,17 @@ function createClusterIcon(L: any, count: number) {
 }
 
 interface ShopPanelProps {
-  shopData: SpotWithReviews
+  spotData: SpotWithReviews
   onClose: () => void
   currentUserId: string
   isAdmin: boolean
   onUpdate: Props['onUpdate']
   onDelete: Props['onDelete']
   onPhotoOpen: (photoId: string) => void
-  commentCounts: Record<string, number>
 }
 
-function ShopPanel({ shopData, onClose, currentUserId, isAdmin, onUpdate, onDelete, onPhotoOpen, commentCounts }: ShopPanelProps) {
-  const { spot, reviews, avg_rating, photos } = shopData
+function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDelete, onPhotoOpen }: ShopPanelProps) {
+  const { spot, reviews, avg_rating, photos } = spotData
 
   return (
     <>
@@ -414,7 +416,7 @@ function ShopPanel({ shopData, onClose, currentUserId, isAdmin, onUpdate, onDele
           {/* Photo strip */}
           {photos.length > 0 && (
             <div className="px-5 pt-4 pb-2">
-              <PhotoStrip photos={photos} onPhotoOpen={onPhotoOpen} commentCounts={commentCounts} />
+              <PhotoStrip photos={photos} onPhotoOpen={onPhotoOpen} />
             </div>
           )}
 
@@ -441,35 +443,23 @@ function ShopPanel({ shopData, onClose, currentUserId, isAdmin, onUpdate, onDele
 interface PhotoStripProps {
   photos: ReviewPhoto[]
   onPhotoOpen: (photoId: string) => void
-  commentCounts: Record<string, number>
 }
 
-function PhotoStrip({ photos, onPhotoOpen, commentCounts }: PhotoStripProps) {
+function PhotoStrip({ photos, onPhotoOpen }: PhotoStripProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   return (
     <>
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-        {photos.map((photo) => {
-          const count = commentCounts[photo.id] ?? 0
-          return (
+        {photos.map((photo) => (
             <button
               key={photo.id}
               onClick={() => onPhotoOpen(photo.id)}
               className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-warmgray-100 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-amber-300"
             >
               <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-              {count > 0 && (
-                <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-1 py-0.5">
-                  <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  <span className="text-white text-[9px] font-medium">{count}</span>
-                </div>
-              )}
             </button>
-          )
-        })}
+        ))}
       </div>
 
       {lightboxIndex !== null && (

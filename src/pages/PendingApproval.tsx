@@ -36,7 +36,7 @@ export default function PendingApproval({ auth }: Props) {
           Hi <strong>{name || email}</strong>, your request has been received.
         </p>
         <p className="text-sm text-charcoal-400 leading-relaxed mb-8">
-          An admin will review your account soon. You'll be able to sign in once it's approved.
+          the admin will review your account soon. You'll be able to sign in once it's approved.
         </p>
 
         <div className="card px-6 py-5 text-left mb-6">

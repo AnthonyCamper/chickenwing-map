@@ -8,7 +8,6 @@ import { supabase } from './supabase'
 // to push services. The corresponding private key is a Supabase Edge Function secret.
 // Regenerate with: node scripts/generate-vapid-keys.js
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
-  || 'BJZJMvCa9GcMaNnvTafqOUHr2wPeXGBi1ZYNQH1EMRpypb1X_zk0ET_w8brgrwePx_E-H7-W4rrhQ7aUyOYH5SY'
 
 // ── Feature detection ────────────────────────────────────────────────────────
 
@@ -184,8 +183,9 @@ async function forceCleanRegistration(): Promise<ServiceWorkerRegistration> {
 
   const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
   await waitUntilSettled(reg)
-  // Generous settle time after a clean re-registration
-  await new Promise(r => setTimeout(r, 500))
+  // Brave and some Chromium builds need extra time after skipWaiting() for
+  // the internal push manager state to stabilize before subscribe() works.
+  await new Promise(r => setTimeout(r, 800))
   swRegistration = reg
   return reg
 }
@@ -330,48 +330,59 @@ export async function subscribeToPush(userId: string): Promise<{
     applicationServerKey: applicationServerKey as unknown as BufferSource,
   }
 
-  let subscription: PushSubscription
-  try {
-    const existing = await reg.pushManager.getSubscription()
-    if (existing) {
-      subscription = existing
-    } else {
-      // Double-check settlement right before the most race-sensitive call
-      await waitUntilSettled(reg)
-      subscription = await reg.pushManager.subscribe(subscribeOptions)
-    }
-  } catch (err) {
-    // AbortError after getSettledRegistration = likely SENDER_ID_MISMATCH
-    // (Chrome/FCM cached a previous VAPID key for this scope). Or an update
-    // snuck in between our settlement check and subscribe(). Try once more
-    // after waiting for any pending update to finish.
-    if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'InvalidStateError')) {
-      console.warn('[Push] subscribe() threw %s — retrying after settlement wait', err.name)
-      try {
-        // Wait for any in-flight update, then retry
-        await waitUntilSettled(reg)
-        await new Promise(r => setTimeout(r, 500))
-        subscription = await reg.pushManager.subscribe(subscribeOptions)
-      } catch (retryErr) {
-        // Still failing — escalate to full clean re-registration
-        if (retryErr instanceof DOMException && (retryErr.name === 'AbortError' || retryErr.name === 'InvalidStateError')) {
-          console.warn('[Push] Retry also failed (%s) — forcing clean SW re-registration', retryErr.name)
-          try {
-            const cleanReg = await forceCleanRegistration()
-            subscription = await cleanReg.pushManager.subscribe(subscribeOptions)
-          } catch (cleanErr) {
-            console.error('[Push] Clean re-registration also failed:', cleanErr)
-            return { success: false, error: classifyPushError(cleanErr) }
-          }
-        } else {
-          console.error('[Push] pushManager.subscribe() retry failed:', retryErr)
-          return { success: false, error: classifyPushError(retryErr) }
-        }
+  // Attempt subscribe with progressive retries.
+  // AbortError occurs when skipWaiting() fires during subscribe — Brave and
+  // some Chromium builds need longer settle times after SW activation.
+  let subscription: PushSubscription | null = null
+  const attempts = [
+    { label: 'initial', delayBefore: 0, reg },
+    { label: 'retry-1', delayBefore: 600, reg },
+    { label: 'retry-2', delayBefore: 1200, reg },
+    { label: 'clean',   delayBefore: 0,    reg: null as ServiceWorkerRegistration | null }, // force clean
+  ]
+
+  for (const attempt of attempts) {
+    let currentReg = attempt.reg
+    try {
+      if (attempt.label === 'clean') {
+        console.warn('[Push] Forcing clean SW re-registration')
+        currentReg = await forceCleanRegistration()
+        // Extra settle time after clean re-registration — the new SW calls
+        // skipWaiting(), and Brave's push manager needs time to stabilize.
+        await new Promise(r => setTimeout(r, 1000))
+      } else if (attempt.delayBefore > 0) {
+        await waitUntilSettled(currentReg!)
+        await new Promise(r => setTimeout(r, attempt.delayBefore))
       }
-    } else {
-      console.error('[Push] pushManager.subscribe() failed:', err)
+
+      // Reuse existing subscription if one exists
+      const existing = await currentReg!.pushManager.getSubscription()
+      if (existing) {
+        subscription = existing
+        break
+      }
+
+      await waitUntilSettled(currentReg!)
+      subscription = await currentReg!.pushManager.subscribe(subscribeOptions)
+      break // success
+    } catch (err) {
+      const isRetryable = err instanceof DOMException &&
+        (err.name === 'AbortError' || err.name === 'InvalidStateError')
+
+      if (isRetryable && attempt.label !== 'clean') {
+        console.warn('[Push] subscribe() threw %s on %s — will retry', (err as DOMException).name, attempt.label)
+        continue
+      }
+
+      // Final attempt failed or non-retryable error
+      console.error('[Push] subscribe() failed on %s:', attempt.label, err)
       return { success: false, error: classifyPushError(err) }
     }
+  }
+
+  if (!subscription) {
+    console.error('[Push] All subscribe attempts exhausted without result')
+    return { success: false, error: 'Could not enable push notifications. Please try again.' }
   }
 
   const json = subscription.toJSON()
@@ -380,7 +391,9 @@ export async function subscribeToPush(userId: string): Promise<{
     return { success: false, error: 'Browser returned an incomplete push subscription.' }
   }
 
-  // Store in database
+  console.debug('[Push] Saving subscription to DB, endpoint:', json.endpoint.slice(0, 60) + '…')
+
+  // Store in database (upsert requires UPDATE RLS policy — added in migration 014)
   const { error: dbError } = await supabase
     .from('push_subscriptions')
     .upsert(
@@ -399,6 +412,7 @@ export async function subscribeToPush(userId: string): Promise<{
     return { success: false, error: 'Could not save your push subscription. Please try again.' }
   }
 
+  console.debug('[Push] Subscription saved successfully')
   return { success: true }
 }
 
@@ -451,6 +465,7 @@ export async function triggerPushDelivery(notificationIds?: string[]): Promise<v
     if (!session) return
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
     const functionUrl = `${supabaseUrl}/functions/v1/send-push`
 
     fetch(functionUrl, {
@@ -458,11 +473,24 @@ export async function triggerPushDelivery(notificationIds?: string[]): Promise<v
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
+        // The apikey header is required by Supabase's API gateway for routing.
+        // Without it, the gateway returns 401 before the function code runs.
+        apikey: anonKey,
       },
       body: JSON.stringify({ notification_ids: notificationIds }),
-    }).catch(() => {
-      // Fire-and-forget — push delivery failure is non-fatal
     })
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          console.warn('[Push] send-push returned %d: %s', res.status, text)
+        } else {
+          const json = await res.json().catch(() => null)
+          if (json) console.debug('[Push] send-push result:', json)
+        }
+      })
+      .catch((err) => {
+        console.warn('[Push] send-push fetch failed:', err)
+      })
   } catch {
     // Ignore errors — push is best-effort
   }

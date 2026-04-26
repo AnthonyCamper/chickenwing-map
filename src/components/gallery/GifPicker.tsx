@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ' // Tenor free/public key
+const TENOR_API_KEY = import.meta.env.VITE_TENOR_API_KEY as string | undefined
 const TENOR_BASE = 'https://tenor.googleapis.com/v2'
 
 interface TenorGif {
@@ -33,6 +33,7 @@ export default function GifPicker({ onSelect, onClose }: Props) {
   }, [])
 
   const fetchTrending = async () => {
+    if (!TENOR_API_KEY) return
     setLoading(true)
     try {
       const res = await fetch(
@@ -52,6 +53,7 @@ export default function GifPicker({ onSelect, onClose }: Props) {
       fetchTrending()
       return
     }
+    if (!TENOR_API_KEY) return
     setLoading(true)
     setHasSearched(true)
     try {

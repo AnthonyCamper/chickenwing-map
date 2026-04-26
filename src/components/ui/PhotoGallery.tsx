@@ -6,11 +6,9 @@ interface Props {
   className?: string
   /** When provided, clicking a photo calls this instead of opening the lightbox */
   onPhotoOpen?: (photoId: string) => void
-  /** Map of photo_id → comment count; shows badge on thumbnails with comments */
-  commentCounts?: Record<string, number>
 }
 
-export default function PhotoGallery({ photos, className = '', onPhotoOpen, commentCounts }: Props) {
+export default function PhotoGallery({ photos, className = '', onPhotoOpen }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   if (photos.length === 0) return null
@@ -26,9 +24,7 @@ export default function PhotoGallery({ photos, className = '', onPhotoOpen, comm
   return (
     <>
       <div className={`grid grid-cols-3 gap-1.5 ${className}`}>
-        {photos.map((photo, i) => {
-          const count = commentCounts?.[photo.id] ?? 0
-          return (
+        {photos.map((photo, i) => (
             <button
               key={photo.id}
               onClick={() => handleClick(photo, i)}
@@ -40,17 +36,8 @@ export default function PhotoGallery({ photos, className = '', onPhotoOpen, comm
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
-              {count > 0 && (
-                <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-black/40 backdrop-blur-sm rounded-full px-1.5 py-0.5">
-                  <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  <span className="text-white text-[10px] font-medium">{count}</span>
-                </div>
-              )}
             </button>
-          )
-        })}
+        ))}
       </div>
 
       {lightboxIndex !== null && (

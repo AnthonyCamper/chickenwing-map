@@ -4,25 +4,9 @@ import { triggerPushDelivery } from '../lib/pushManager'
 import type { GalleryPhoto } from '../lib/types'
 
 /**
- * Batch-fetch comment counts for a set of photo IDs.
- * Returns a map of photoId → count (only entries with count > 0).
- */
-export async function fetchCommentCounts(photoIds: string[]): Promise<Record<string, number>> {
-  if (photoIds.length === 0) return {}
-  const { data } = await supabase
-    .from('photo_comments')
-    .select('photo_id')
-    .in('photo_id', photoIds)
-  const counts: Record<string, number> = {}
-  for (const row of (data ?? []) as { photo_id: string }[]) {
-    counts[row.photo_id] = (counts[row.photo_id] ?? 0) + 1
-  }
-  return counts
-}
-
-/**
  * Hook for opening a single photo in PhotoModal from list/map views.
  * Fetches GalleryPhoto data on demand and manages like + comment state.
+ * Likes operate at the review level for consistency with gallery view.
  */
 export function usePhotoDetail(currentUserId: string) {
   const [photo, setPhoto] = useState<GalleryPhoto | null>(null)
@@ -49,9 +33,9 @@ export function usePhotoDetail(currentUserId: string) {
     )
     try {
       if (wasLiked) {
-        await supabase.from('photo_likes').delete().match({ photo_id: photo.photo_id, user_id: currentUserId })
+        await supabase.from('review_likes').delete().match({ review_id: photo.review_id, user_id: currentUserId })
       } else {
-        await supabase.from('photo_likes').insert({ photo_id: photo.photo_id, user_id: currentUserId })
+        await supabase.from('review_likes').insert({ review_id: photo.review_id, user_id: currentUserId })
         triggerPushDelivery()
       }
     } catch {

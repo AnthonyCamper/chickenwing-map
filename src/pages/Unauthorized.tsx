@@ -19,7 +19,7 @@ export default function Unauthorized({ email, onSignOut }: Props) {
           <span className="font-medium text-charcoal-600">{email}</span> does not have access to this app.
         </p>
         <p className="text-sm text-charcoal-400 leading-relaxed mb-8">
-          Ask an admin to add your email to the approved users list.
+          Ask the admin to add your email to the approved users list.
         </p>
 
         <button onClick={onSignOut} className="btn-secondary">
