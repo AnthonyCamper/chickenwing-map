@@ -164,6 +164,38 @@ export default function Layout({ auth, view, onViewChange, onAddReview, readOnly
         {children}
       </main>
 
+      {/* ── Footer ──────────────────────────────────────────────── */}
+      <footer
+        className="border-t border-warmgray-200 px-4 py-5 text-center bg-warmgray-50"
+        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+      >
+        <p className="text-xs text-charcoal-400">
+          Friends of WingMap{' '}
+          <span aria-hidden="true" className="text-charcoal-300">·</span>{' '}
+          <a
+            href="https://winkingtony.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-amber-600 hover:text-amber-700 underline-offset-2 hover:underline transition-colors inline-flex items-center gap-0.5"
+          >
+            Winking Tony
+            <svg
+              className="w-3 h-3 opacity-70"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M7 17L17 7" />
+              <path d="M8 7h9v9" />
+            </svg>
+          </a>
+        </p>
+      </footer>
+
       {/* ── Floating add button ───────────────────────────────────── */}
       {/* Positioned above the iOS home indicator via safe-area-inset-bottom */}
       {!readOnly && user && (
