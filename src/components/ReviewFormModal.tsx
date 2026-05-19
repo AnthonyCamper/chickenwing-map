@@ -6,18 +6,33 @@ import BusinessAutocomplete from './ui/BusinessAutocomplete'
 import PhotoUpload from './ui/PhotoUpload'
 import type { ReviewFormData } from '../lib/types'
 
+interface PrefillSpot {
+  shop_name: string
+  address: string
+  lat: string | number
+  lng: string | number
+}
+
+interface EventContext {
+  event_id: string
+  event_stop_id: string
+  event_name: string
+}
+
 interface Props {
   onClose: () => void
   onSubmit: (data: ReviewFormData) => Promise<{ error: string | null }>
+  prefill?: PrefillSpot
+  eventContext?: EventContext
 }
 
 const today = new Date().toISOString().split('T')[0]
 
-export default function ReviewFormModal({ onClose, onSubmit }: Props) {
-  const [shopName, setShopName] = useState('')
-  const [address, setAddress] = useState('')
-  const [lat, setLat] = useState('')
-  const [lng, setLng] = useState('')
+export default function ReviewFormModal({ onClose, onSubmit, prefill, eventContext }: Props) {
+  const [shopName, setShopName] = useState(prefill?.shop_name ?? '')
+  const [address, setAddress] = useState(prefill?.address ?? '')
+  const [lat, setLat] = useState(prefill ? String(prefill.lat) : '')
+  const [lng, setLng] = useState(prefill ? String(prefill.lng) : '')
   const [overallRating, setOverallRating] = useState(0)
   const [wingSize, setWingSize] = useState('')
   const [wingFlavor, setWingFlavor] = useState('')
@@ -27,7 +42,8 @@ export default function ReviewFormModal({ onClose, onSubmit }: Props) {
   const [visitedAt, setVisitedAt] = useState(today)
   const [photos, setPhotos] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const [step, setStep] = useState<1 | 2>(1)
+  // When pre-filled (e.g. checking in at an event stop) we skip step 1.
+  const [step, setStep] = useState<1 | 2>(prefill ? 2 : 1)
   const [showManual, setShowManual] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
 
@@ -94,6 +110,8 @@ export default function ReviewFormModal({ onClose, onSubmit }: Props) {
       review_text: reviewText || undefined,
       visited_at: visitedAt,
       photos,
+      event_id: eventContext?.event_id,
+      event_stop_id: eventContext?.event_stop_id,
     })
     setSubmitting(false)
     if (result.error) {
@@ -104,7 +122,7 @@ export default function ReviewFormModal({ onClose, onSubmit }: Props) {
   }
 
   return (
-    <Modal title="Add Review" onClose={onClose} size="md">
+    <Modal title={eventContext ? `Review for ${eventContext.event_name}` : 'Add Review'} onClose={onClose} size="md">
       {step === 1 ? (
         <form onSubmit={handleNext} className="px-6 py-5 space-y-4">
           <p className="text-xs text-charcoal-400 font-medium uppercase tracking-widest">
@@ -213,17 +231,29 @@ export default function ReviewFormModal({ onClose, onSubmit }: Props) {
       ) : (
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="text-xs text-charcoal-400 hover:text-charcoal-600 transition-colors"
-            >
-              ← Back
-            </button>
+            {!prefill && (
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs text-charcoal-400 hover:text-charcoal-600 transition-colors"
+              >
+                ← Back
+              </button>
+            )}
             <p className="text-xs text-charcoal-400 font-medium uppercase tracking-widest">
-              Step 2 of 2 — Your review
+              {prefill ? 'Your review' : 'Step 2 of 2 — Your review'}
             </p>
           </div>
+
+          {eventContext && (
+            <div className="rounded-2xl px-4 py-3 bg-amber-50 border border-amber-200">
+              <p className="text-xs font-semibold uppercase tracking-widest text-amber-600 mb-0.5">
+                🍗 Event review
+              </p>
+              <p className="text-sm font-semibold text-charcoal-700">{eventContext.event_name}</p>
+              <p className="text-xs text-charcoal-400">This review will be tagged with the event.</p>
+            </div>
+          )}
 
           <div className="bg-warmgray-50 rounded-2xl px-4 py-3">
             <p className="font-semibold text-charcoal-700 text-sm">{shopName}</p>

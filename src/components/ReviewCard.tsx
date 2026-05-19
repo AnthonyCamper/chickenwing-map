@@ -66,6 +66,11 @@ export default function ReviewCard({
           <span className="rating-wing">
             🍗 <StarRating value={review.overall_rating} size="sm" /> {review.overall_rating.toFixed(1)}
           </span>
+          {review.event_id && review.event_name && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+              🏆 {review.event_name}
+            </span>
+          )}
         </div>
 
         {/* Wing flavor */}

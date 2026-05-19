@@ -63,6 +63,9 @@ export default function PhotoModal(props: Props) {
     like_count: props.photo.like_count,
     comment_count: props.photo.comment_count,
     is_liked_by_me: props.photo.is_liked_by_me,
+    event_id: props.photo.event_id,
+    event_slug: props.photo.event_slug,
+    event_name: props.photo.event_name,
     photos: [{
       photo_id: props.photo.photo_id,
       photo_url: props.photo.photo_url,

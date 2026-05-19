@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
+import { useBadges } from '../hooks/useBadges'
+import BadgeGrid from './badges/BadgeGrid'
 import type { AuthState } from '../hooks/useAuth'
 
 interface Props {
@@ -24,6 +26,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(90dvh - env(safe-area-inset-top))',
   })
+
+  const badgesHook = useBadges(user?.id)
 
   const currentAvatar = avatarPreview ?? profile?.avatar_url ?? null
   const name = profile?.display_name ?? profile?.full_name ?? user?.email ?? ''
@@ -178,6 +182,19 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     Admin
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Badges */}
+            {badgesHook.badges.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2.5">
+                  <h3 className="font-display text-base text-charcoal-800">Badges</h3>
+                  <span className="text-xs text-charcoal-400 font-medium">
+                    {badgesHook.earned.length}/{badgesHook.badges.length}
+                  </span>
+                </div>
+                <BadgeGrid badges={badgesHook.badges} />
               </div>
             )}
 

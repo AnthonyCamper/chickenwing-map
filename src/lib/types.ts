@@ -72,6 +72,10 @@ export interface Review {
   takeout_container: string | null  // 'styrofoam' | 'cardboard' | 'plastic' | 'aluminum' | 'bag_only' | 'other'
   review_text: string | null
   legacy_data: any | null
+  event_id: string | null
+  event_stop_id: string | null
+  event_slug: string | null
+  event_name: string | null
   visited_at: string
   created_at: string
   updated_at: string
@@ -114,6 +118,9 @@ export interface GalleryPhoto {
   like_count: number
   comment_count: number
   is_liked_by_me: boolean
+  event_id: string | null
+  event_slug: string | null
+  event_name: string | null
 }
 
 /** A review-level gallery item grouping all photos belonging to one review. */
@@ -133,6 +140,9 @@ export interface GalleryReviewItem {
   like_count: number
   comment_count: number
   is_liked_by_me: boolean
+  event_id: string | null
+  event_slug: string | null
+  event_name: string | null
   /** All photos attached to this review, ordered by display_order. */
   photos: Array<{
     photo_id: string
@@ -246,6 +256,8 @@ export interface ReviewFormData {
   review_text?: string
   visited_at: string
   photos?: File[]
+  event_id?: string | null
+  event_stop_id?: string | null
 }
 
 export interface ReviewUpdateData {
@@ -258,4 +270,117 @@ export interface ReviewUpdateData {
   visited_at?: string
   photos_to_delete?: string[]   // review_photos IDs to remove from DB + storage
   new_photos?: File[]           // new photos to upload and attach
+}
+
+// ─── Events / Badges ──────────────────────────────────────────────────────────
+
+export type RsvpStatus = 'going' | 'maybe' | 'not_going'
+
+export interface WingEvent {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  cover_image_url: string | null
+  starts_at: string | null
+  ends_at: string | null
+  is_published: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // From events_with_counts
+  stop_count?: number
+  going_count?: number
+  maybe_count?: number
+}
+
+export interface EventStop {
+  id: string
+  event_id: string
+  wing_spot_id: string
+  position: number
+  planned_arrival: string | null
+  notes: string | null
+  created_at: string
+  // Joined from wing_spots
+  spot_name?: string
+  spot_address?: string
+  spot_lat?: number
+  spot_lng?: number
+  checkin_count?: number
+}
+
+export interface EventRsvp {
+  id: string
+  event_id: string
+  user_id: string
+  status: RsvpStatus
+  guest_count: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  user_name?: string | null
+  user_avatar?: string | null
+  user_email?: string | null
+}
+
+export interface EventCheckin {
+  id: string
+  event_id: string
+  event_stop_id: string
+  user_id: string
+  review_id: string | null
+  checked_in_at: string
+}
+
+export type BadgeCriteriaType =
+  | 'first_review'
+  | 'review_count'
+  | 'wing_size_variety'
+  | 'event_rsvp'
+  | 'event_checkin_count'
+  | 'event_complete'
+
+export interface Badge {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  icon: string
+  color: string
+  criteria_type: BadgeCriteriaType
+  criteria_config: Record<string, any>
+  event_id: string | null
+  sort_order: number
+}
+
+export interface BadgeWithEarned extends Badge {
+  earned: boolean
+  earned_at: string | null
+}
+
+export interface UserBadge {
+  id: string
+  user_id: string
+  badge_id: string
+  event_id: string | null
+  earned_at: string
+}
+
+export interface EventWithDetails {
+  event: WingEvent
+  stops: EventStop[]
+  myRsvp: EventRsvp | null
+  myCheckins: EventCheckin[]
+}
+
+export interface EventFormData {
+  slug: string
+  name: string
+  description?: string
+  cover_image_url?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  is_published: boolean
 }

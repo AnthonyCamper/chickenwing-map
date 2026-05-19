@@ -31,6 +31,9 @@ export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
         like_count: p.like_count,
         comment_count: p.comment_count,
         is_liked_by_me: p.is_liked_by_me,
+        event_id: p.event_id,
+        event_slug: p.event_slug,
+        event_name: p.event_name,
         photos: [],
       }
       map.set(p.review_id, item)

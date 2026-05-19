@@ -6,6 +6,8 @@ import Home from './pages/Home'
 import Register from './pages/Register'
 import PendingApproval from './pages/PendingApproval'
 import AdminDashboard from './pages/AdminDashboard'
+import EventPage from './pages/EventPage'
+import EventsIndex from './pages/EventsIndex'
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
@@ -93,6 +95,26 @@ export default function App() {
             <AdminDashboard />
           ) : (
             <Navigate to="/" replace />
+          )
+        } />
+
+        <Route path="/events" element={
+          auth.status === 'authorized' ? (
+            <EventsIndex />
+          ) : auth.status === 'pending' ? (
+            <PendingApproval auth={auth} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
+
+        <Route path="/events/:slug" element={
+          auth.status === 'authorized' ? (
+            <EventPage auth={auth} />
+          ) : auth.status === 'pending' ? (
+            <PendingApproval auth={auth} />
+          ) : (
+            <Navigate to="/login" replace />
           )
         } />
 

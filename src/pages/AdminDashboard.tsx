@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdminUsers } from '../hooks/useAdminUsers'
+import AdminEventsTab from '../components/admin/AdminEventsTab'
 import type { UserProfile, UserStatus } from '../lib/types'
 
-type Tab = 'pending' | 'users' | 'settings'
+type Tab = 'pending' | 'users' | 'events' | 'settings'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -52,7 +53,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div className="max-w-3xl mx-auto px-4 pb-0 flex gap-1">
-          {(['pending', 'users', 'settings'] as Tab[]).map(t => (
+          {(['pending', 'users', 'events', 'settings'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -71,7 +72,9 @@ export default function AdminDashboard() {
                     </span>
                   )}
                 </>
-              ) : t === 'users' ? 'Users' : 'Settings'}
+              ) : t === 'users' ? 'Users'
+                : t === 'events' ? 'Events'
+                : 'Settings'}
             </button>
           ))}
         </div>
@@ -214,6 +217,9 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
+
+            {/* ── Events tab ────────────────────────────────────────────────── */}
+            {tab === 'events' && <AdminEventsTab />}
 
             {/* ── Settings tab ──────────────────────────────────────────────── */}
             {tab === 'settings' && (

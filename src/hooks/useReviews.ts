@@ -8,7 +8,7 @@ interface UseReviewsReturn {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
-  createReview: (data: ReviewFormData, userId: string) => Promise<{ error: string | null }>
+  createReview: (data: ReviewFormData, userId: string) => Promise<{ error: string | null; reviewId?: string }>
   updateReview: (reviewId: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
   deleteReview: (reviewId: string) => Promise<{ error: string | null }>
 }
@@ -117,7 +117,7 @@ export function useReviews(): UseReviewsReturn {
   const createReview = async (
     data: ReviewFormData,
     userId: string
-  ): Promise<{ error: string | null }> => {
+  ): Promise<{ error: string | null; reviewId?: string }> => {
     // Upsert wing spot (match by name + address)
     const { data: spotData, error: spotErr } = await supabase
       .from('wing_spots')
@@ -148,6 +148,8 @@ export function useReviews(): UseReviewsReturn {
         takeout_container: data.takeout_container?.trim() || null,
         review_text: data.review_text?.trim() || null,
         visited_at: data.visited_at,
+        event_id: data.event_id ?? null,
+        event_stop_id: data.event_stop_id ?? null,
       })
       .select('id')
       .single()
@@ -191,7 +193,7 @@ export function useReviews(): UseReviewsReturn {
     await fetchAll()
     // Trigger push delivery for the new review notification
     triggerPushDelivery()
-    return { error: null }
+    return { error: null, reviewId: reviewData.id }
   }
 
   const updateReview = async (

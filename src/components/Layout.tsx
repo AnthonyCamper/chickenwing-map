@@ -1,8 +1,10 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AuthState } from '../hooks/useAuth'
 import { useNotifications } from '../hooks/useNotifications'
 import { useHistoryModal } from '../hooks/useHistoryModal'
+import { supabase } from '../lib/supabase'
+import type { WingEvent } from '../lib/types'
 import ProfileModal from './ProfileModal'
 import NotificationBell from './NotificationBell'
 import NotificationSettings from './NotificationSettings'
@@ -30,6 +32,26 @@ export default function Layout({ auth, view, onViewChange, onAddReview, readOnly
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showNotifSettings, setShowNotifSettings] = useState(false)
   const notificationsHook = useNotifications(auth.user?.id)
+  const [activeEvent, setActiveEvent] = useState<WingEvent | null>(null)
+
+  // Load the currently-active published event (upcoming, fallback to most recent)
+  useEffect(() => {
+    if (!auth.user) { setActiveEvent(null); return }
+    let cancelled = false
+    const fetchActive = async () => {
+      const now = new Date().toISOString()
+      const { data } = await supabase
+        .from('events_with_counts')
+        .select('*')
+        .eq('is_published', true)
+        .or(`ends_at.gte.${now},ends_at.is.null`)
+        .order('starts_at', { ascending: true, nullsFirst: false })
+        .limit(1)
+      if (!cancelled) setActiveEvent((data?.[0] as WingEvent | undefined) ?? null)
+    }
+    fetchActive()
+    return () => { cancelled = true }
+  }, [auth.user])
 
   // Browser back / swipe-back closes these modals
   useHistoryModal(showProfileModal, () => setShowProfileModal(false))
@@ -121,6 +143,23 @@ export default function Layout({ auth, view, onViewChange, onAddReview, readOnly
                       My Profile
                     </button>
 
+                    {activeEvent && (
+                      <button
+                        onClick={() => { setProfileOpen(false); navigate(`/events/${activeEvent.slug}`) }}
+                        className="w-full px-4 py-3.5 text-left text-sm text-charcoal-600 hover:bg-warmgray-50 active:bg-warmgray-100 transition-colors border-t border-warmgray-100 flex items-center justify-between"
+                      >
+                        <span>🍗 {activeEvent.name}</span>
+                        <span className="text-amber-500">→</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate('/events') }}
+                      className="w-full px-4 py-3.5 text-left text-sm text-charcoal-600 hover:bg-warmgray-50 active:bg-warmgray-100 transition-colors border-t border-warmgray-100"
+                    >
+                      All Events
+                    </button>
+
                     <button
                       onClick={() => { setProfileOpen(false); setShowNotifSettings(true) }}
                       className="w-full px-4 py-3.5 text-left text-sm text-charcoal-600 hover:bg-warmgray-50 active:bg-warmgray-100 transition-colors border-t border-warmgray-100"
@@ -158,6 +197,27 @@ export default function Layout({ auth, view, onViewChange, onAddReview, readOnly
           )}
         </div>
       </header>
+
+      {/* ── Active event banner ────────────────────────────────────── */}
+      {activeEvent && (
+        <div className="bg-gradient-to-r from-amber-300 to-amber-400 text-charcoal-800 border-b border-amber-500">
+          <button
+            onClick={() => navigate(`/events/${activeEvent.slug}`)}
+            className="max-w-2xl mx-auto w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-black/5 active:bg-black/10 transition-colors"
+          >
+            <span className="text-xl flex-shrink-0">🍗</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-widest opacity-80 leading-tight">
+                {activeEvent.starts_at && new Date(activeEvent.starts_at) > new Date()
+                  ? 'Upcoming event'
+                  : 'Active event'}
+              </p>
+              <p className="text-sm font-bold truncate leading-tight">{activeEvent.name}</p>
+            </div>
+            <span className="text-sm font-bold flex-shrink-0">RSVP →</span>
+          </button>
+        </div>
+      )}
 
       {/* ── Main content ─────────────────────────────────────────── */}
       <main className="flex-1 relative">

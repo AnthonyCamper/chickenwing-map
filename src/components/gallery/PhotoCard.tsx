@@ -79,6 +79,16 @@ export default function PhotoCard({ photo, onOpen, onLike }: Props) {
           <span className="text-white text-xs font-medium">{photo.comment_count}</span>
         </div>
       )}
+
+      {/* Event badge — bottom-left corner */}
+      {photo.event_id && photo.event_name && (
+        <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-amber-400/95 text-charcoal-800 rounded-full px-2 py-0.5 shadow-sm pointer-events-none">
+          <span className="text-[10px]">🏆</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[100px]">
+            {photo.event_name}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
