@@ -1,15 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-const TENOR_API_KEY = import.meta.env.VITE_TENOR_API_KEY as string | undefined
-const TENOR_BASE = 'https://tenor.googleapis.com/v2'
+const KLIPPY_API_KEY = import.meta.env.VITE_KLIPPY_API_KEY as string | undefined
+const KLIPPY_BASE = 'https://api.klipy.co/api/v1'
 
-interface TenorGif {
-  id: string
-  title: string
-  media_formats: {
-    tinygif?: { url: string; dims: [number, number] }
-    gif?: { url: string; dims: [number, number] }
-    nanogif?: { url: string; dims: [number, number] }
+interface KlippyAsset {
+  url: string
+  width: number
+  height: number
+}
+
+interface KlippyGif {
+  id: number | string
+  slug?: string
+  title?: string
+  file: {
+    sm?: { gif?: KlippyAsset; webp?: KlippyAsset }
+    md?: { gif?: KlippyAsset; webp?: KlippyAsset }
+    hd?: { gif?: KlippyAsset; webp?: KlippyAsset }
   }
 }
 
@@ -20,54 +27,63 @@ interface Props {
 
 export default function GifPicker({ onSelect, onClose }: Props) {
   const [query, setQuery] = useState('')
-  const [gifs, setGifs] = useState<TenorGif[]>([])
+  const [gifs, setGifs] = useState<KlippyGif[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    inputRef.current?.focus()
-    // Load trending on mount
-    fetchTrending()
-  }, [])
-
-  const fetchTrending = async () => {
-    if (!TENOR_API_KEY) return
+  const fetchTrending = useCallback(async () => {
+    if (!KLIPPY_API_KEY) {
+      setError('GIF search isn\'t configured')
+      return
+    }
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(
-        `${TENOR_BASE}/featured?key=${TENOR_API_KEY}&client_key=wingmap&limit=20&media_filter=tinygif,nanogif`
+        `${KLIPPY_BASE}/${KLIPPY_API_KEY}/gifs/trending?per_page=24`
       )
       const data = await res.json()
-      setGifs(data.results ?? [])
+      setGifs(data?.data?.data ?? [])
     } catch {
-      // Silently fail — user sees empty grid
+      setError('Couldn\'t load GIFs')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    fetchTrending()
+  }, [fetchTrending])
 
   const searchGifs = useCallback(async (q: string) => {
     if (!q.trim()) {
       fetchTrending()
       return
     }
-    if (!TENOR_API_KEY) return
+    if (!KLIPPY_API_KEY) {
+      setError('GIF search isn\'t configured')
+      return
+    }
     setLoading(true)
     setHasSearched(true)
+    setError(null)
     try {
       const res = await fetch(
-        `${TENOR_BASE}/search?key=${TENOR_API_KEY}&client_key=wingmap&q=${encodeURIComponent(q)}&limit=20&media_filter=tinygif,nanogif`
+        `${KLIPPY_BASE}/${KLIPPY_API_KEY}/gifs/search?q=${encodeURIComponent(q)}&per_page=24`
       )
       const data = await res.json()
-      setGifs(data.results ?? [])
+      setGifs(data?.data?.data ?? [])
     } catch {
+      setError('Couldn\'t load GIFs')
       setGifs([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [fetchTrending])
 
   const handleQueryChange = (value: string) => {
     setQuery(value)
@@ -75,11 +91,13 @@ export default function GifPicker({ onSelect, onClose }: Props) {
     debounceRef.current = setTimeout(() => searchGifs(value), 350)
   }
 
-  const getPreviewUrl = (gif: TenorGif) =>
-    gif.media_formats.nanogif?.url ?? gif.media_formats.tinygif?.url ?? ''
+  // Preview: small webp for fast grid load (fallback to small gif)
+  const getPreviewUrl = (gif: KlippyGif) =>
+    gif.file.sm?.webp?.url ?? gif.file.sm?.gif?.url ?? gif.file.md?.gif?.url ?? ''
 
-  const getSendUrl = (gif: TenorGif) =>
-    gif.media_formats.tinygif?.url ?? gif.media_formats.nanogif?.url ?? ''
+  // Send: medium gif for nice quality in the comment thread
+  const getSendUrl = (gif: KlippyGif) =>
+    gif.file.md?.gif?.url ?? gif.file.sm?.gif?.url ?? gif.file.hd?.gif?.url ?? ''
 
   return (
     <div className="flex flex-col bg-white rounded-2xl border border-warmgray-200 shadow-lg overflow-hidden max-h-[320px] sm:max-h-[360px]">
@@ -111,13 +129,17 @@ export default function GifPicker({ onSelect, onClose }: Props) {
           </div>
         )}
 
-        {!loading && gifs.length === 0 && hasSearched && (
+        {!loading && error && (
+          <p className="text-center text-xs text-charcoal-400 py-8">{error}</p>
+        )}
+
+        {!loading && !error && gifs.length === 0 && hasSearched && (
           <p className="text-center text-xs text-charcoal-300 py-8">
             No GIFs found — try a different search
           </p>
         )}
 
-        {!loading && gifs.length > 0 && (
+        {!loading && !error && gifs.length > 0 && (
           <div className="grid grid-cols-2 gap-1.5">
             {gifs.map(gif => (
               <button
@@ -139,9 +161,9 @@ export default function GifPicker({ onSelect, onClose }: Props) {
         )}
       </div>
 
-      {/* Tenor attribution */}
+      {/* Attribution */}
       <div className="flex-shrink-0 px-3 py-1 border-t border-warmgray-100 bg-warmgray-50">
-        <p className="text-[10px] text-charcoal-300 text-right">Powered by Tenor</p>
+        <p className="text-[10px] text-charcoal-300 text-right">Powered by Klipy</p>
       </div>
     </div>
   )
