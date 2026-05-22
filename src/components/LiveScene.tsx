@@ -6,13 +6,14 @@ interface Props {
   loading?: boolean
 }
 
-type ChipType = 'scene' | 'breaking' | 'debate' | 'alert' | 'fact' | 'internet'
+type ChipType = 'scene' | 'breaking' | 'debate' | 'alert' | 'fact' | 'internet' | 'onion'
 
 interface SceneItem {
   emoji: string
   eyebrow: string
   body: string
   type: ChipType
+  url?: string   // if set, chip becomes a clickable link
 }
 
 const TYPE_COLOR: Record<ChipType, string> = {
@@ -22,49 +23,53 @@ const TYPE_COLOR: Record<ChipType, string> = {
   alert:    'text-gold-300',
   fact:     'text-ember-300',
   internet: 'text-cream-300',
+  onion:    'text-sauce-200',
 }
 
 export default function LiveScene({ spots, loading }: Props) {
-  // Pool and duration are set ONCE after data is ready — never touch them
-  // afterward so the CSS animation never gets a reason to restart.
   const [pool, setPool]         = useState<SceneItem[]>([])
   const [duration, setDuration] = useState(40)
   const [paused, setPaused]     = useState(false)
   const built = useRef(false)
 
   useEffect(() => {
-    // Don't rebuild if already initialized, and don't run until spots are loaded
-    if (built.current) return
-    if (loading) return
-
+    if (built.current || loading) return
     built.current = true
 
     const dataItems = buildDataItems(spots)
     const timeItems = buildTimeItems()
 
-    // Give Reddit up to 2.5 s; fall back to empty so we don't wait forever
-    const redditPromise = fetch(
-      'https://www.reddit.com/r/wings/hot.json?limit=12&raw_json=1',
-      { headers: { Accept: 'application/json' } }
-    )
-      .then(r => r.json())
-      .then(json =>
-        ((json?.data?.children ?? []) as any[])
-          .map(c => c?.data?.title as string)
-          .filter(t => t && t.length > 10 && t.length < 110)
-          .slice(0, 8)
-          .map(title => ({
-            emoji: '📡', eyebrow: 'r/wings', body: title, type: 'internet' as ChipType,
-          }))
-      )
-      .catch(() => [] as SceneItem[])
+    const fetchSub = (sub: string): Promise<SceneItem[]> =>
+      fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=10&raw_json=1`, {
+        headers: { Accept: 'application/json' },
+      })
+        .then(r => r.json())
+        .then(json =>
+          ((json?.data?.children ?? []) as any[])
+            .map(c => c?.data)
+            .filter(d => d?.title && d.title.length > 10 && d.title.length < 120)
+            .slice(0, 6)
+            .map(d => ({
+              emoji:   '📡',
+              eyebrow: `r/${sub}`,
+              body:    d.title as string,
+              type:    'internet' as ChipType,
+              url:     `https://www.reddit.com${d.permalink}`,
+            }))
+        )
+        .catch(() => [] as SceneItem[])
 
-    const timeoutPromise: Promise<SceneItem[]> = new Promise(res =>
+    const redditPromise = Promise.all([
+      fetchSub('wings'),
+      fetchSub('chickenwings'),
+    ]).then(([a, b]) => [...a, ...b])
+
+    const timeout: Promise<SceneItem[]> = new Promise(res =>
       setTimeout(() => res([]), 2500)
     )
 
-    Promise.race([redditPromise, timeoutPromise]).then(redditItems => {
-      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...redditItems])
+    Promise.race([redditPromise, timeout]).then(redditItems => {
+      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...ONION, ...redditItems])
       setPool(all)
       setDuration(Math.max(32, all.length * 3.2))
     })
@@ -72,7 +77,6 @@ export default function LiveScene({ spots, loading }: Props) {
 
   if (pool.length === 0) return null
 
-  // Duplicate for seamless loop — both halves identical so translateX(-50%) lands perfectly
   const track = [...pool, ...pool]
 
   return (
@@ -85,8 +89,8 @@ export default function LiveScene({ spots, loading }: Props) {
 
       {/* LIVE badge */}
       <div className="hidden sm:flex absolute left-0 top-0 bottom-0 z-10 px-4 items-center gap-2
-                      bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px] font-extrabold
-                      uppercase tracking-crowd flex-shrink-0">
+                      bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px]
+                      font-extrabold uppercase tracking-crowd flex-shrink-0">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cream-50 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-cream-50" />
@@ -101,8 +105,7 @@ export default function LiveScene({ spots, loading }: Props) {
       <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 z-[5]
                       bg-gradient-to-l from-night-900 to-transparent" aria-hidden="true" />
 
-      {/* Scrolling track — animation only defined once, never changes */}
-      <div className="overflow-hidden py-1.5 sm:pl-[148px]" aria-hidden="true">
+      <div className="overflow-hidden py-1.5 sm:pl-[148px]">
         <div
           className="marquee-track"
           style={{
@@ -120,18 +123,34 @@ export default function LiveScene({ spots, loading }: Props) {
 }
 
 function Chip({ item }: { item: SceneItem }) {
-  return (
+  const eyebrowColor = TYPE_COLOR[item.type]
+  const inner = (
     <span className="inline-flex items-baseline gap-2 px-1 whitespace-nowrap">
       <span className="text-sm leading-none translate-y-[1px]">{item.emoji}</span>
-      <span className={`text-[10px] font-extrabold uppercase tracking-crowd ${TYPE_COLOR[item.type]}`}>
+      <span className={`text-[10px] font-extrabold uppercase tracking-crowd ${eyebrowColor}`}>
         {item.eyebrow}
       </span>
-      <span className="text-[12px] font-bold text-cream-100 tracking-wide">
+      <span className={`text-[12px] font-bold tracking-wide ${item.url ? 'text-cream-50 underline underline-offset-2 decoration-cream-50/30 hover:decoration-cream-50' : 'text-cream-100'}`}>
         {item.body}
       </span>
       <span className="mx-4 text-cream-50/20 text-xs">🍗</span>
     </span>
   )
+
+  if (item.url) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="cursor-pointer"
+        onClick={e => e.stopPropagation()}
+      >
+        {inner}
+      </a>
+    )
+  }
+  return <span>{inner}</span>
 }
 
 // ─── Data-driven items ────────────────────────────────────────────────────────
@@ -180,31 +199,67 @@ function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
   return items
 }
 
-// ─── Time-of-day items (read once at build time, not reactive) ────────────────
-
 function buildTimeItems(): SceneItem[] {
   const h   = new Date().getHours()
   const day = new Date().getDay()
   const items: SceneItem[] = []
 
-  if (h < 6)             items.push({ emoji: '🦉', eyebrow: 'Night shift',  type: 'alert',    body: "It's past midnight. The fryers never truly close." })
-  else if (h < 10)       items.push({ emoji: '🌅', eyebrow: 'Early bird',   type: 'alert',    body: 'Wings for breakfast is a valid lifestyle choice.' })
-  else if (h < 12)       items.push({ emoji: '☀️', eyebrow: 'Mid-morning', type: 'alert',    body: 'Pre-lunch scouting in progress. Choose wisely.' })
-  else if (h < 14)       items.push({ emoji: '🏃', eyebrow: 'Lunch rush',   type: 'breaking', body: 'Peak wing hours. The spots are loaded right now.' })
-  else if (h < 17)       items.push({ emoji: '🕒', eyebrow: 'Afternoon',    type: 'alert',    body: 'Happy hour incoming. Position yourselves.' })
-  else if (h < 20)       items.push({ emoji: '🌆', eyebrow: 'Prime time',   type: 'breaking', body: 'Dinner rush is live. The sauce is flowing.' })
-  else if (h < 23)       items.push({ emoji: '🌙', eyebrow: 'Night mode',   type: 'breaking', body: 'Late night crew checking in. No regrets.' })
-  else                   items.push({ emoji: '🚨', eyebrow: 'Last call',    type: 'breaking', body: "It's late. You know what to do." })
+  if (h < 6)        items.push({ emoji: '🦉', eyebrow: 'Night shift',  type: 'alert',    body: "It's past midnight. The fryers never truly close." })
+  else if (h < 10)  items.push({ emoji: '🌅', eyebrow: 'Early bird',   type: 'alert',    body: 'Wings for breakfast is a valid lifestyle choice.' })
+  else if (h < 12)  items.push({ emoji: '☀️', eyebrow: 'Mid-morning', type: 'alert',    body: 'Pre-lunch scouting in progress. Choose wisely.' })
+  else if (h < 14)  items.push({ emoji: '🏃', eyebrow: 'Lunch rush',   type: 'breaking', body: 'Peak wing hours. The spots are loaded right now.' })
+  else if (h < 17)  items.push({ emoji: '🕒', eyebrow: 'Afternoon',    type: 'alert',    body: 'Happy hour incoming. Position yourselves.' })
+  else if (h < 20)  items.push({ emoji: '🌆', eyebrow: 'Prime time',   type: 'breaking', body: 'Dinner rush is live. The sauce is flowing.' })
+  else if (h < 23)  items.push({ emoji: '🌙', eyebrow: 'Night mode',   type: 'breaking', body: 'Late night crew checking in. No regrets.' })
+  else              items.push({ emoji: '🚨', eyebrow: 'Last call',    type: 'breaking', body: "It's late. You know what to do." })
 
-  if (day === 5) items.push({ emoji: '🎉', eyebrow: 'Friday',    type: 'alert',   body: 'It is Friday. The wing gods are watching.' })
-  if (day === 6) items.push({ emoji: '🏈', eyebrow: 'Saturday',  type: 'alert',   body: 'Game day energy. Wings first, questions later.' })
-  if (day === 0) items.push({ emoji: '😮‍💨', eyebrow: 'Sunday',   type: 'debate',  body: 'Sunday crawl szn. Rest is for after.' })
-  if (day === 1) items.push({ emoji: '💀', eyebrow: 'Monday',    type: 'debate',  body: 'Monday hits different. Wings are the cure.' })
+  if (day === 5) items.push({ emoji: '🎉', eyebrow: 'Friday',   type: 'alert',  body: 'It is Friday. The wing gods are watching.' })
+  if (day === 6) items.push({ emoji: '🏈', eyebrow: 'Saturday', type: 'alert',  body: 'Game day energy. Wings first, questions later.' })
+  if (day === 0) items.push({ emoji: '😮‍💨', eyebrow: 'Sunday',  type: 'debate', body: 'Sunday crawl szn. Rest is for after.' })
+  if (day === 1) items.push({ emoji: '💀', eyebrow: 'Monday',   type: 'debate', body: 'Monday hits different. Wings are the cure.' })
 
   return items
 }
 
-// ─── Evergreen pool ───────────────────────────────────────────────────────────
+// ─── Onion-style deadpan news headlines ──────────────────────────────────────
+
+const ONION: SceneItem[] = [
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Area Man Drives 45 Minutes For Wings, Rates 6/10, Will Return Next Week' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Local Woman Describes Wing Sauce As "Giving" — Experts Remain Baffled' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Wing Spot Receives First 10/10 Review; Owner Claims He "Knew It All Along"' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Man Who Ordered Mild Wings Still Crying, Sources Confirm' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Nation Divided After Photo Of Boneless Wings Labeled As Wings' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Scientists Confirm: No Amount Of Ranch Will Fix Bad Wings' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'D.C. Man Sets Personal Record Of 47 Wings Before Questioning Life Choices' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Local Food Critic Gives Wings 4/10; Found Hiding In Witness Protection' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Study: People Who Don\'t Finish Their Wings Are A Completely Different Kind Of Person' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Wing Spot Owner Insists "The Sauce Is The Same" Despite Widespread Community Outcry' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Man Describes Wings As "Mid" — Crowd Goes Silent, Waiter Asks Him To Leave' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'D.C. Wing Crawl Participant Has Not Been Seen Since Stop 5; Friends Unworried' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Area Couple\'s Date Night Ruined After One Orders Well Done; Counseling Sought' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Report: Man Fully Committed To Rating Wings "Tomorrow" For Past 3 Weeks' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Local Hero Finishes Entire Order, Posts Review Immediately, Cites "Civic Duty"' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Lemon Pepper Wing Declared Sentient After Surviving Contact With Bleu Cheese' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Woman Who Said "Just One More" Currently On Wing Number 19' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'New Sauce Described As "Smoky" By Person Who Has Never Experienced Smoke' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Area Table Orders 100 Wings "To Share" — No One Sharing' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Man Gives Spot 7/10, Refuses To Elaborate, Leaves Town' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Group Chat Unanimously Agrees On Wing Spot; First Time In Recorded History' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Styrofoam Container Described As "Giving The Wings Character" By Someone Wrong' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Friend Who "Isn\'t That Hungry" Eats 14 Wings, Reports No Memory Of Event' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Wing Spot Opens At 11am; Man Already There At 10:45; Refuses Eye Contact' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Local Man\'s Wing Rating Philosophy Takes 20 Minutes To Explain, Collapses Under Questioning' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Takeout Order Described As "For The Table" Eaten Entirely In Car Before Arriving Home' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Hot Wing Challenge Completed; Participant Claims Victory Despite Visible Evidence To The Contrary' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Garlic Parmesan Wing Described As "Not Really A Wing Wing" By Man Who Is Wrong' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Region\'s Foremost Wing Expert Self-Appointed; Nobody Has Challenged This' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Person Who Said "I Could Make These At Home" Has Not Made Them At Home' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Wing Sauce Described As "Complex" By Person Who Ordered The Mildest Option' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Eleven-Wing Order Deemed "Odd Number" By Someone Who Has Clearly Never Been Hungry' },
+  { emoji: '📰', eyebrow: 'Developing', type: 'onion', body: 'Man Returns To Same Spot 12 Times, Still Hasn\'t Tried Anything Other Than Lemon Pepper' },
+]
+
+// ─── General evergreen pool ───────────────────────────────────────────────────
 
 const EVERGREEN: SceneItem[] = [
   { emoji: '⚖️', eyebrow: 'Debate',        type: 'debate',   body: 'Bone-in vs boneless. Pick a side. No cowards.' },
@@ -239,8 +294,6 @@ const EVERGREEN: SceneItem[] = [
   { emoji: '🍋', eyebrow: 'LP report',     type: 'fact',     body: 'Lemon pepper: still undefeated. Updated hourly.' },
   { emoji: '🍋', eyebrow: 'LP debate',     type: 'debate',   body: 'Wet lemon pepper vs dry. This is not a safe space.' },
   { emoji: '💀', eyebrow: 'RIP',           type: 'alert',    body: "A man ordered 'well-done' wings. We do not speak of this." },
-  { emoji: '🤯', eyebrow: 'Mind blown',    type: 'alert',    body: 'Someone finished a 50-piece alone. They are fine. They are not fine.' },
-  { emoji: '😤', eyebrow: 'Critic',        type: 'debate',   body: "A 5/10 review was posted. The reviewer's location is being triangulated." },
   { emoji: '🛡️', eyebrow: 'Protection',   type: 'debate',   body: 'Ranch is not a dipping sauce. Ranch is a lifestyle. Defend it.' },
   { emoji: '🧊', eyebrow: 'Styrofoam',     type: 'fact',     body: 'Styrofoam container appreciation post. It keeps the heat. Respect it.' },
   { emoji: '🎓', eyebrow: 'Education',     type: 'fact',     body: 'Nobody leaves this platform without knowing their flavor preference. We insist.' },
