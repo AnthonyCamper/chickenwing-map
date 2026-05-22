@@ -456,6 +456,132 @@ const EVERGREEN: SceneItem[] = [
 
 // ─── AI headline generation ───────────────────────────────────────────────────
 
+const PROMPT_PERSONAL = `You write satirical headlines for WingMap, a Washington DC chicken wing review app live ticker. Generate exactly 50 headlines.
+
+MATCH THIS STYLE EXACTLY — study these examples before writing:
+Area Man Drives 45 Minutes For Wings, Rates 6/10, Will Return Next Week
+Local Woman Describes Wing Sauce As "Giving" — Experts Remain Baffled
+Area Man Insists He "Only Wanted A Few" Before Finishing 30 Wings Alone
+Local Woman's Review Described As "The Most Emotional Thing Posted On This Platform"
+Area Woman Photographed Every Wing Before Eating; Plate Now Cold; No Regrets Expressed
+Area Couple Disagrees On Sauce; Relationship Counselor Specializing In Wings Now Booked 6 Months Out
+Man Seen Crying In Parking Lot Clarifies Tears Are From Happiness, Not Ghost Pepper
+Local Influencer Posts Wing Photo; 47 Comments Ask Where It's From; She Never Responds
+Report: Man Who Splits An Order With You Eats 70% Of It While Looking You In The Eye
+Study Confirms Lemon Pepper Is Objectively Best; Everyone Already Knew This
+Scientists Unable To Explain Why Wings Always Taste Better After Midnight
+Report: 94% Of People Who Say "Just One More" Are On Wing Number 7
+Takeout Order Described As "For The Table" Eaten Entirely In Car Before Arriving Home
+Man Stares At Last Wing On Plate For 4 Minutes Before Eating It; Reports It Was The Right Call
+Wing Crawl Stop 4 Described As "Where The Night Changed" By All Who Were Present
+Crawl Participant Calls In Sick Next Day, Cites "Residual Wing Energy"
+Area Woman Adds Wings To Every Occasion; Funeral Next Weekend
+
+WHAT MAKES THESE WORK — follow all three rules:
+1. SPECIFIC NUMBERS. "45 minutes" not "a long time." "6/10" not "mediocre." "70%" not "most." "4 minutes" not "a while." "47 comments" not "many." Numbers are the joke.
+2. THE BUTTON. The second half undercuts the first in a deadpan way: ", Will Return Next Week" / "; Everyone Already Knew This" / "; No Regrets Expressed" / "; She Never Responds." The button is everything.
+3. TREAT IT LIKE REAL NEWS. Internal quotes, clinical language, sourced observations. "Sources Confirm." "Experts Remain Baffled." "Reports It Was The Right Call." "Sitting With That."
+
+COVER THESE (approximately):
+- Area Man / Local Woman personal situations (18 headlines): irrational loyalty, ordering wrong thing, group dynamics, parking lot eating, regret-free overconsumption
+- Study / Report / Scientists / Doctors (12 headlines): fake research confirming obvious things or finding absurd conclusions about wing behavior
+- Late Night / Crawl (10 headlines): specific stop numbers, next-day consequences, the parking lot at 11pm, the group chat at 1am
+- Sauce and flavor debates (10 headlines): lemon pepper supremacy, bleu cheese vs ranch civil war, garlic parm discourse, dry rub vs wet, mumbo sauce
+- Wing spot culture (10 headlines): the spot with no sign that has a two-hour wait, owners watching reviews refresh, running out of the good stuff on Friday
+
+DC GEOGRAPHY to drop naturally: Columbia Heights, H Street, Shaw, U Street, Adams Morgan, The Wharf, Nationals Park, WMATA
+
+OUTPUT: one headline per line, no numbers, no bullets, no quotes around full headline, 50–115 characters, title case, nothing else`
+
+const PROMPT_PUBLIC = `You write satirical headlines for WingMap, a Washington DC chicken wing review app live ticker. Generate exactly 50 headlines.
+
+MATCH THIS STYLE EXACTLY — study these examples before writing:
+D.C. Council Introduces Bill To Classify Lemon Pepper As Essential Infrastructure
+Congress Unable To Agree On Wing Legislation; Bipartisan Support For Eating More
+FBI Opens Investigation Into Who Touched The Last Wing Without Asking
+Supreme Court Asked To Rule On Whether Boneless Wings Are Wings; Case Accepted
+Federal Reserve Raises Rates; Wing Spots Completely Unaffected, Continue Thriving
+White House Has No Comment On Wing Rankings; Seen As Tacit Endorsement Of Top Spot
+D.C. Mayor Photographed At Wing Spot On Campaign Trail; This Is Why She Wins
+Senate Hearing On Wing Sauce Safety Devolves Into Everyone Just Ordering Wings
+CDC Issues No Warning About Wing Overconsumption; Community Takes This As Endorsement
+D.C. Zoning Board Approves New Wing Spot; Citizens Weep With Gratitude
+Nation Divided After Photo Of Boneless Wings Labeled As Wings
+Local Politician Claims Wings Are "Fine"; Approval Rating Drops 12 Points
+Economists Baffled By Wing Spot Pricing; Customers Pay Anyway
+National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance
+
+WHAT MAKES THESE WORK — follow all three rules:
+1. INSTITUTIONAL LANGUAGE applied to wings. FBI investigations. Congressional hearings. CDC advisories. Federal Reserve statements. Supreme Court dockets. The joke is the mismatch between the institution's gravity and the subject.
+2. THE IRONIC PIVOT. The second clause lands the joke: "; Bipartisan Support For Eating More" / "; Community Takes This As Endorsement" / "; Customers Pay Anyway" / "; This Is Why She Wins."
+3. REAL CURRENT EVENTS filtered through wings. Take actual news — AI replacing jobs, tech layoffs, housing costs, DEI rollbacks, government efficiency initiatives, social media drama, crypto — and reframe it as a wing culture story. Make it feel ripped from today's headlines but about wings.
+
+COVER THESE (approximately):
+- DC Government / Political (15 headlines): D.C. Council, Congress, the Mayor, DDOT, zoning boards, Metro/WMATA, local elections — all about wings
+- Federal / National institutions (10 headlines): FBI, CIA, Supreme Court, CDC, Federal Reserve, Pentagon, White House, Smithsonian
+- Current events reframed as wing news (15 headlines): AI taking over wing reviews, tech layoffs sending workers to wing spots, housing costs making wing spots the last affordable thing in DC, government efficiency cuts affecting wing spot inspections, social media algorithms burying the best spots
+- Nation / Breaking (10 headlines): national polls, cross-state comparisons, cultural divides, international wing diplomacy
+- Sports and culture (5 headlines): Commanders game day, Nationals post-game wings, go-go music and wing spots, DC United tailgate
+
+DC GEOGRAPHY: Capitol Hill, Foggy Bottom, Georgetown, Anacostia, NoMa, Brookland, Petworth, Silver Spring, Pentagon City
+
+OUTPUT: one headline per line, no numbers, no bullets, no quotes around full headline, 50–115 characters, title case, nothing else`
+
+function classifyLine(text: string): { eyebrow: string; type: ChipType } {
+  const t = text.toLowerCase()
+  if (t.match(/\bstudy\b|\bscientists?\b|\bresearch(ers?)?\b|\bdoctors?\b/))
+    return { eyebrow: 'Study', type: 'fact' }
+  if (t.match(/^report:|^report,|\bsources? confirm\b|\bdata show/))
+    return { eyebrow: 'Report', type: 'internet' }
+  if (t.match(/\bd\.c\.\b|\bcongress\b|\bsenate\b|\bfbi\b|\bwhite house\b|\bsupreme court\b|\bpentagon\b|\bfederal \b|\bpresident\b|\bmayor\b|\bcouncil\b/))
+    return { eyebrow: 'Breaking', type: 'breaking' }
+  if (t.match(/\bnation\b|\bnational\b|\bamericans?\b/))
+    return { eyebrow: 'Nation', type: 'breaking' }
+  if (t.match(/crawl|stop [0-9]/))
+    return { eyebrow: 'Crawl Report', type: 'scene' }
+  if (t.match(/doctor|health|hospital|\bcdc\b|nurse|er report/))
+    return { eyebrow: 'Health', type: 'alert' }
+  if (t.match(/midnight|late night|\b[12]am\b|after midnight|night shift/))
+    return { eyebrow: 'Late Night', type: 'scene' }
+  if (t.match(/\bai\b|artificial intelligence|tech |layoff|economy|housing|crypto|algorithm/))
+    return { eyebrow: 'Developing', type: 'internet' }
+  return { eyebrow: 'Developing', type: 'onion' }
+}
+
+async function callGemini(prompt: string): Promise<SceneItem[]> {
+  const controller = new AbortController()
+  const tid = setTimeout(() => controller.abort(), 10000)
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.2, maxOutputTokens: 2048 },
+        }),
+      }
+    )
+    clearTimeout(tid)
+    if (!res.ok) return []
+    const data = await res.json()
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    return text
+      .split('\n')
+      .map((l: string) => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-•*]\s*/, '').trim())
+      .filter((l: string) => l.length > 30 && l.length < 120)
+      .map((headline: string) => {
+        const { eyebrow, type } = classifyLine(headline)
+        return { emoji: '📰', eyebrow, body: headline, type }
+      })
+  } catch {
+    clearTimeout(tid)
+    return []
+  }
+}
+
 async function fetchAiHeadlines(): Promise<SceneItem[]> {
   if (!GEMINI_KEY) return []
 
@@ -467,62 +593,24 @@ async function fetchAiHeadlines(): Promise<SceneItem[]> {
     if (cached) return JSON.parse(cached) as SceneItem[]
   } catch {}
 
-  const prompt = `You are a deadpan satirical writer for a Washington DC chicken wing review app called WingMap. Generate exactly 25 short Onion-style satirical headlines about DC wing culture. Mix styles: "Area Man...", "Study Finds...", "Report:", "Local Woman...", "Nation...", "Scientists...", "D.C. Man...", crawl reports, sauce debates, rating disputes. Each headline: one sentence, under 115 characters, dry and specific. Output only the headlines, one per line, no numbers, no quotes.`
+  // Two parallel calls — personal/community stories + public/political/current events
+  const [personal, political] = await Promise.all([
+    callGemini(PROMPT_PERSONAL),
+    callGemini(PROMPT_PUBLIC),
+  ])
 
-  try {
-    const controller = new AbortController()
-    const tid = setTimeout(() => controller.abort(), 6000)
+  const items = [...personal, ...political]
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 1.1, maxOutputTokens: 1024 },
-        }),
+  if (items.length > 0) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(items))
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith('ai_headlines_') && k !== cacheKey) localStorage.removeItem(k)
       }
-    )
-    clearTimeout(tid)
-
-    if (!res.ok) return []
-
-    const data = await res.json()
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-
-    const items: SceneItem[] = text
-      .split('\n')
-      .map((l: string) => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, '').trim())
-      .filter((l: string) => l.length > 20 && l.length < 130)
-      .slice(0, 25)
-      .map((headline: string) => {
-        const t = headline.toLowerCase()
-        let eyebrow = 'Developing'
-        let type: ChipType = 'onion'
-        if (t.startsWith('study') || t.includes('scientists') || t.includes('research'))  { eyebrow = 'Study';    type = 'fact' }
-        else if (t.startsWith('report') || t.includes('sources say'))                      { eyebrow = 'Report';   type = 'internet' }
-        else if (t.startsWith('nation') || t.includes('d.c.') || t.includes('congress'))  { eyebrow = 'Breaking'; type = 'breaking' }
-        else if (t.includes('crawl'))                                                       { eyebrow = 'Crawl Report'; type = 'scene' }
-        else if (t.includes('health') || t.includes('doctor') || t.includes('hospital'))  { eyebrow = 'Health';   type = 'alert' }
-        return { emoji: '📰', eyebrow, body: headline, type }
-      })
-
-    if (items.length > 0) {
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(items))
-        // Purge old cache entries
-        for (const k of Object.keys(localStorage)) {
-          if (k.startsWith('ai_headlines_') && k !== cacheKey) localStorage.removeItem(k)
-        }
-      } catch {}
-    }
-
-    return items
-  } catch {
-    return []
+    } catch {}
   }
+
+  return items
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
