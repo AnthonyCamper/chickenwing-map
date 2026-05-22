@@ -8,6 +8,7 @@ import GifPicker from './GifPicker'
 import { Lightbox } from '../ui/PhotoGallery'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useAuthGate } from '../AuthGateModal'
+import { useUserProfile } from '../UserProfileContext'
 import LikedByOverlay from './LikedByOverlay'
 import { fetchReviewLikers, fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
@@ -84,6 +85,7 @@ export default function PhotoModal(props: Props) {
     fetchReplies,
   } = useReviewComments(reviewData.review_id, currentUserId)
   const { requireAuth } = useAuthGate()
+  const { openProfile } = useUserProfile()
 
   const [photoIndex, setPhotoIndex] = useState(0)
   const [showLightbox, setShowLightbox] = useState(false)
@@ -190,7 +192,11 @@ export default function PhotoModal(props: Props) {
   )
 
   const reviewerHeader = (
-    <div className="flex items-center gap-2 mb-2">
+    <button
+      type="button"
+      onClick={() => openProfile(reviewData.reviewer_id)}
+      className="flex items-center gap-2 mb-2 group text-left hover:opacity-80 transition-opacity"
+    >
       <div className="w-7 h-7 rounded-full overflow-hidden bg-warmgray-200 flex-shrink-0 flex items-center justify-center">
         {reviewData.reviewer_avatar ? (
           <img src={reviewData.reviewer_avatar} alt={reviewerName} className="w-full h-full object-cover" />
@@ -199,10 +205,10 @@ export default function PhotoModal(props: Props) {
         )}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-charcoal-700 truncate">{reviewerName}</p>
+        <p className="text-xs font-semibold text-charcoal-700 truncate group-hover:text-sauce-500 transition-colors">{reviewerName}</p>
         <p className="text-xs text-charcoal-300">{visitedDate}</p>
       </div>
-    </div>
+    </button>
   )
 
   const ratingsRow = (

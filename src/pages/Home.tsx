@@ -12,6 +12,7 @@ import GalleryView from '../components/gallery/GalleryView'
 import PhotoModal from '../components/gallery/PhotoModal'
 import ReviewFormModal from '../components/ReviewFormModal'
 import { AuthGateProvider } from '../components/AuthGateModal'
+import { UserProfileProvider } from '../components/UserProfileContext'
 import type { AuthState } from '../hooks/useAuth'
 
 type View = 'list' | 'map' | 'gallery'
@@ -126,6 +127,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
   const isAuthenticated = !!auth.user
 
   return (
+    <UserProfileProvider currentUserId={auth.user?.id ?? ''}>
     <AuthGateProvider isAuthenticated={isAuthenticated} onSignInGoogle={auth.signInWithGoogle}>
     <Layout
       auth={auth}
@@ -209,5 +211,6 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
       )}
     </Layout>
     </AuthGateProvider>
+    </UserProfileProvider>
   )
 }

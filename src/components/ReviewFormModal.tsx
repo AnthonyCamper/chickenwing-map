@@ -4,6 +4,7 @@ import Modal from './ui/Modal'
 import RatingPicker from './ui/RatingPicker'
 import BusinessAutocomplete from './ui/BusinessAutocomplete'
 import PhotoUpload from './ui/PhotoUpload'
+import WingFlavorPicker from './ui/WingFlavorPicker'
 import type { ReviewFormData } from '../lib/types'
 
 interface PrefillSpot {
@@ -286,29 +287,8 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           </div>
 
           <div>
-            <label className="label" htmlFor="wing-flavor">Wing Flavor (optional)</label>
-            <input
-              id="wing-flavor"
-              type="text"
-              className="input"
-              maxLength={60}
-              value={wingFlavor}
-              onChange={e => setWingFlavor(e.target.value)}
-              placeholder="Buffalo Hot, Lemon Pepper, Garlic Parmesan…"
-              list="wing-flavor-options"
-            />
-            <datalist id="wing-flavor-options">
-              {[
-                "Buffalo Hot", "Buffalo Medium", "Buffalo Mild", "Honey BBQ", "BBQ", "Spicy BBQ",
-                "Carolina Gold BBQ", "Nashville Hot", "Garlic Parmesan", "Lemon Pepper", "Teriyaki",
-                "Mango Habanero", "Thai Chili", "Sriracha", "Ghost Pepper", "Korean BBQ",
-                "Caribbean Jerk", "Bourbon", "Chipotle BBQ", "Old Bay", "Honey Old Bay",
-                "Honey Mustard", "Sweet Chili", "Ranch Dry Rub", "Cajun Dry Rub", "Memphis Dry Rub",
-                "Salt & Vinegar", "Smoked", "Plain/Naked", "Elote", "Dry Rub", "Spicy Garlic",
-                "Honey Garlic", "Peanut Butter Jelly", "Maple Bacon", "Truffle Parmesan",
-                "Szechuan", "Hoisin", "Mumbo Sauce", "Alabama White Sauce",
-              ].map(f => <option key={f} value={f} />)}
-            </datalist>
+            <label className="label">Wing Flavor (optional)</label>
+            <WingFlavorPicker value={wingFlavor} onChange={setWingFlavor} />
           </div>
 
           <div className="flex items-center gap-3">

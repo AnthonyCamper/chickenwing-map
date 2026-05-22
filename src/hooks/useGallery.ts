@@ -73,7 +73,7 @@ interface UseGalleryReturn {
   refreshPhoto: (photoId: string) => void
 }
 
-export function useGallery(currentUserId: string): UseGalleryReturn {
+export function useGallery(currentUserId: string, followingOnly = false): UseGalleryReturn {
   const [photos, setPhotos] = useState<GalleryPhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -86,12 +86,33 @@ export function useGallery(currentUserId: string): UseGalleryReturn {
     else setLoadingMore(true)
 
     try {
-      const { data, error: err } = await supabase
+      let followingIds: string[] | null = null
+      if (followingOnly && currentUserId) {
+        const { data: follows } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUserId)
+        followingIds = (follows ?? []).map((f: any) => f.following_id)
+        if (followingIds.length === 0) {
+          setPhotos(append ? prev => prev : [])
+          setHasMore(false)
+          setLoading(false)
+          setLoadingMore(false)
+          return
+        }
+      }
+
+      let query = supabase
         .from('gallery_feed')
         .select('*')
         .order('photo_created_at', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1)
 
+      if (followingIds) {
+        query = query.in('reviewer_id', followingIds)
+      }
+
+      const { data, error: err } = await query
       if (err) throw new Error(err.message)
 
       const rows = (data ?? []) as GalleryPhoto[]
@@ -104,7 +125,7 @@ export function useGallery(currentUserId: string): UseGalleryReturn {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [])
+  }, [currentUserId, followingOnly])
 
   useEffect(() => {
     offsetRef.current = 0

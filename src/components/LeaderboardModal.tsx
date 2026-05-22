@@ -1,4 +1,5 @@
 import { useLeaderboard, type LeaderboardCategory } from '../hooks/useLeaderboard'
+import { useUserProfile } from './UserProfileContext'
 import type { LeaderboardRow } from '../lib/types'
 
 interface Props {
@@ -17,6 +18,7 @@ const CATEGORIES: { key: LeaderboardCategory; label: string; emoji: string; stat
 
 export default function LeaderboardModal({ currentUserId, onClose }: Props) {
   const { rows, loading, category, setCategory, myRank } = useLeaderboard(currentUserId)
+  const { openProfile } = useUserProfile()
 
   const catDef = CATEGORIES.find(c => c.key === category)!
 
@@ -87,7 +89,8 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
                   return (
                     <li
                       key={row.user_id}
-                      className={`flex items-center gap-3 px-4 py-3 border-b border-night-900/10
+                      onClick={() => openProfile(row.user_id)}
+                      className={`flex items-center gap-3 px-4 py-3 border-b border-night-900/10 cursor-pointer hover:bg-cream-100/80 transition-colors
                         ${isMe ? 'bg-sauce-50 border-l-4 border-l-sauce-400' : ''}
                         ${isPodium && !isMe ? 'bg-cream-100/50' : ''}`}
                     >

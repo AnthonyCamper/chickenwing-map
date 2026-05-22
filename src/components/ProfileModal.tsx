@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
@@ -31,6 +31,19 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
   const badgesHook = useBadges(user?.id)
   const { rows: leaderRows, loading: lbLoading } = useLeaderboard(user?.id)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+
+  useEffect(() => {
+    if (!user?.id) return
+    Promise.all([
+      supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', user.id),
+      supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id),
+    ]).then(([followerRes, followingRes]) => {
+      setFollowerCount(followerRes.count ?? 0)
+      setFollowingCount(followingRes.count ?? 0)
+    })
+  }, [user?.id])
   const myRow = leaderRows.find(r => r.user_id === user?.id)
 
   const currentAvatar = avatarPreview ?? profile?.avatar_url ?? null
@@ -134,6 +147,12 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       {badgesHook.earned.length} badge{badgesHook.earned.length !== 1 ? 's' : ''}
                     </span>
                   )}
+                  <span className="text-[10px] text-charcoal-500 font-bold">
+                    {followerCount} follower{followerCount !== 1 ? 's' : ''}
+                  </span>
+                  <span className="text-[10px] text-charcoal-500 font-bold">
+                    {followingCount} following
+                  </span>
                 </div>
               </div>
 

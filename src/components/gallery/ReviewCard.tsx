@@ -3,6 +3,7 @@ import type { GalleryReviewItem } from '../../lib/types'
 import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
 import { fetchReviewLikers } from '../../lib/reactionDetails'
+import { useUserProfile } from '../UserProfileContext'
 
 interface Props {
   review: GalleryReviewItem
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function ReviewCard({ review, onOpen, onLike }: Props) {
+  const { openProfile } = useUserProfile()
   const fetchLikers = useCallback(() => fetchReviewLikers(review.review_id), [review.review_id])
   const primaryPhoto = review.photos[0]
   const extraCount = review.photos.length - 1
@@ -69,9 +71,13 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
         <p className="text-white text-xs font-semibold leading-tight truncate drop-shadow">
           {review.spot_name}
         </p>
-        <p className="text-white/70 text-xs truncate drop-shadow">
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); openProfile(review.reviewer_id) }}
+          className="text-white/70 text-xs truncate drop-shadow hover:text-white transition-colors text-left max-w-full"
+        >
           {review.reviewer_name ?? review.reviewer_email?.split('@')[0] ?? 'Unknown'}
-        </p>
+        </button>
       </div>
 
       <LikedByOverlay
