@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ════════════════════════════════════════════════════════════════════
+   WingKingTony · design foundation
+   gritty, urban, social, late-night — but usable
+   ════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;
@@ -10,119 +15,280 @@
   html {
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
-    /* Prevent iOS font boosting */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
 
   body {
-    @apply bg-warmgray-50 text-charcoal-700 antialiased;
+    @apply bg-cream-50 text-charcoal-700 antialiased;
     min-height: 100dvh;
-    /* Prevent pull-to-refresh interfering with swipe gestures */
     overscroll-behavior-y: none;
-    /* iOS momentum scrolling on the body */
     -webkit-overflow-scrolling: touch;
+    /* Paper texture under everything */
+    background-image: url('/textures/grain.svg');
+    background-size: 220px 220px;
+    background-attachment: fixed;
+    background-blend-mode: multiply;
   }
 
+  /* Athletic condensed display for all headings */
   h1, h2, h3 {
-    @apply font-display;
+    @apply font-display tracking-tightest leading-none text-night-800;
+  }
+  h4, h5, h6 {
+    @apply font-sans font-bold text-charcoal-700;
   }
 
-  /* All interactive elements: fast tap, no delay */
+  /* Interactive elements: fast tap, no delay */
   button, a, [role="button"], input, select, textarea {
     touch-action: manipulation;
+  }
+
+  /* Text selection styling */
+  ::selection {
+    background-color: #fa5a2e;
+    color: #fdfaf2;
   }
 }
 
 @layer components {
+
   /* ── Buttons ──────────────────────────────────────────────────── */
+  /* Gritty sticker buttons with hard offset shadows. Uppercase, tight,
+     athletic. The shadow lifts on hover and presses flat on active. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
-    /* Minimum 44px tap target on mobile */
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3
+           text-sm font-bold uppercase tracking-crowd
+           transition-all duration-100 ease-out
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50
+           disabled:opacity-40 disabled:pointer-events-none
+           active:translate-x-[2px] active:translate-y-[2px];
     min-height: 44px;
   }
 
   .btn-primary {
-    @apply btn bg-amber-400 text-white hover:bg-amber-500 active:bg-amber-600 focus-visible:ring-amber-400 shadow-soft;
+    @apply btn bg-sauce-400 text-cream-50
+           border-2 border-night-900
+           shadow-sticker hover:shadow-sticker-sauce hover:bg-sauce-300
+           active:shadow-none active:bg-sauce-500
+           focus-visible:ring-sauce-400;
   }
 
   .btn-secondary {
-    @apply btn bg-warmgray-100 text-charcoal-600 hover:bg-warmgray-200 active:bg-warmgray-300 focus-visible:ring-charcoal-300 border border-warmgray-300;
+    @apply btn bg-cream-50 text-night-800
+           border-2 border-night-900
+           shadow-sticker-sm hover:shadow-sticker hover:bg-cream-100
+           active:shadow-none
+           focus-visible:ring-night-500;
   }
 
   .btn-ghost {
-    @apply btn text-charcoal-500 hover:bg-warmgray-100 active:bg-warmgray-200 focus-visible:ring-charcoal-300;
+    @apply btn bg-transparent text-charcoal-600
+           border-2 border-transparent
+           hover:bg-cream-100 hover:text-night-800
+           active:translate-x-0 active:translate-y-0 active:bg-cream-200
+           focus-visible:ring-charcoal-400;
   }
 
   .btn-danger {
-    @apply btn bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-200 focus-visible:ring-red-400 border border-red-100;
+    @apply btn bg-night-800 text-sauce-300
+           border-2 border-sauce-500
+           shadow-sticker-sauce hover:bg-night-900
+           active:shadow-none
+           focus-visible:ring-sauce-400;
+  }
+
+  .btn-gold {
+    @apply btn bg-gold-300 text-night-900
+           border-2 border-night-900
+           shadow-sticker-gold hover:bg-gold-200
+           active:shadow-none
+           focus-visible:ring-gold-400;
   }
 
   /* ── Inputs ───────────────────────────────────────────────────── */
   .input {
-    /* font-size MUST be 16px+ on mobile to prevent iOS auto-zoom on focus */
-    @apply w-full rounded-xl border border-warmgray-300 bg-white px-4 py-3 text-base text-charcoal-700 placeholder:text-charcoal-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition-colors;
+    /* font-size 16px+ avoids iOS auto-zoom on focus */
+    @apply w-full rounded-lg border-2 border-night-900 bg-cream-50
+           px-4 py-3 text-base font-medium text-night-800
+           placeholder:text-charcoal-300
+           focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900
+           transition-colors;
     min-height: 48px;
+    box-shadow: 2px 2px 0 0 rgba(4, 5, 14, 0.85);
+  }
+  .input:focus {
+    box-shadow: 3px 3px 0 0 #fa5a2e;
   }
 
   .label {
-    @apply block text-xs font-semibold uppercase tracking-widest text-charcoal-400 mb-1.5;
+    @apply block text-[11px] font-extrabold uppercase tracking-crowd text-night-700 mb-1.5;
+  }
+
+  /* Eyebrow — small uppercase tracked label for section markers */
+  .eyebrow {
+    @apply inline-block text-[11px] font-extrabold uppercase tracking-crowd text-sauce-500;
   }
 
   /* ── Cards ────────────────────────────────────────────────────── */
   .card {
-    @apply bg-white rounded-3xl shadow-card overflow-hidden;
+    @apply bg-cream-50 rounded-2xl shadow-card border-2 border-night-900 overflow-hidden;
+  }
+
+  /* Subtle card variant — for nested or grouped content */
+  .card-soft {
+    @apply bg-cream-50 rounded-2xl shadow-soft border border-cream-200 overflow-hidden;
+  }
+
+  /* Dark "after dark" card — for moody surfaces */
+  .card-night {
+    @apply bg-night-800 text-cream-100 rounded-2xl shadow-card border-2 border-night-900 overflow-hidden;
+  }
+
+  /* ── Poster headline ──────────────────────────────────────────── */
+  /* Oversized athletic display type for hero-style sections */
+  .h-poster {
+    @apply font-display uppercase tracking-tightest leading-[0.85] text-night-900;
+    font-size: clamp(2.5rem, 8vw, 5.5rem);
+  }
+  .h-poster-sm {
+    @apply font-display uppercase tracking-tightest leading-[0.9] text-night-900;
+    font-size: clamp(1.75rem, 5vw, 3rem);
+  }
+
+  /* Handwritten marker accent — for personality callouts */
+  .h-hand {
+    @apply font-hand text-sauce-500;
   }
 
   /* ── Rating pill ──────────────────────────────────────────────── */
   .rating-pill {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1
+           text-xs font-bold uppercase tracking-crowd;
   }
-
   .rating-wing {
-    @apply rating-pill bg-amber-100 text-amber-700;
+    @apply rating-pill bg-sauce-100 text-sauce-700 border border-sauce-300;
+  }
+  .rating-gold {
+    @apply rating-pill bg-gold-100 text-gold-700 border border-gold-300;
+  }
+  .rating-cool {
+    @apply rating-pill bg-neon-100 text-neon-700 border border-neon-300;
+  }
+
+  /* ── Sticker — slightly rotated callout box ───────────────────── */
+  .sticker {
+    @apply inline-flex items-center gap-1.5 rounded-md
+           bg-cream-50 text-night-900 border-2 border-night-900
+           px-3 py-1.5 text-xs font-extrabold uppercase tracking-crowd
+           shadow-sticker-sm;
+    transform: rotate(-2deg);
+  }
+  .sticker-sauce { @apply sticker bg-sauce-400 text-cream-50; }
+  .sticker-gold  { @apply sticker bg-gold-300 text-night-900; }
+  .sticker-night { @apply sticker bg-night-800 text-cream-50; }
+
+  /* ── Tape — decorative duct-tape strip ───────────────────────── */
+  .tape {
+    @apply absolute inline-block bg-gold-300/85 px-2 py-0.5
+           text-[10px] font-extrabold uppercase tracking-crowd text-night-900;
+    transform: rotate(-4deg);
+    box-shadow: 1px 1px 0 0 rgba(4, 5, 14, 0.4);
+  }
+
+  /* ── Caution stripe band ──────────────────────────────────────── */
+  .stripe-band {
+    background-image: repeating-linear-gradient(45deg,
+      #fa5a2e 0 14px,
+      #04050e 14px 28px);
+  }
+
+  /* ── Marquee ──────────────────────────────────────────────────── */
+  .marquee {
+    @apply overflow-hidden whitespace-nowrap relative;
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-track {
+    @apply inline-flex items-center gap-8 animate-marquee will-change-transform;
   }
 }
 
-/* ── Safe area utilities ───────────────────────────────────────────── */
-/* Use these classes on elements that need to avoid the notch/home indicator */
-.pt-safe  { padding-top: env(safe-area-inset-top); }
-.pb-safe  { padding-bottom: env(safe-area-inset-bottom); }
-.pl-safe  { padding-left: env(safe-area-inset-left); }
-.pr-safe  { padding-right: env(safe-area-inset-right); }
+@layer utilities {
 
-/* Combined with spacing — header and FAB use these */
-.pt-safe-3  { padding-top:    calc(0.75rem + env(safe-area-inset-top)); }
-.pt-safe-4  { padding-top:    calc(1rem    + env(safe-area-inset-top)); }
-.pb-safe-6  { padding-bottom: calc(1.5rem  + env(safe-area-inset-bottom)); }
-.pb-safe-8  { padding-bottom: calc(2rem    + env(safe-area-inset-bottom)); }
-.mb-safe-6  { margin-bottom:  calc(1.5rem  + env(safe-area-inset-bottom)); }
+  /* ── Background textures ──────────────────────────────────────── */
+  .bg-paper {
+    background-color: #fdfaf2;
+    background-image: url('/textures/grain.svg');
+    background-size: 220px 220px;
+  }
+  .bg-paper-dark {
+    background-color: #0d122a;
+    background-image: url('/textures/grain.svg');
+    background-size: 220px 220px;
+    background-blend-mode: overlay;
+  }
+  .bg-halftone-dark {
+    background-color: #0d122a;
+    background-image: url('/textures/halftone.svg');
+    background-size: 14px 14px;
+  }
+  .bg-splatter {
+    background-image: url('/textures/splatter.svg');
+    background-size: 360px 240px;
+    background-repeat: no-repeat;
+  }
 
-/* FAB safe bottom — used for the floating action button */
-.bottom-safe-6 {
-  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  /* Subtle grain overlay you can stack on any container */
+  .grain-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url('/textures/grain.svg');
+    background-size: 220px 220px;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    opacity: 0.35;
+  }
+
+  /* Sticker rotations */
+  .rotate-tape   { transform: rotate(-2deg); }
+  .rotate-tape-r { transform: rotate(2.5deg); }
+
+  /* ── Safe area utilities (kept from prior) ───────────────────── */
+  .pt-safe  { padding-top: env(safe-area-inset-top); }
+  .pb-safe  { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe  { padding-left: env(safe-area-inset-left); }
+  .pr-safe  { padding-right: env(safe-area-inset-right); }
+  .pt-safe-3 { padding-top:    calc(0.75rem + env(safe-area-inset-top)); }
+  .pt-safe-4 { padding-top:    calc(1rem    + env(safe-area-inset-top)); }
+  .pb-safe-6 { padding-bottom: calc(1.5rem  + env(safe-area-inset-bottom)); }
+  .pb-safe-8 { padding-bottom: calc(2rem    + env(safe-area-inset-bottom)); }
+  .mb-safe-6 { margin-bottom:  calc(1.5rem  + env(safe-area-inset-bottom)); }
+  .bottom-safe-6 { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
 }
 
-/* ── Leaflet overrides ─────────────────────────────────────────────── */
+/* ── Leaflet overrides — retuned to WingKingTony palette ──────────── */
 .leaflet-container {
-  background: #fdfaf7;
+  background: #fdfaf2;
   font-family: 'Inter', system-ui, sans-serif;
-  /* Stacking context — contains Leaflet's z-200 to z-700 internally */
   position: relative;
   z-index: 0;
 }
 
 .leaflet-control-zoom {
-  border: none !important;
-  box-shadow: 0 4px 24px 0 rgba(154, 122, 92, 0.10) !important;
+  border: 2px solid #04050e !important;
+  border-radius: 12px !important;
+  box-shadow: 4px 4px 0 0 rgba(4, 5, 14, 0.85) !important;
+  overflow: hidden;
 }
 
 .leaflet-control-zoom a {
   border: none !important;
-  color: #5c4029 !important;
-  background: white !important;
+  border-bottom: 1px solid #04050e !important;
+  color: #04050e !important;
+  background: #fdfaf2 !important;
   font-size: 18px !important;
-  /* 44px tap targets for touch usability */
+  font-weight: 800 !important;
   line-height: 44px !important;
   width: 44px !important;
   height: 44px !important;
@@ -130,14 +296,14 @@
   align-items: center !important;
   justify-content: center !important;
 }
-
-.leaflet-control-zoom a:hover {
-  background: #faf5ee !important;
-}
+.leaflet-control-zoom a:last-child { border-bottom: none !important; }
+.leaflet-control-zoom a:hover { background: #fa5a2e !important; color: #fdfaf2 !important; }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 20px !important;
-  box-shadow: 0 8px 40px 0 rgba(154, 122, 92, 0.16) !important;
+  border-radius: 16px !important;
+  border: 2px solid #04050e;
+  background: #fdfaf2 !important;
+  box-shadow: 6px 6px 0 0 rgba(4, 5, 14, 0.85) !important;
   padding: 0 !important;
   overflow: hidden;
 }
@@ -147,18 +313,15 @@
   min-width: 240px;
 }
 
-.leaflet-popup-tip-container {
-  display: none;
-}
+.leaflet-popup-tip-container { display: none; }
 
 .leaflet-popup-close-button {
-  top: 10px !important;
-  right: 10px !important;
-  color: #9a7a5c !important;
+  top: 8px !important;
+  right: 8px !important;
+  color: #04050e !important;
   font-size: 18px !important;
-  font-weight: 400 !important;
+  font-weight: 700 !important;
   z-index: 10;
-  /* Ensure close button is a good tap target */
   width: 32px !important;
   height: 32px !important;
   display: flex !important;
@@ -166,41 +329,37 @@
   justify-content: center !important;
 }
 
-/* ── Gallery / Social animations ──────────────────────────────────── */
+.leaflet-tile-pane { filter: saturate(0.85) contrast(0.97); }
+
+/* ── Gallery / social animations ──────────────────────────────────── */
 @keyframes heart-pop {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.35); }
   70%  { transform: scale(0.9); }
   100% { transform: scale(1); }
 }
-
 .animate-heart-pop {
   animation: heart-pop 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
-/* Hide scrollbar in photo strip without losing scroll */
+/* Hide scrollbar in photo strips */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* Momentum scrolling for all overflow-y-auto containers */
+/* Momentum scrolling for overflow-y containers */
 .overflow-y-auto,
 .overflow-y-scroll {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Scrollbar ──────────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* ── Custom scrollbar tuned to the new palette ────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #d4bfab;
+  background: #1a2240;
   border-radius: 9999px;
 }
+::-webkit-scrollbar-thumb:hover { background: #fa5a2e; }

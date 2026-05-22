@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#f59e0b"/>
-  <path d="M11 24
-           C 8 22 7 18 9 15
-           C 11 12 14 11 17 12
-           C 20 13 22 11 22 8
-           C 22 6 25 5 27 7
-           C 29 9 28 12 25 13
-           C 22 14 21 16 22 19
-           C 23 22 21 25 17 25
-           C 14 25 13 25 11 24 Z"
-        fill="white"/>
-  <ellipse cx="17" cy="18" rx="7" ry="5" fill="#dc2626" opacity="0.45"/>
-  <ellipse cx="9" cy="23" rx="2" ry="1.5" fill="#fef3c7"/>
+  <!-- sticker plate -->
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#fa5a2e" stroke="#04050e" stroke-width="2"/>
+  <!-- crown -->
+  <path d="M9 11 L11.5 7 L14 10.5 L16 6.5 L18 10.5 L20.5 7 L23 11 L22 14 L10 14 Z"
+        fill="#f1c12d" stroke="#04050e" stroke-width="1" stroke-linejoin="round"/>
+  <!-- crown jewels -->
+  <circle cx="16" cy="9" r="0.9" fill="#d61f0d"/>
+  <!-- wing / drumstick silhouette -->
+  <path d="M10 16
+           C 8 18, 9 22, 13 23
+           C 16 24, 19 23, 20 21
+           C 21 19, 23 18, 22 16
+           L 10 16 Z"
+        fill="#fdfaf2" stroke="#04050e" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- sauce drip -->
+  <path d="M13 23 L13 25.5 L14 26 L14.5 24" fill="#d61f0d"/>
+  <path d="M18 23 L18.5 25 L19 23.5" fill="#d61f0d"/>
 </svg>

@@ -5,6 +5,7 @@ import { useReviews } from '../hooks/useReviews'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import Layout from '../components/Layout'
+import LiveScene from '../components/LiveScene'
 import ListView from '../components/ListView'
 import MapView from '../components/MapView'
 import GalleryView from '../components/gallery/GalleryView'
@@ -83,8 +84,8 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
         const el = document.getElementById(`review-${reviewId}`)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('ring-2', 'ring-amber-300', 'ring-offset-2')
-          setTimeout(() => el.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-2'), 3000)
+          el.classList.add('ring-4', 'ring-sauce-400', 'ring-offset-2', 'ring-offset-cream-50')
+          setTimeout(() => el.classList.remove('ring-4', 'ring-sauce-400', 'ring-offset-2', 'ring-offset-cream-50'), 3000)
         }
       })
       window.history.replaceState({}, '', window.location.pathname)
@@ -138,6 +139,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
           setShowAddModal(true)
         }}
       readOnly={readOnly}
+      liveScene={<LiveScene spots={reviews.spots} loading={reviews.loading} />}
     >
       {view === 'list' && (
         <ListView
@@ -190,8 +192,8 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
 
       {/* Deep link photo modal — opened from notification clicks / URL params */}
       {deepLinkPhoto.loading && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+        <div className="fixed inset-0 z-50 bg-night-900/70 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full border-4 border-night-700 border-t-sauce-400 animate-spin" />
         </div>
       )}
       {deepLinkPhoto.photo && (

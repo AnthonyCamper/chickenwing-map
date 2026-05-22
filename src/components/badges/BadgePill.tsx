@@ -13,8 +13,8 @@ function isEarned(b: BadgeWithEarned | Badge): boolean {
 export default function BadgePill({ badge, onClick, size = 'md' }: Props) {
   const earned = isEarned(badge)
   const interactive = !!onClick
-  const padding = size === 'sm' ? 'px-2 py-2' : 'px-3 py-3'
-  const iconSize = size === 'sm' ? 'text-xl' : 'text-2xl'
+  const pad  = size === 'sm' ? 'px-2 py-2' : 'px-3 py-3'
+  const icon = size === 'sm' ? 'text-xl' : 'text-2xl'
 
   return (
     <button
@@ -22,16 +22,17 @@ export default function BadgePill({ badge, onClick, size = 'md' }: Props) {
       onClick={onClick}
       disabled={!interactive}
       title={badge.name}
-      className={`${padding} rounded-2xl flex flex-col items-center justify-center text-center border transition-all ${
-        earned
-          ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
-          : 'bg-warmgray-50 border-warmgray-200 text-charcoal-400 opacity-60 grayscale'
-      } ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
+      className={`${pad} rounded-xl flex flex-col items-center justify-center text-center
+        border-2 transition-all duration-150 select-none
+        ${earned
+          ? 'bg-night-800 border-night-900 text-cream-50 shadow-sticker-sm hover:shadow-sticker hover:bg-night-700 cursor-pointer'
+          : 'bg-cream-100 border-night-900/20 text-charcoal-400 opacity-50 grayscale cursor-default'}
+        ${interactive && earned ? 'active:translate-x-[1px] active:translate-y-[1px] active:shadow-none' : ''}`}
     >
-      <span className={`${iconSize} mb-0.5 ${earned ? '' : 'opacity-50'}`}>
+      <span className={`${icon} mb-1 leading-none`}>
         {earned ? badge.icon : '🔒'}
       </span>
-      <span className="text-[10px] font-semibold leading-tight">
+      <span className="text-[9px] font-extrabold uppercase tracking-crowd leading-tight">
         {badge.name}
       </span>
     </button>

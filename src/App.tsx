@@ -11,17 +11,18 @@ import EventsIndex from './pages/EventsIndex'
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
-    <div className="min-h-dvh bg-warmgray-50 flex flex-col items-center justify-center px-6 py-12">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-100 opacity-40 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-warmgray-300 opacity-50 blur-3xl" />
-      </div>
+    <div className="relative min-h-dvh bg-paper flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+      {/* Decorative splatter */}
+      <div className="pointer-events-none fixed -top-12 -right-8 w-[420px] h-[280px] bg-splatter opacity-25" />
+      <div className="pointer-events-none fixed -bottom-12 -left-12 w-[420px] h-[280px] bg-splatter opacity-20 rotate-180" />
+
       <div className="relative w-full max-w-sm text-center animate-fade-in">
-        <div className="w-16 h-16 rounded-3xl bg-warmgray-200 flex items-center justify-center shadow-soft mb-5 text-3xl mx-auto">
-          🍗
+        <div className="inline-flex items-center justify-center mb-6">
+          <img src="/favicon.svg" alt="" className="w-20 h-20 rounded-2xl border-2 border-night-900 shadow-sticker" />
         </div>
-        <h2 className="font-display text-2xl text-charcoal-800 mb-3">{title}</h2>
-        <p className="text-sm text-charcoal-400 leading-relaxed mb-8">{message}</p>
+        <p className="eyebrow mb-3">House rules</p>
+        <h2 className="font-display uppercase text-4xl text-night-900 mb-3 tracking-tightest leading-none">{title}</h2>
+        <p className="text-sm text-charcoal-500 leading-relaxed mb-8">{message}</p>
         <button onClick={onSignOut} className="btn-secondary">Sign out</button>
       </div>
     </div>
@@ -33,10 +34,11 @@ export default function App() {
 
   if (auth.status === 'loading') {
     return (
-      <div className="min-h-dvh bg-warmgray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
-          <p className="text-sm text-charcoal-400 font-medium">Loading…</p>
+      <div className="relative min-h-dvh bg-paper-dark flex items-center justify-center overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-20" />
+        <div className="relative flex flex-col items-center gap-5">
+          <div className="w-14 h-14 rounded-full border-4 border-night-700 border-t-sauce-400 animate-spin" />
+          <p className="font-display uppercase tracking-crowd text-cream-100 text-sm">Firing up the fryer…</p>
         </div>
       </div>
     )
@@ -53,16 +55,32 @@ export default function App() {
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#fff',
-            color: '#3d2b1a',
-            borderRadius: '16px',
-            boxShadow: '0 8px 40px 0 rgba(154, 122, 92, 0.16)',
-            fontSize: '14px',
-            fontWeight: '500',
+            background: '#0d122a',
+            color: '#fdfaf2',
+            border: '2px solid #04050e',
+            borderRadius: '12px',
+            boxShadow: '4px 4px 0 0 rgba(4, 5, 14, 0.85)',
+            fontSize: '13px',
+            fontWeight: '600',
+            letterSpacing: '0.02em',
             padding: '12px 16px',
           },
           success: {
-            iconTheme: { primary: '#f43f5e', secondary: '#fff' },
+            iconTheme: { primary: '#fa5a2e', secondary: '#fdfaf2' },
+          },
+          error: {
+            iconTheme: { primary: '#d61f0d', secondary: '#fdfaf2' },
+            style: {
+              background: '#04050e',
+              color: '#ffd6d0',
+              border: '2px solid #d61f0d',
+              borderRadius: '12px',
+              boxShadow: '4px 4px 0 0 #d61f0d',
+              fontSize: '13px',
+              fontWeight: '600',
+              letterSpacing: '0.02em',
+              padding: '12px 16px',
+            },
           },
         }}
       />

@@ -1,11 +1,11 @@
 {
-  "name": "WingMap",
-  "short_name": "WingMap",
-  "description": "Discover and rate the best chicken wings.",
+  "name": "WingKingTony",
+  "short_name": "WingKingTony",
+  "description": "The digital home of wing culture — crawls, rankings, sauce debates, and city scenes.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fffbeb",
-  "theme_color": "#f59e0b",
+  "background_color": "#04050e",
+  "theme_color": "#0d122a",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -34,5 +34,5 @@
     }
   ],
   "screenshots": [],
-  "categories": ["food", "lifestyle"]
+  "categories": ["food", "lifestyle", "social"]
 }

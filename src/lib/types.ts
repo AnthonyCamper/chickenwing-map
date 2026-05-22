@@ -341,6 +341,30 @@ export type BadgeCriteriaType =
   | 'event_rsvp'
   | 'event_checkin_count'
   | 'event_complete'
+  | 'unique_spots'
+  | 'flavor_variety'
+  | 'lemon_pepper'
+  | 'ranch_fan'
+  | 'heat_seeker'
+  | 'comment_count'
+  | 'avg_rating_high'
+  | 'avg_rating_low'
+  | 'perfect_ten'
+  | 'takeout_count'
+  | 'loyal_regular'
+  | 'jumbo_fan'
+
+export interface LeaderboardRow {
+  user_id: string
+  display_name: string | null
+  avatar_url: string | null
+  review_count: number
+  unique_spots: number
+  avg_rating: number | null
+  comment_count: number
+  badge_count: number
+  total_likes_received: number
+}
 
 export interface Badge {
   id: string
