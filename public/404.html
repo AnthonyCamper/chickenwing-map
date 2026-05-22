@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WingKingTony</title>
+    <script>
+      // GitHub Pages SPA redirect — capture the requested path/query/hash
+      // and round-trip it through index.html via a single query param.
+      // The matching snippet in index.html restores the URL with replaceState
+      // before React Router boots, so deep links work without server config.
+      (function () {
+        var l = window.location;
+        var path = l.pathname.slice(1);
+        var search = l.search ? '?' + l.search.slice(1).replace(/&/g, '~and~') : '';
+        l.replace(
+          l.protocol + '//' + l.host + '/?p=/' + path + search + l.hash
+        );
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
