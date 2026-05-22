@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import type { Comment, AddCommentOptions } from '../../lib/types'
 import type { ReactionUser } from '../../lib/reactionDetails'
@@ -337,9 +337,37 @@ interface CommentItemProps {
 }
 
 function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, onToggleLike, onToggleReaction, onReply, isReply, getLikers, getReactors }: CommentItemProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const canDelete = comment.user_id === currentUserId || isAdmin
   const isTemp = comment.id.startsWith('temp-')
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleClickAway = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickAway)
+    document.addEventListener('touchstart', handleClickAway)
+    return () => {
+      document.removeEventListener('mousedown', handleClickAway)
+      document.removeEventListener('touchstart', handleClickAway)
+    }
+  }, [menuOpen])
+
+  const handleDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await onDelete(comment.id)
+    } finally {
+      setMenuOpen(false)
+      setDeleting(false)
+    }
+  }
 
   const fetchLikers = useCallback(() => getLikers(comment.id), [comment.id, getLikers])
   const fetchReactors = useCallback(() => getReactors(comment.id), [comment.id, getReactors])
@@ -368,19 +396,40 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
           <span className="text-xs font-semibold text-charcoal-700">{name}</span>
           <span className="text-xs text-charcoal-300">{timeAgo}</span>
           {canDelete && !isTemp && (
-            confirmDelete ? (
-              <span className="flex items-center gap-1">
-                <button onClick={() => onDelete(comment.id)} className="text-xs text-red-500 font-medium">Delete</button>
-                <button onClick={() => setConfirmDelete(false)} className="text-xs text-charcoal-300">Cancel</button>
-              </span>
-            ) : (
+            <div ref={menuRef} className="relative inline-flex">
               <button
-                onClick={() => setConfirmDelete(true)}
-                className="text-xs text-charcoal-200 hover:text-red-400 transition-colors"
+                onClick={() => setMenuOpen(v => !v)}
+                aria-label="Comment options"
+                className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors leading-none text-base ${
+                  menuOpen
+                    ? 'text-charcoal-600 bg-warmgray-100'
+                    : 'text-charcoal-200 hover:text-charcoal-500 hover:bg-warmgray-100'
+                }`}
               >
-                ×
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="5" cy="12" r="1.6" />
+                  <circle cx="12" cy="12" r="1.6" />
+                  <circle cx="19" cy="12" r="1.6" />
+                </svg>
               </button>
-            )
+              {menuOpen && (
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-30 animate-fade-in">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 bg-white rounded-full shadow-lg border border-warmgray-200 text-xs font-semibold text-red-500 hover:bg-red-50 hover:border-red-200 transition-all whitespace-nowrap active:scale-95 disabled:opacity-60"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                    {deleting ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
