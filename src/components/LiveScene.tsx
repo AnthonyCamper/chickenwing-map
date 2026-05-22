@@ -495,35 +495,41 @@ OUTPUT: one headline per line, no numbers, no bullets, no quotes around full hea
 
 const PROMPT_PUBLIC = `You write satirical headlines for WingMap, a Washington DC chicken wing review app live ticker. Generate exactly 50 headlines.
 
-MATCH THIS STYLE EXACTLY — study these examples before writing:
+SEARCH TODAY'S NEWS FIRST. Use Google Search to find what is actually happening right now — politics, international news, the economy, sports scores, tech news, DC local news, celebrity gossip, anything in the headlines today. Then reframe each real story as a DC wing culture headline. The more specific and real the reference, the funnier it is.
+
+EXAMPLES of how to reframe real news:
+- President traveling abroad → "President Returns From [Country]; Staff Reports His Sole Focus Was Comparing Wing Quality To D.C."
+- Government layoffs/cuts → "Federal Efficiency Initiative Cuts Wing Spot Inspection Budget; City Somehow Has More Wings Than Ever"
+- Fed raises rates → "Federal Reserve Raises Rates; Wing Spots Completely Unaffected, Continue Thriving"
+- Sports team wins/loses → "Commanders Win; Entire City At Wing Spot By 11pm; No Explanation Needed"
+- Tech company news → "Tech Giant Announces Layoffs; Affected Workers Immediately Photographed At H Street Wing Spot"
+- International summit → "World Leaders Meet In Geneva; D.C. Delegation Focused Entirely On Whether Hotel Has Decent Wings"
+- Supreme Court ruling → "Supreme Court Asked To Rule On Whether Boneless Wings Are Wings; Case Accepted"
+
+MATCH THIS STYLE EXACTLY — study these examples:
 D.C. Council Introduces Bill To Classify Lemon Pepper As Essential Infrastructure
 Congress Unable To Agree On Wing Legislation; Bipartisan Support For Eating More
 FBI Opens Investigation Into Who Touched The Last Wing Without Asking
-Supreme Court Asked To Rule On Whether Boneless Wings Are Wings; Case Accepted
 Federal Reserve Raises Rates; Wing Spots Completely Unaffected, Continue Thriving
 White House Has No Comment On Wing Rankings; Seen As Tacit Endorsement Of Top Spot
-D.C. Mayor Photographed At Wing Spot On Campaign Trail; This Is Why She Wins
 Senate Hearing On Wing Sauce Safety Devolves Into Everyone Just Ordering Wings
 CDC Issues No Warning About Wing Overconsumption; Community Takes This As Endorsement
-D.C. Zoning Board Approves New Wing Spot; Citizens Weep With Gratitude
 Nation Divided After Photo Of Boneless Wings Labeled As Wings
 Local Politician Claims Wings Are "Fine"; Approval Rating Drops 12 Points
-Economists Baffled By Wing Spot Pricing; Customers Pay Anyway
-National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance
 
-WHAT MAKES THESE WORK — follow all three rules:
-1. INSTITUTIONAL LANGUAGE applied to wings. FBI investigations. Congressional hearings. CDC advisories. Federal Reserve statements. Supreme Court dockets. The joke is the mismatch between the institution's gravity and the subject.
-2. THE IRONIC PIVOT. The second clause lands the joke: "; Bipartisan Support For Eating More" / "; Community Takes This As Endorsement" / "; Customers Pay Anyway" / "; This Is Why She Wins."
-3. REAL CURRENT EVENTS filtered through wings. Take actual news — AI replacing jobs, tech layoffs, housing costs, DEI rollbacks, government efficiency initiatives, social media drama, crypto — and reframe it as a wing culture story. Make it feel ripped from today's headlines but about wings.
+RULES:
+1. USE TODAY'S ACTUAL NEWS. Real names, real events, real places — filtered through wings. If the President did something today, make a headline about it. If a sports team won or lost, reference it. If a company made news, use it.
+2. INSTITUTIONAL LANGUAGE. FBI investigations. Congressional hearings. CDC advisories. Supreme Court dockets. The gravity vs. the subject is the joke.
+3. THE IRONIC PIVOT. "; Bipartisan Support For Eating More" / "; Community Takes This As Endorsement" / "; This Is Why She Wins."
 
-COVER THESE (approximately):
-- DC Government / Political (15 headlines): D.C. Council, Congress, the Mayor, DDOT, zoning boards, Metro/WMATA, local elections — all about wings
-- Federal / National institutions (10 headlines): FBI, CIA, Supreme Court, CDC, Federal Reserve, Pentagon, White House, Smithsonian
-- Current events reframed as wing news (15 headlines): AI taking over wing reviews, tech layoffs sending workers to wing spots, housing costs making wing spots the last affordable thing in DC, government efficiency cuts affecting wing spot inspections, social media algorithms burying the best spots
-- Nation / Breaking (10 headlines): national polls, cross-state comparisons, cultural divides, international wing diplomacy
-- Sports and culture (5 headlines): Commanders game day, Nationals post-game wings, go-go music and wing spots, DC United tailgate
+COVER THESE:
+- Today's real news reframed as wing stories (20): use actual current events with real names and specifics
+- DC Government / Political (10): D.C. Council, Congress, Mayor, WMATA — about wings
+- Federal institutions (10): FBI, Supreme Court, CDC, Pentagon, White House
+- Nation / Breaking (5): national polls, cultural divides, international diplomacy — all wings
+- Sports today (5): use actual scores/results from today if available
 
-DC GEOGRAPHY: Capitol Hill, Foggy Bottom, Georgetown, Anacostia, NoMa, Brookland, Petworth, Silver Spring, Pentagon City
+DC GEOGRAPHY: Capitol Hill, Foggy Bottom, H Street, Shaw, U Street, Adams Morgan, Anacostia, NoMa, Pentagon City
 
 OUTPUT: one headline per line, no numbers, no bullets, no quotes around full headline, 50–115 characters, title case, nothing else`
 
@@ -548,20 +554,23 @@ function classifyLine(text: string): { eyebrow: string; type: ChipType } {
   return { eyebrow: 'Developing', type: 'onion' }
 }
 
-async function callGemini(prompt: string): Promise<SceneItem[]> {
+async function callGemini(prompt: string, useSearch = false): Promise<SceneItem[]> {
   const controller = new AbortController()
-  const tid = setTimeout(() => controller.abort(), 10000)
+  const tid = setTimeout(() => controller.abort(), 15000)
   try {
+    const body: Record<string, unknown> = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 1.2, maxOutputTokens: 2048 },
+    }
+    if (useSearch) body.tools = [{ google_search: {} }]
+
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 1.2, maxOutputTokens: 2048 },
-        }),
+        body: JSON.stringify(body),
       }
     )
     clearTimeout(tid)
@@ -586,17 +595,17 @@ async function fetchAiHeadlines(): Promise<SceneItem[]> {
   if (!GEMINI_KEY) return []
 
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `ai_headlines_v2_${today}`
+  const cacheKey = `ai_headlines_v3_${today}`
 
   try {
     const cached = localStorage.getItem(cacheKey)
     if (cached) return JSON.parse(cached) as SceneItem[]
   } catch {}
 
-  // Two parallel calls — personal/community stories + public/political/current events
+  // Two parallel calls — personal/community stories + public/political/current events (with live search)
   const [personal, political] = await Promise.all([
     callGemini(PROMPT_PERSONAL),
-    callGemini(PROMPT_PUBLIC),
+    callGemini(PROMPT_PUBLIC, true),  // Google Search grounding for real current events
   ])
 
   const items = [...personal, ...political]
