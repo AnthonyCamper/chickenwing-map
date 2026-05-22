@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Sticker plate — iOS will mask the corners but draw stroke under -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="#fa5a2e" stroke="#04050e" stroke-width="32"/>
+
+  <!-- Halftone dot background -->
+  <g fill="#04050e" opacity="0.12">
+    <circle cx="80"  cy="80"  r="6"/>
+    <circle cx="160" cy="120" r="4"/>
+    <circle cx="420" cy="100" r="6"/>
+    <circle cx="380" cy="180" r="4"/>
+    <circle cx="100" cy="420" r="4"/>
+    <circle cx="440" cy="400" r="6"/>
+  </g>
+
+  <!-- Crown -->
+  <path d="M140 196 L190 116 L240 184 L280 100 L320 184 L370 116 L420 196 L400 240 L160 240 Z"
+        fill="#f1c12d" stroke="#04050e" stroke-width="16" stroke-linejoin="round"/>
+  <!-- Crown jewels -->
+  <circle cx="280" cy="148" r="14" fill="#d61f0d" stroke="#04050e" stroke-width="6"/>
+  <circle cx="200" cy="172" r="8"  fill="#04050e"/>
+  <circle cx="360" cy="172" r="8"  fill="#04050e"/>
+
+  <!-- Wing -->
+  <path d="M160 280
+           C 120 320, 140 400, 220 416
+           C 280 432, 340 416, 360 380
+           C 380 344, 420 320, 400 280
+           L 160 280 Z"
+        fill="#fdfaf2" stroke="#04050e" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M200 320 C 240 332, 300 328, 340 312"
+        fill="none" stroke="#04050e" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Sauce drips -->
+  <path d="M220 416 L220 460 L232 472 L240 432 Z"
+        fill="#d61f0d" stroke="#04050e" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M320 416 L328 456 L340 432 Z"
+        fill="#d61f0d" stroke="#04050e" stroke-width="6" stroke-linejoin="round"/>
+</svg>

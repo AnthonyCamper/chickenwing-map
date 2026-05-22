@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- ── Viewport — viewport-fit=cover for notch/Dynamic Island support -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- ── Favicon & icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── Theme & app colours -->
+    <meta name="theme-color" content="#0d122a" />
+    <meta name="msapplication-TileColor" content="#fa5a2e" />
+
+    <!-- ── iOS home-screen web app -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WingKingTony" />
+
+    <!-- ── SEO & Open Graph -->
+    <meta name="description" content="WingKingTony — the digital home of wing culture. Crawls, rankings, sauce debates, and city scenes." />
+    <meta property="og:title" content="WingKingTony" />
+    <meta property="og:description" content="The digital home of wing culture. Crawls, rankings, sauce debates, and city scenes." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- ── Fonts: Anton (athletic display) + Permanent Marker (hand) + Inter (body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700;800&family=Permanent+Marker&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ── Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+
+    <title>WingKingTony — the digital home of wing culture</title>
+
+    <!-- GitHub Pages SPA deeplink fix: restore path from ?p= query param -->
+    <script>
+      (function() {
+        var p = new URLSearchParams(window.location.search).get('p');
+        if (p) {
+          window.history.replaceState(null, null, decodeURIComponent(p));
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Dh7R6w0r.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/chunk-BEqpzyXh.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BYMkUkv7.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

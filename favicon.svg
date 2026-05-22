@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- sticker plate -->
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#fa5a2e" stroke="#04050e" stroke-width="2"/>
+  <!-- crown -->
+  <path d="M9 11 L11.5 7 L14 10.5 L16 6.5 L18 10.5 L20.5 7 L23 11 L22 14 L10 14 Z"
+        fill="#f1c12d" stroke="#04050e" stroke-width="1" stroke-linejoin="round"/>
+  <!-- crown jewels -->
+  <circle cx="16" cy="9" r="0.9" fill="#d61f0d"/>
+  <!-- wing / drumstick silhouette -->
+  <path d="M10 16
+           C 8 18, 9 22, 13 23
+           C 16 24, 19 23, 20 21
+           C 21 19, 23 18, 22 16
+           L 10 16 Z"
+        fill="#fdfaf2" stroke="#04050e" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- sauce drip -->
+  <path d="M13 23 L13 25.5 L14 26 L14.5 24" fill="#d61f0d"/>
+  <path d="M18 23 L18.5 25 L19 23.5" fill="#d61f0d"/>
+</svg>
