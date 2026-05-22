@@ -586,7 +586,7 @@ async function fetchAiHeadlines(): Promise<SceneItem[]> {
   if (!GEMINI_KEY) return []
 
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `ai_headlines_${today}`
+  const cacheKey = `ai_headlines_v2_${today}`
 
   try {
     const cached = localStorage.getItem(cacheKey)
