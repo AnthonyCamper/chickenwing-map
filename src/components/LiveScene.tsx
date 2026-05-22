@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpotWithReviews } from '../lib/types'
 
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
+
 interface Props {
   spots: SpotWithReviews[]
   loading?: boolean
@@ -39,6 +41,11 @@ export default function LiveScene({ spots, loading }: Props) {
     const dataItems = buildDataItems(spots)
     const timeItems = buildTimeItems()
 
+    // Pick 30 ONION headlines that rotate daily so the feed changes each day
+    const today = new Date()
+    const dateSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
+    const dailyOnion = seededShuffle(ONION, dateSeed).slice(0, 30)
+
     const fetchSub = (sub: string): Promise<SceneItem[]> =>
       fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=10&raw_json=1`, {
         headers: { Accept: 'application/json' },
@@ -68,8 +75,11 @@ export default function LiveScene({ spots, loading }: Props) {
       setTimeout(() => res([]), 2500)
     )
 
-    Promise.race([redditPromise, timeout]).then(redditItems => {
-      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...ONION, ...redditItems])
+    Promise.all([
+      Promise.race([redditPromise, timeout]),
+      fetchAiHeadlines(),
+    ]).then(([redditItems, aiItems]) => {
+      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...dailyOnion, ...redditItems, ...aiItems])
       setPool(all)
       setDuration(Math.max(32, all.length * 3.2))
     })
@@ -444,7 +454,91 @@ const EVERGREEN: SceneItem[] = [
   { emoji: '🏅', eyebrow: 'Recognition',   type: 'scene',    body: "Shoutout to whoever found the spot nobody's talking about yet." },
 ]
 
+// ─── AI headline generation ───────────────────────────────────────────────────
+
+async function fetchAiHeadlines(): Promise<SceneItem[]> {
+  if (!GEMINI_KEY) return []
+
+  const today = new Date().toISOString().split('T')[0]
+  const cacheKey = `ai_headlines_${today}`
+
+  try {
+    const cached = localStorage.getItem(cacheKey)
+    if (cached) return JSON.parse(cached) as SceneItem[]
+  } catch {}
+
+  const prompt = `You are a deadpan satirical writer for a Washington DC chicken wing review app called WingMap. Generate exactly 25 short Onion-style satirical headlines about DC wing culture. Mix styles: "Area Man...", "Study Finds...", "Report:", "Local Woman...", "Nation...", "Scientists...", "D.C. Man...", crawl reports, sauce debates, rating disputes. Each headline: one sentence, under 115 characters, dry and specific. Output only the headlines, one per line, no numbers, no quotes.`
+
+  try {
+    const controller = new AbortController()
+    const tid = setTimeout(() => controller.abort(), 6000)
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.1, maxOutputTokens: 1024 },
+        }),
+      }
+    )
+    clearTimeout(tid)
+
+    if (!res.ok) return []
+
+    const data = await res.json()
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+
+    const items: SceneItem[] = text
+      .split('\n')
+      .map((l: string) => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, '').trim())
+      .filter((l: string) => l.length > 20 && l.length < 130)
+      .slice(0, 25)
+      .map((headline: string) => {
+        const t = headline.toLowerCase()
+        let eyebrow = 'Developing'
+        let type: ChipType = 'onion'
+        if (t.startsWith('study') || t.includes('scientists') || t.includes('research'))  { eyebrow = 'Study';    type = 'fact' }
+        else if (t.startsWith('report') || t.includes('sources say'))                      { eyebrow = 'Report';   type = 'internet' }
+        else if (t.startsWith('nation') || t.includes('d.c.') || t.includes('congress'))  { eyebrow = 'Breaking'; type = 'breaking' }
+        else if (t.includes('crawl'))                                                       { eyebrow = 'Crawl Report'; type = 'scene' }
+        else if (t.includes('health') || t.includes('doctor') || t.includes('hospital'))  { eyebrow = 'Health';   type = 'alert' }
+        return { emoji: '📰', eyebrow, body: headline, type }
+      })
+
+    if (items.length > 0) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(items))
+        // Purge old cache entries
+        for (const k of Object.keys(localStorage)) {
+          if (k.startsWith('ai_headlines_') && k !== cacheKey) localStorage.removeItem(k)
+        }
+      } catch {}
+    }
+
+    return items
+  } catch {
+    return []
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Deterministic daily shuffle — same seed produces same order
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr]
+  let s = seed
+  for (let i = a.length - 1; i > 0; i--) {
+    s = Math.imul(s ^ (s >>> 15), s | 1)
+    s ^= s + Math.imul(s ^ (s >>> 7), s | 61)
+    const j = Math.abs(s) % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
