@@ -7,7 +7,7 @@ import { useEvent } from '../hooks/useEvent'
 import { useReviews } from '../hooks/useReviews'
 import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
-import BadgePill from '../components/badges/BadgePill'
+import BadgeGrid from '../components/badges/BadgeGrid'
 import { supabase } from '../lib/supabase'
 import type { EventStop, ReviewFormData, RsvpStatus } from '../lib/types'
 
@@ -446,6 +446,8 @@ export default function EventPage({ auth }: Props) {
               {evt.stops.map((stop, idx) => {
                 const isCheckedIn = checkedInStopIds.has(stop.id)
                 const isLoading = checkinSubmitting === stop.id
+                const myCheckin = evt.myCheckins.find(c => c.event_stop_id === stop.id)
+                const hasReview = !!myCheckin?.review_id
                 return (
                   <li key={stop.id} className={`card px-4 py-4 ${isCheckedIn ? 'bg-amber-50/50 border-amber-200' : ''}`}>
                     <div className="flex items-start gap-3">
@@ -498,7 +500,7 @@ export default function EventPage({ auth }: Props) {
                               }}
                               className="btn-secondary px-4 py-2 text-xs"
                             >
-                              ✏️ {isCheckedIn ? 'Add review' : 'Check in + review'}
+                              ✏️ {isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
                             </button>
                           </div>
                         )}
@@ -515,9 +517,7 @@ export default function EventPage({ auth }: Props) {
         {eventBadges.length > 0 && (
           <section>
             <h3 className="font-display text-lg text-charcoal-800 mb-3 px-1">Event Badges</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {eventBadges.map(b => <BadgePill key={b.id} badge={b} />)}
-            </div>
+            <BadgeGrid badges={eventBadges} />
           </section>
         )}
 

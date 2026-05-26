@@ -13,10 +13,14 @@ function howToEarn(b: BadgeWithEarned): string {
     case 'first_review':        return 'Post your first review.'
     case 'review_count':        return `Post ${cfg.count ?? '?'} reviews.`
     case 'wing_size_variety':   return 'Review wings of every size: small, medium, large, and jumbo.'
-    case 'event_rsvp':          return 'RSVP "I\'m in" to the event.'
-    case 'event_checkin_count': return cfg.count === 1 ? 'Check in to any stop on the event route.' : `Check in to ${cfg.count} stops on the event route.`
-    case 'event_complete':      return 'Check in to every stop on the event route.'
-    case 'unique_spots':        return `Review wings at ${cfg.count ?? '?'} different spots.`
+    case 'event_rsvp':              return 'RSVP "I\'m in" to the event.'
+    case 'event_rsvp_with_guests':  return 'RSVP "I\'m in" to the event and bring guests.'
+    case 'event_checkin_count':     return cfg.count === 1 ? 'Check in to any stop on the event route.' : `Check in to ${cfg.count} stops on the event route.`
+    case 'event_complete':          return 'Check in to every stop on the event route.'
+    case 'event_first_checkin':     return 'Be the first person to check in at any stop on the event route.'
+    case 'event_review_count':      return 'Leave at least one review during the event.'
+    case 'event_review_all':        return 'Leave a review at every stop you check into.'
+    case 'unique_spots':            return `Review wings at ${cfg.count ?? '?'} different spots.`
     case 'flavor_variety':      return `Try ${cfg.count ?? '?'} different wing flavors.`
     case 'lemon_pepper':        return 'Review a spot specifically for lemon pepper wings.'
     case 'ranch_fan':           return 'Review wings with ranch in the flavor — no shame.'
@@ -27,8 +31,17 @@ function howToEarn(b: BadgeWithEarned): string {
     case 'perfect_ten':         return 'Give a perfect 10/10 rating to a wing spot.'
     case 'takeout_count':       return `Review ${cfg.count ?? '?'} takeout orders.`
     case 'loyal_regular':       return `Review the same spot ${cfg.count ?? 3}+ times.`
-    case 'jumbo_fan':           return 'Review a spot for jumbo wings.'
-    default:                    return b.description ?? ''
+    case 'jumbo_fan':             return 'Review a spot for jumbo wings.'
+    case 'review_text_contains':  return cfg.word
+      ? `Mention "${cfg.word}" in a review.`
+      : `Use a specific phrase in a review.`
+    case 'review_text_long':      return `Write a review with at least ${cfg.min_length ?? 300} characters. Go deep.`
+    case 'review_text_short':     return `Write a review with ${cfg.max_length ?? 15} characters or fewer. Say it in style.`
+    case 'single_rating_low':     return `Give a rating of ${cfg.max_rating ?? 2}.0 or below on any review.`
+    case 'rating_floor':          return `Never give below a ${cfg.min_rating ?? 8}.0, with at least ${cfg.min_reviews ?? 5} reviews.`
+    case 'rating_no_decimals':    return `Give at least ${cfg.min_reviews ?? 3} reviews and never use a decimal — whole numbers only.`
+    case 'rating_uses_decimals':  return 'Use a decimal rating at least once (e.g. 7.5, 8.3).'
+    default:                      return b.description ?? ''
   }
 }
 
