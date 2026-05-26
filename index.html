@@ -46,18 +46,39 @@
 
     <title>WingKingTony — the digital home of wing culture</title>
 
-    <!-- GitHub Pages SPA deeplink fix: restore path from ?p= query param -->
+    <!-- GitHub Pages SPA redirect — pair with public/404.html.
+         Restores the original deep-link URL before React Router mounts. -->
     <script>
-      (function() {
-        var p = new URLSearchParams(window.location.search).get('p');
-        if (p) {
-          window.history.replaceState(null, null, decodeURIComponent(p));
+      (function () {
+        var l = window.location;
+        if (l.search.indexOf('?p=/') === 0 || l.search.indexOf('&p=/') !== -1) {
+          var q = l.search.slice(1).split('&').reduce(function (acc, kv) {
+            var i = kv.indexOf('=');
+            var k = i === -1 ? kv : kv.slice(0, i);
+            var v = i === -1 ? '' : kv.slice(i + 1);
+            acc[k] = v;
+            return acc;
+          }, {});
+          if (q.p !== undefined) {
+            var target = decodeURIComponent(q.p);
+            delete q.p;
+            var rest = Object.keys(q).map(function (k) {
+              return q[k] ? k + '=' + q[k] : k;
+            }).join('&');
+            var newSearch = target.indexOf('?') === -1
+              ? (rest ? '?' + rest : '')
+              : (rest ? '&' + rest : '');
+            window.history.replaceState(
+              null, null,
+              target.replace(/~and~/g, '&') + newSearch + l.hash
+            );
+          }
         }
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-Dh7R6w0r.js"></script>
+    <script type="module" crossorigin src="/assets/index-BaUz_3NR.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/chunk-BEqpzyXh.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BYMkUkv7.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-xROzNvAz.css">
   </head>
   <body>
     <div id="root"></div>
