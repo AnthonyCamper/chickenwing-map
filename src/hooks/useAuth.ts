@@ -21,7 +21,7 @@ export interface AuthState {
     avatar?: File
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
-  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean }) => Promise<void>
+  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -60,17 +60,33 @@ export function useAuth(): AuthState {
   }, [])
 
   const checkApproval = useCallback(async (user: User) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, is_private, created_at')
-      .eq('id', user.id)
-      .maybeSingle()
+    const [{ data, error }, { data: settingsData }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, bio, email, is_private, created_at')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('site_settings')
+        .select('is_public')
+        .eq('id', true)
+        .maybeSingle(),
+    ])
+
+    const isPublic = settingsData?.is_public ?? false
+    if (settingsData) setSiteSettings({ is_public: settingsData.is_public })
 
     if (error || !data) {
-      // Profile not yet created (e.g. trigger hasn't run) — treat as pending
-      setStatus('pending')
-      setIsAdmin(false)
-      setCanLeaveReviews(false)
+      // Profile not yet created — in public mode let them in read-only, otherwise pending gate
+      if (isPublic) {
+        setStatus('authorized')
+        setIsAdmin(false)
+        setCanLeaveReviews(false)
+      } else {
+        setStatus('pending')
+        setIsAdmin(false)
+        setCanLeaveReviews(false)
+      }
       setProfile(null)
       return
     }
@@ -81,6 +97,7 @@ export function useAuth(): AuthState {
       full_name: data.full_name,
       display_name: data.display_name,
       avatar_url: data.avatar_url,
+      bio: data.bio ?? null,
       status: data.status,
       is_admin: data.is_admin,
       can_leave_reviews: data.can_leave_reviews,
@@ -94,9 +111,16 @@ export function useAuth(): AuthState {
       setIsAdmin(data.is_admin ?? false)
       setCanLeaveReviews(data.can_leave_reviews ?? true)
     } else if (data.status === 'pending') {
-      setStatus('pending')
-      setIsAdmin(false)
-      setCanLeaveReviews(false)
+      if (isPublic) {
+        // In public mode, skip the approval gate entirely
+        setStatus('authorized')
+        setIsAdmin(false)
+        setCanLeaveReviews(true)
+      } else {
+        setStatus('pending')
+        setIsAdmin(false)
+        setCanLeaveReviews(false)
+      }
     } else if (data.status === 'rejected') {
       setStatus('rejected')
       setIsAdmin(false)
@@ -222,7 +246,7 @@ export function useAuth(): AuthState {
     await supabase.auth.signOut()
   }
 
-  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean }) => {
+  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => {
     const userId = session?.user?.id
     if (!userId) return
 
@@ -230,7 +254,7 @@ export function useAuth(): AuthState {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, is_private, created_at')
+      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, bio, email, is_private, created_at')
       .maybeSingle()
 
     if (data) {

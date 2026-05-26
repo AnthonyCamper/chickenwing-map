@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useGallery } from '../../hooks/useGallery'
 import { useHistoryModal } from '../../hooks/useHistoryModal'
 import { useAuthGate } from '../AuthGateModal'
-import ReviewCard from './ReviewCard'
+import ReviewFeedCard from './ReviewFeedCard'
 import PhotoModal from './PhotoModal'
 import PeopleView from './PeopleView'
 import type { GalleryReviewItem } from '../../lib/types'
 
-type Feed = 'all' | 'following' | 'people'
+type Feed = 'following' | 'discover' | 'people'
 
 interface Props {
   currentUserId: string
@@ -16,7 +16,7 @@ interface Props {
 }
 
 export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Props) {
-  const [feed, setFeed] = useState<Feed>('all')
+  const [feed, setFeed] = useState<Feed>('following')
   const gallery = useGallery(currentUserId, feed === 'following' ? true : false)
   const { requireAuth } = useAuthGate()
   const [selectedReview, setSelectedReview] = useState<GalleryReviewItem | null>(null)
@@ -44,7 +44,7 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
       {/* Feed tabs */}
       <div className="max-w-2xl mx-auto px-4 pt-4">
         <div className="flex gap-1.5 mb-4">
-          {([['all', 'All'], ['following', 'Following'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
+          {([['following', 'Following'], ['discover', 'Discover'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
             <button
               key={f}
               onClick={() => setFeed(f)}
@@ -74,39 +74,41 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
         <div className="flex flex-col items-center justify-center py-24 text-center px-6">
           {feed === 'following' ? (
             <>
-              <div className="text-5xl mb-4">👥</div>
-              <h3 className="font-display text-lg text-charcoal-700 mb-2">Nobody to follow yet</h3>
+              <div className="text-5xl mb-4">🍗</div>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">No takes yet</h3>
               <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed mb-5">
-                Follow people to see their reviews here.
+                Follow some wing heads to see their takes here. Or check out Discover to see what everyone's eating.
               </p>
-              <button
-                onClick={() => setFeed('people')}
-                className="btn-primary px-6"
-              >
-                Find people
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFeed('people')}
+                  className="btn-primary px-5"
+                >
+                  Find people
+                </button>
+                <button
+                  onClick={() => setFeed('discover')}
+                  className="btn-secondary px-5"
+                >
+                  Discover
+                </button>
+              </div>
             </>
           ) : (
             <>
-              <div className="text-5xl mb-4">📷</div>
-              <h3 className="font-display text-lg text-charcoal-700 mb-2">No photos yet</h3>
+              <div className="text-5xl mb-4">🥁</div>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">Nothing here yet</h3>
               <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed">
-                Upload photos when you add a review — they'll appear here.
+                Be the first to drop a take. The wing council is waiting.
               </p>
             </>
           )}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto px-4 pb-safe-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-base font-semibold text-charcoal-700">
-              {gallery.reviews.length} {gallery.reviews.length === 1 ? 'review' : 'reviews'}
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          <div className="space-y-3">
             {gallery.reviews.map(review => (
-              <ReviewCard
+              <ReviewFeedCard
                 key={review.review_id}
                 review={review}
                 onOpen={() => setSelectedReview(review)}
@@ -124,7 +126,9 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
           )}
 
           {!gallery.hasMore && gallery.reviews.length > 0 && (
-            <p className="text-center text-xs text-charcoal-300 py-6">All caught up 🍗</p>
+            <p className="text-center text-xs text-charcoal-300 py-6 uppercase tracking-crowd font-bold">
+              You're all caught up 🍗
+            </p>
           )}
         </div>
       )}

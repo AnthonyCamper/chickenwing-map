@@ -20,6 +20,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
   const [tab, setTab] = useState<Tab>('profile')
   const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.full_name ?? '')
+  const [bio, setBio] = useState(profile?.bio ?? '')
   const [isPrivate, setIsPrivate] = useState(profile?.is_private ?? false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -84,6 +85,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
       }
       await auth.updateProfile({
         display_name: displayName.trim() || undefined,
+        bio: bio.trim().slice(0, 140) || undefined,
         is_private: isPrivate,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       })
@@ -194,6 +196,20 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     className="input"
                     disabled={saving}
                   />
+                </div>
+                <div>
+                  <label className="label">Bio</label>
+                  <textarea
+                    value={bio}
+                    onChange={e => setBio(e.target.value.slice(0, 140))}
+                    placeholder="Chasing perfect drums since forever."
+                    rows={2}
+                    className="input resize-none"
+                    disabled={saving}
+                  />
+                  <p className="text-[10px] text-charcoal-400 mt-1 text-right tabular-nums">
+                    {bio.length}/140
+                  </p>
                 </div>
                 <div>
                   <label className="label">Email</label>

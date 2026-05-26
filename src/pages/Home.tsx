@@ -28,12 +28,12 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
   const deepLinkHandled = useRef(false)
 
   // ── View state from URL ──────────────────────────────────────────────
-  const view = (searchParams.get('view') as View) || 'list'
+  const view = (searchParams.get('view') as View) || 'gallery'
 
   const setView = useCallback((newView: View) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
-      if (newView === 'list') next.delete('view')
+      if (newView === 'gallery') next.delete('view')
       else next.set('view', newView)
       return next
     })

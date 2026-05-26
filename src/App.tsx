@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
@@ -31,6 +31,7 @@ function StatusScreen({ title, message, onSignOut }: { title: string; message: s
 
 export default function App() {
   const auth = useAuth()
+  const navigate = useNavigate()
 
   if (auth.status === 'loading') {
     return (
@@ -92,7 +93,7 @@ export default function App() {
               onSignInGoogle={auth.signInWithGoogle}
               onSignInEmail={auth.signInWithEmail}
               isPublic={isPublic}
-              onBrowse={isPublic ? () => window.history.back() : undefined}
+              onBrowse={isPublic ? () => navigate('/') : undefined}
               authError={auth.authError}
             />
           ) : (

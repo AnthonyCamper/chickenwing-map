@@ -23,9 +23,9 @@ interface Props {
 }
 
 const VIEWS: { key: View; label: string; short: string }[] = [
-  { key: 'list',    label: 'Ranks',  short: 'R' },
-  { key: 'map',     label: 'Map',    short: 'M' },
   { key: 'gallery', label: 'Feed',   short: 'F' },
+  { key: 'list',    label: 'Spots',  short: 'S' },
+  { key: 'map',     label: 'Map',    short: 'M' },
 ]
 
 export default function Layout({
@@ -86,7 +86,7 @@ export default function Layout({
         <div className="relative max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
           {/* Brand — sticker mark + condensed wordmark */}
           <button
-            onClick={() => onViewChange('list')}
+            onClick={() => onViewChange('gallery')}
             className="flex items-center gap-2 min-w-0 flex-shrink-0 group"
             aria-label="Home"
           >
@@ -103,7 +103,7 @@ export default function Layout({
                 WingKingTony
               </span>
               <span className="hidden sm:inline text-[9px] uppercase tracking-crowd text-sauce-300 mt-0.5">
-                Wing culture, every block
+                Ate it. Rated it. Let the people know.
               </span>
             </span>
           </button>
@@ -300,7 +300,7 @@ export default function Layout({
         >
           <span className="text-2xl font-extrabold leading-none">+</span>
           <span className="hidden sm:inline text-xs font-extrabold uppercase tracking-crowd">
-            Rate
+            Drop a take
           </span>
         </button>
       )}

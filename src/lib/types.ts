@@ -18,6 +18,7 @@ export interface UserProfile {
   full_name: string | null
   display_name: string | null
   avatar_url: string | null
+  bio: string | null
   status: UserStatus
   is_admin: boolean
   can_leave_reviews: boolean
