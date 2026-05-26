@@ -9,7 +9,8 @@ export interface UseAdminEventsReturn {
   createEvent: (data: EventFormData) => Promise<{ error: string | null; eventId?: string }>
   updateEvent: (id: string, data: Partial<EventFormData>) => Promise<{ error: string | null }>
   deleteEvent: (id: string) => Promise<{ error: string | null }>
-  addStop: (eventId: string, wingSpotId: string, opts?: { plannedArrival?: string | null; notes?: string | null }) => Promise<{ error: string | null }>
+  addStop: (eventId: string, wingSpotId: string, opts?: { plannedArrival?: string | null; notes?: string | null; parkingNotes?: string | null }) => Promise<{ error: string | null }>
+  updateStop: (stopId: string, opts: { parking_notes?: string | null; notes?: string | null; planned_arrival?: string | null }) => Promise<{ error: string | null }>
   removeStop: (stopId: string) => Promise<{ error: string | null }>
   reorderStops: (stops: { id: string; position: number }[]) => Promise<{ error: string | null }>
   loadStops: (eventId: string) => Promise<EventStop[]>
@@ -84,7 +85,7 @@ export function useAdminEvents(): UseAdminEventsReturn {
   const addStop = async (
     eventId: string,
     wingSpotId: string,
-    opts: { plannedArrival?: string | null; notes?: string | null } = {}
+    opts: { plannedArrival?: string | null; notes?: string | null; parkingNotes?: string | null } = {}
   ): Promise<{ error: string | null }> => {
     // Next position = max(position) + 1
     const { data: existing } = await supabase
@@ -102,7 +103,20 @@ export function useAdminEvents(): UseAdminEventsReturn {
         position: nextPos,
         planned_arrival: opts.plannedArrival ?? null,
         notes: opts.notes ?? null,
+        parking_notes: opts.parkingNotes ?? null,
       })
+    if (error) return { error: error.message }
+    return { error: null }
+  }
+
+  const updateStop = async (
+    stopId: string,
+    opts: { parking_notes?: string | null; notes?: string | null; planned_arrival?: string | null }
+  ): Promise<{ error: string | null }> => {
+    const { error } = await supabase
+      .from('event_stops')
+      .update(opts)
+      .eq('id', stopId)
     if (error) return { error: error.message }
     return { error: null }
   }
@@ -143,6 +157,7 @@ export function useAdminEvents(): UseAdminEventsReturn {
     updateEvent,
     deleteEvent,
     addStop,
+    updateStop,
     removeStop,
     reorderStops,
     loadStops,

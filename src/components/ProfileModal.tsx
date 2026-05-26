@@ -20,6 +20,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
   const [tab, setTab] = useState<Tab>('profile')
   const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.full_name ?? '')
+  const [isPrivate, setIsPrivate] = useState(profile?.is_private ?? false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -83,6 +84,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
       }
       await auth.updateProfile({
         display_name: displayName.trim() || undefined,
+        is_private: isPrivate,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       })
       toast.success('Profile updated')
@@ -199,6 +201,21 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     {email}
                   </p>
                 </div>
+                <div
+                  className="flex items-center justify-between py-3 px-4 rounded-xl border border-night-900/15 bg-cream-100 cursor-pointer"
+                  onClick={() => setIsPrivate(p => !p)}
+                >
+                  <div>
+                    <p className="text-sm font-extrabold text-night-900">Private profile</p>
+                    <p className="text-[11px] text-charcoal-500 mt-0.5">
+                      Hide your name and photo from event attendee lists
+                    </p>
+                  </div>
+                  <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
+                    <div className={`w-5 h-5 rounded-full bg-white shadow-sticker-sm mt-0.5 transition-transform ${isPrivate ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-2">
                   <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
                   <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">

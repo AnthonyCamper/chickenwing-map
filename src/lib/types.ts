@@ -21,6 +21,7 @@ export interface UserProfile {
   status: UserStatus
   is_admin: boolean
   can_leave_reviews: boolean
+  is_private: boolean
   created_at: string
 }
 
@@ -301,6 +302,7 @@ export interface EventStop {
   position: number
   planned_arrival: string | null
   notes: string | null
+  parking_notes: string | null
   created_at: string
   // Joined from wing_spots
   spot_name?: string
@@ -323,6 +325,7 @@ export interface EventRsvp {
   user_name?: string | null
   user_avatar?: string | null
   user_email?: string | null
+  is_private?: boolean
 }
 
 export interface EventCheckin {
@@ -339,8 +342,12 @@ export type BadgeCriteriaType =
   | 'review_count'
   | 'wing_size_variety'
   | 'event_rsvp'
+  | 'event_rsvp_with_guests'
   | 'event_checkin_count'
   | 'event_complete'
+  | 'event_first_checkin'
+  | 'event_review_count'
+  | 'event_review_all'
   | 'unique_spots'
   | 'flavor_variety'
   | 'lemon_pepper'
@@ -353,6 +360,13 @@ export type BadgeCriteriaType =
   | 'takeout_count'
   | 'loyal_regular'
   | 'jumbo_fan'
+  | 'review_text_contains'
+  | 'review_text_long'
+  | 'review_text_short'
+  | 'single_rating_low'
+  | 'rating_floor'
+  | 'rating_no_decimals'
+  | 'rating_uses_decimals'
 
 export interface LeaderboardRow {
   user_id: string

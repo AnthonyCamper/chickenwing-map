@@ -21,7 +21,7 @@ export interface AuthState {
     avatar?: File
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
-  updateProfile: (updates: { display_name?: string; avatar_url?: string }) => Promise<void>
+  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean }) => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -62,7 +62,7 @@ export function useAuth(): AuthState {
   const checkApproval = useCallback(async (user: User) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, created_at')
+      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, is_private, created_at')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -84,6 +84,7 @@ export function useAuth(): AuthState {
       status: data.status,
       is_admin: data.is_admin,
       can_leave_reviews: data.can_leave_reviews,
+      is_private: data.is_private ?? false,
       created_at: data.created_at,
     }
     setProfile(p)
@@ -221,7 +222,7 @@ export function useAuth(): AuthState {
     await supabase.auth.signOut()
   }
 
-  const updateProfile = async (updates: { display_name?: string; avatar_url?: string }) => {
+  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean }) => {
     const userId = session?.user?.id
     if (!userId) return
 
@@ -229,7 +230,7 @@ export function useAuth(): AuthState {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, created_at')
+      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, email, is_private, created_at')
       .maybeSingle()
 
     if (data) {

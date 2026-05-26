@@ -301,6 +301,9 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
 
   const [stops, setStops] = useState<EventStop[]>([])
   const [stopsLoading, setStopsLoading] = useState(true)
+  const [expandedStopId, setExpandedStopId] = useState<string | null>(null)
+  const [stopEdits, setStopEdits] = useState<Record<string, { notes: string; parking_notes: string; planned_arrival: string }>>({})
+  const [savingStopId, setSavingStopId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -444,42 +447,116 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
           <p className="text-sm text-charcoal-400 italic text-center py-3">No stops yet.</p>
         ) : (
           <ol className="space-y-2">
-            {stops.map((s, idx) => (
-              <li key={s.id} className="flex items-center gap-3 p-3 rounded-2xl bg-warmgray-50 border border-warmgray-200">
-                <div className="w-7 h-7 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-                  {idx + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-charcoal-700 truncate">{s.spot_name}</p>
-                  <p className="text-xs text-charcoal-400 truncate">{s.spot_address}</p>
-                </div>
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => moveStop(idx, -1)}
-                    disabled={idx === 0}
-                    className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
-                    aria-label="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    onClick={() => moveStop(idx, 1)}
-                    disabled={idx === stops.length - 1}
-                    className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
-                    aria-label="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    onClick={() => removeStop(s.id)}
-                    className="w-7 h-7 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center"
-                    aria-label="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              </li>
-            ))}
+            {stops.map((s, idx) => {
+              const isExpanded = expandedStopId === s.id
+              const edit = stopEdits[s.id] ?? {
+                notes: s.notes ?? '',
+                parking_notes: s.parking_notes ?? '',
+                planned_arrival: s.planned_arrival ? new Date(s.planned_arrival).toISOString().slice(0, 16) : '',
+              }
+              const setEdit = (patch: Partial<typeof edit>) =>
+                setStopEdits(prev => ({ ...prev, [s.id]: { ...edit, ...patch } }))
+
+              return (
+                <li key={s.id} className="rounded-2xl bg-warmgray-50 border border-warmgray-200 overflow-hidden">
+                  <div className="flex items-center gap-3 p-3">
+                    <div className="w-7 h-7 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      {idx + 1}
+                    </div>
+                    <button
+                      onClick={() => setExpandedStopId(isExpanded ? null : s.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <p className="font-semibold text-sm text-charcoal-700 truncate">{s.spot_name}</p>
+                      <p className="text-xs text-charcoal-400 truncate">{s.spot_address}</p>
+                      {s.parking_notes && (
+                        <p className="text-xs text-amber-600 truncate mt-0.5">🅿️ {s.parking_notes}</p>
+                      )}
+                    </button>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <button
+                        onClick={() => moveStop(idx, -1)}
+                        disabled={idx === 0}
+                        className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
+                        aria-label="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => moveStop(idx, 1)}
+                        disabled={idx === stops.length - 1}
+                        className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
+                        aria-label="Move down"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        onClick={() => removeStop(s.id)}
+                        className="w-7 h-7 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center"
+                        aria-label="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-warmgray-200 px-3 pb-3 pt-2 space-y-2">
+                      <div>
+                        <label className="label text-xs">Parking instructions</label>
+                        <textarea
+                          value={edit.parking_notes}
+                          onChange={e => setEdit({ parking_notes: e.target.value })}
+                          rows={2}
+                          className="input resize-none text-sm"
+                          placeholder="e.g. Free street parking on Main St, garage on 2nd Ave ($5)"
+                        />
+                      </div>
+                      <div>
+                        <label className="label text-xs">Notes</label>
+                        <textarea
+                          value={edit.notes}
+                          onChange={e => setEdit({ notes: e.target.value })}
+                          rows={2}
+                          className="input resize-none text-sm"
+                          placeholder="Any notes for this stop…"
+                        />
+                      </div>
+                      <div>
+                        <label className="label text-xs">Planned arrival</label>
+                        <input
+                          type="datetime-local"
+                          value={edit.planned_arrival}
+                          onChange={e => setEdit({ planned_arrival: e.target.value })}
+                          className="input text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setSavingStopId(s.id)
+                          const { error } = await admin.updateStop(s.id, {
+                            parking_notes: edit.parking_notes.trim() || null,
+                            notes: edit.notes.trim() || null,
+                            planned_arrival: edit.planned_arrival || null,
+                          })
+                          setSavingStopId(null)
+                          if (error) toast.error(error)
+                          else {
+                            toast.success('Stop updated')
+                            await reloadStops()
+                            setExpandedStopId(null)
+                          }
+                        }}
+                        disabled={savingStopId === s.id}
+                        className="btn-primary w-full text-xs py-2"
+                      >
+                        {savingStopId === s.id ? 'Saving…' : 'Save stop'}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ol>
         )}
 

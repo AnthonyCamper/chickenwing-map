@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -8,7 +8,82 @@ import { useReviews } from '../hooks/useReviews'
 import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
 import BadgePill from '../components/badges/BadgePill'
+import { supabase } from '../lib/supabase'
 import type { EventStop, ReviewFormData, RsvpStatus } from '../lib/types'
+
+interface CheckinAttendee {
+  user_id: string
+  display_name: string
+  avatar_url: string | null
+  stop_count: number
+  badges: Array<{ id: string; name: string; icon: string; color: string }>
+}
+
+interface RouteMapProps {
+  stops: EventStop[]
+}
+
+function RouteMap({ stops }: RouteMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = mapRef.current
+    if (!el || stops.length === 0) return
+    const latlngs = stops
+      .filter(s => s.spot_lat != null && s.spot_lng != null)
+      .map(s => [s.spot_lat!, s.spot_lng!] as [number, number])
+    if (latlngs.length === 0) return
+
+    let map: import('leaflet').Map | null = null
+
+    import('leaflet').then(L => {
+      if (!el || el.dataset.leafletInit) return
+      el.dataset.leafletInit = '1'
+
+      map = L.map(el, { zoomControl: true, attributionControl: false })
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+      }).addTo(map)
+
+      if (latlngs.length > 1) {
+        L.polyline(latlngs, { color: '#f59e0b', weight: 3, opacity: 0.75 }).addTo(map)
+      }
+
+      latlngs.forEach((ll, idx) => {
+        const icon = L.divIcon({
+          html: `<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          className: '',
+        })
+        L.marker(ll, { icon }).addTo(map!)
+      })
+
+      if (latlngs.length === 1) {
+        map.setView(latlngs[0], 15)
+      } else {
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] })
+      }
+    })
+
+    return () => {
+      if (map) {
+        map.remove()
+        delete el.dataset.leafletInit
+      }
+    }
+  }, [stops])
+
+  if (stops.length === 0) return null
+
+  return (
+    <div
+      ref={mapRef}
+      className="w-full h-56 rounded-2xl overflow-hidden border border-warmgray-200 shadow-soft"
+    />
+  )
+}
 
 interface Props {
   auth: AuthState
@@ -25,6 +100,7 @@ export default function EventPage({ auth }: Props) {
   const [reviewingStop, setReviewingStop] = useState<EventStop | null>(null)
   const [rsvpSubmitting, setRsvpSubmitting] = useState<RsvpStatus | null>(null)
   const [checkinSubmitting, setCheckinSubmitting] = useState<string | null>(null)
+  const [checkinAttendees, setCheckinAttendees] = useState<CheckinAttendee[]>([])
 
   const checkedInStopIds = useMemo(
     () => new Set(evt.myCheckins.map(c => c.event_stop_id)),
@@ -40,6 +116,54 @@ export default function EventPage({ auth }: Props) {
     () => badges.badges.filter(b => b.event_id === evt.event?.id),
     [badges.badges, evt.event?.id]
   )
+
+  // Fetch all checked-in attendees with their badges
+  useEffect(() => {
+    const eventId = evt.event?.id
+    if (!eventId) { setCheckinAttendees([]); return }
+    let cancelled = false
+    const load = async () => {
+      const { data: checkins } = await supabase
+        .from('event_checkins')
+        .select('user_id, event_stop_id')
+        .eq('event_id', eventId)
+      if (cancelled || !checkins?.length) { setCheckinAttendees([]); return }
+
+      const stopCountMap = new Map<string, number>()
+      for (const c of checkins) {
+        stopCountMap.set(c.user_id, (stopCountMap.get(c.user_id) ?? 0) + 1)
+      }
+      const userIds = [...stopCountMap.keys()]
+
+      const [profilesRes, badgesRes] = await Promise.all([
+        supabase.from('profiles').select('id, display_name, full_name, avatar_url, email, is_private').in('id', userIds),
+        supabase.from('user_badges').select('user_id, badges!inner(id, name, icon, color)').in('user_id', userIds),
+      ])
+      if (cancelled) return
+
+      type UBRow = { user_id: string; badges: { id: string; name: string; icon: string; color: string } }
+      const badgesMap = new Map<string, Array<{ id: string; name: string; icon: string; color: string }>>()
+      for (const ub of (badgesRes.data ?? []) as unknown as UBRow[]) {
+        const arr = badgesMap.get(ub.user_id) ?? []
+        arr.push(ub.badges)
+        badgesMap.set(ub.user_id, arr)
+      }
+
+      const attendees: CheckinAttendee[] = (profilesRes.data ?? [])
+        .filter((p: { id: string; is_private?: boolean }) => !p.is_private || p.id === userId)
+        .map((p: { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; email: string | null }) => ({
+          user_id: p.id,
+          display_name: p.display_name ?? p.full_name ?? p.email ?? 'Unknown',
+          avatar_url: p.avatar_url ?? null,
+          stop_count: stopCountMap.get(p.id) ?? 0,
+          badges: badgesMap.get(p.id) ?? [],
+        }))
+      attendees.sort((a, b) => b.stop_count - a.stop_count)
+      setCheckinAttendees(attendees)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [evt.event?.id, evt.myCheckins])
 
   if (evt.loading) {
     return (
@@ -91,6 +215,7 @@ export default function EventPage({ auth }: Props) {
 
   const handleCheckIn = async (stop: EventStop) => {
     if (!userId) { toast.error('Sign in first'); return }
+    if (evt.myRsvp?.status !== 'going') { toast.error("Join the crawl first before checking in!"); return }
     setCheckinSubmitting(stop.id)
     const { error } = await evt.checkIn(stop.id)
     setCheckinSubmitting(null)
@@ -104,6 +229,7 @@ export default function EventPage({ auth }: Props) {
 
   const handleSubmitReview = async (data: ReviewFormData) => {
     if (!reviewingStop) return { error: 'No stop selected' }
+    if (evt.myRsvp?.status !== 'going') return { error: 'Join the crawl first before leaving a review!' }
     const result = await reviews.createReview(data, userId ?? '')
     if (!result.error) {
       // Ensure a checkin exists and link this review to it
@@ -306,6 +432,11 @@ export default function EventPage({ auth }: Props) {
         {/* Route */}
         <section>
           <h3 className="font-display text-lg text-charcoal-800 mb-3 px-1">The Route</h3>
+          {evt.stops.length > 0 && (
+            <div className="mb-4">
+              <RouteMap stops={evt.stops} />
+            </div>
+          )}
           {evt.stops.length === 0 ? (
             <div className="card px-5 py-8 text-center text-charcoal-400">
               <p className="text-sm">No stops have been added yet.</p>
@@ -336,6 +467,9 @@ export default function EventPage({ auth }: Props) {
                         {stop.notes && (
                           <p className="text-xs text-charcoal-500 mt-1 italic">{stop.notes}</p>
                         )}
+                        {stop.parking_notes && (
+                          <p className="text-xs text-charcoal-500 mt-1">🅿️ {stop.parking_notes}</p>
+                        )}
                         {stop.checkin_count && stop.checkin_count > 0 && (
                           <p className="text-xs text-charcoal-300 mt-1">
                             {stop.checkin_count} {stop.checkin_count === 1 ? 'check-in' : 'check-ins'}
@@ -358,7 +492,10 @@ export default function EventPage({ auth }: Props) {
                               </span>
                             )}
                             <button
-                              onClick={() => setReviewingStop(stop)}
+                              onClick={() => {
+                                if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
+                                setReviewingStop(stop)
+                              }}
                               className="btn-secondary px-4 py-2 text-xs"
                             >
                               ✏️ {isCheckedIn ? 'Add review' : 'Check in + review'}
@@ -384,6 +521,61 @@ export default function EventPage({ auth }: Props) {
           </section>
         )}
 
+        {/* Checked-in attendees with badges */}
+        {checkinAttendees.length > 0 && (
+          <section className="card px-5 py-4">
+            <h3 className="font-display text-base text-charcoal-800 mb-3">
+              Checked in ({checkinAttendees.length})
+            </h3>
+            <ul className="space-y-3">
+              {checkinAttendees.map(a => (
+                <li key={a.user_id} className="flex items-center gap-3">
+                  {a.avatar_url ? (
+                    <img src={a.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-full bg-amber-200 flex items-center justify-center text-sm font-bold text-amber-700 flex-shrink-0">
+                      {a.display_name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-charcoal-700 truncate">{a.display_name}</p>
+                    <p className="text-xs text-charcoal-400">
+                      {a.stop_count}/{evt.stops.length} {a.stop_count === 1 ? 'stop' : 'stops'}
+                    </p>
+                  </div>
+                  {a.badges.length > 0 && (
+                    <div className="flex items-center flex-shrink-0">
+                      {a.badges.slice(0, 6).map((b, i) => (
+                        <span
+                          key={b.id}
+                          title={b.name}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-sm border-2 border-white shadow-sm"
+                          style={{
+                            backgroundColor: b.color,
+                            marginLeft: i > 0 ? '-8px' : 0,
+                            zIndex: a.badges.length - i,
+                            position: 'relative',
+                          }}
+                        >
+                          {b.icon}
+                        </span>
+                      ))}
+                      {a.badges.length > 6 && (
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-warmgray-200 text-charcoal-500 border-2 border-white shadow-sm"
+                          style={{ marginLeft: '-8px', position: 'relative', zIndex: 0 }}
+                        >
+                          +{a.badges.length - 6}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Going list */}
         {evt.rsvps.filter(r => r.status === 'going').length > 0 && (
           <section className="card px-5 py-4">
@@ -398,7 +590,9 @@ export default function EventPage({ auth }: Props) {
                     key={r.id}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-warmgray-50 border border-warmgray-200"
                   >
-                    {r.user_avatar ? (
+                    {r.is_private ? (
+                      <span className="w-5 h-5 rounded-full bg-warmgray-200 flex items-center justify-center text-xs">🔒</span>
+                    ) : r.user_avatar ? (
                       <img src={r.user_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
                     ) : (
                       <span className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center text-xs font-bold text-amber-700">
@@ -406,7 +600,7 @@ export default function EventPage({ auth }: Props) {
                       </span>
                     )}
                     <span className="text-xs font-medium text-charcoal-600">
-                      {r.user_name ?? r.user_email}
+                      {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
                     </span>
                   </li>
                 ))}
