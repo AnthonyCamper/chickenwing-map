@@ -26,6 +26,21 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
     markRead(notif.id)
     onClose()
 
+    // Crawl notifications — look up slug then dispatch deep-link
+    if (notif.crawl_id) {
+      const { data } = await supabase
+        .from('wing_crawls')
+        .select('slug')
+        .eq('id', notif.crawl_id)
+        .maybeSingle()
+      if (data?.slug) {
+        window.dispatchEvent(new CustomEvent('push-deep-link', {
+          detail: { crawlSlug: data.slug },
+        }))
+        return
+      }
+    }
+
     let photoId = notif.photo_id
     const reviewId = notif.review_id
     const commentId = notif.comment_id
@@ -189,6 +204,10 @@ function NotificationIcon({ type }: { type: string }) {
       return <div className={`${iconClass} bg-amber-100`}>👍</div>
     case 'comment_reaction':
       return <div className={`${iconClass} bg-purple-100`}>😄</div>
+    case 'crawl_like':
+      return <div className={`${iconClass} bg-sauce-100`}>❤️</div>
+    case 'new_crawl_from_followed_user':
+      return <div className={`${iconClass} bg-sauce-100`}>📋</div>
     default:
       return <div className={`${iconClass} bg-warmgray-100`}>🔔</div>
   }
@@ -202,6 +221,8 @@ function getDefaultText(notif: Notification): string {
     case 'photo_like': return 'Someone liked your photo'
     case 'comment_like': return 'Someone liked your comment'
     case 'comment_reaction': return 'New reaction on your comment'
+    case 'crawl_like': return 'Someone liked your crawl'
+    case 'new_crawl_from_followed_user': return 'New crawl from someone you follow'
     default: return 'New notification'
   }
 }

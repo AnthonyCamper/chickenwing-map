@@ -214,6 +214,8 @@ export type NotificationType =
   | 'photo_like'
   | 'comment_like'
   | 'comment_reaction'
+  | 'crawl_like'
+  | 'new_crawl_from_followed_user'
 
 export interface Notification {
   id: string
@@ -223,6 +225,7 @@ export interface Notification {
   review_id: string | null
   photo_id: string | null
   comment_id: string | null
+  crawl_id: string | null
   shop_name: string | null
   preview_text: string | null
   read: boolean
@@ -242,6 +245,8 @@ export interface NotificationPreferences {
   photo_like: boolean
   comment_like: boolean
   comment_react: boolean
+  crawl_like: boolean
+  new_crawl_from_followed_user: boolean
   quiet_mode: boolean
 }
 
@@ -443,13 +448,15 @@ export interface WingCrawlItem {
   added_at: string
 }
 
-/** wing_crawls_detailed view — adds masked author fields + item_count. */
+/** wing_crawls_detailed view — adds masked author fields, item_count, like_count. */
 export interface WingCrawlDetailed extends WingCrawl {
   author_name: string | null
   author_avatar: string | null
   author_username: string | null
   author_is_private: boolean
   item_count: number
+  like_count: number
+  is_liked_by_me: boolean
 }
 
 export interface CrawlFormData {

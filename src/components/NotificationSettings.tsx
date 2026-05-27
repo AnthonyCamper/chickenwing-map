@@ -197,6 +197,20 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
                   checked={prefs?.comment_react ?? true}
                   onChange={(v) => handleTogglePref('comment_react', v)}
                 />
+
+                <ToggleRow
+                  label="Crawl likes"
+                  description="When someone likes a crawl you made"
+                  checked={prefs?.crawl_like ?? true}
+                  onChange={(v) => handleTogglePref('crawl_like', v)}
+                />
+
+                <ToggleRow
+                  label="New crawls from people you follow"
+                  description="When someone you follow publishes a crawl"
+                  checked={prefs?.new_crawl_from_followed_user ?? true}
+                  onChange={(v) => handleTogglePref('new_crawl_from_followed_user', v)}
+                />
               </div>
 
               {/* Divider */}

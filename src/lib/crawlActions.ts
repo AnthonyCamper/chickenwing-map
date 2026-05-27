@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { compressImage } from './reviewActions'
 import type { CrawlFormData, WingCrawl } from './types'
 
 export async function createCrawl(
@@ -83,6 +84,56 @@ export async function updateCrawlItemNote(
     .update({ note: note?.trim() || null })
     .eq('id', itemId)
   return { error: error?.message ?? null }
+}
+
+export async function uploadCrawlCover(
+  crawlId: string,
+  userId: string,
+  file: File
+): Promise<{ error: string | null; url?: string }> {
+  try {
+    const compressed = await compressImage(file)
+    const filename = `cover-${Date.now()}.jpg`
+    const path = `${userId}/${crawlId}/${filename}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('crawl-covers')
+      .upload(path, compressed, { contentType: 'image/jpeg', upsert: true })
+    if (uploadErr) return { error: uploadErr.message }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('crawl-covers')
+      .getPublicUrl(path)
+
+    const { error: updateErr } = await supabase
+      .from('wing_crawls')
+      .update({ cover_image_url: publicUrl })
+      .eq('id', crawlId)
+    if (updateErr) return { error: updateErr.message }
+
+    return { error: null, url: publicUrl }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Upload failed' }
+  }
+}
+
+export async function toggleCrawlLike(
+  crawlId: string,
+  userId: string,
+  isCurrentlyLiked: boolean
+): Promise<{ error: string | null }> {
+  if (isCurrentlyLiked) {
+    const { error } = await supabase
+      .from('crawl_likes')
+      .delete()
+      .match({ crawl_id: crawlId, user_id: userId })
+    return { error: error?.message ?? null }
+  } else {
+    const { error } = await supabase
+      .from('crawl_likes')
+      .insert({ crawl_id: crawlId, user_id: userId })
+    return { error: error?.message ?? null }
+  }
 }
 
 /** Persist a reordering: caller passes the item IDs in their new visual order. */

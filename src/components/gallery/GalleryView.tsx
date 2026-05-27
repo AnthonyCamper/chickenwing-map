@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { useGallery } from '../../hooks/useGallery'
 import { useAuthGate } from '../AuthGateModal'
 import ReviewFeedCard from './ReviewFeedCard'
+import CrawlFeedCard from './CrawlFeedCard'
 import PeopleView from './PeopleView'
+import { supabase } from '../../lib/supabase'
+import type { WingCrawlDetailed } from '../../lib/types'
 
-type Feed = 'following' | 'discover' | 'people'
+type Feed = 'following' | 'discover' | 'crawls' | 'people'
 
 interface Props {
   currentUserId: string
@@ -19,6 +22,27 @@ export default function GalleryView({ currentUserId }: Props) {
   const gallery = useGallery(currentUserId, feed === 'following' ? true : false)
   const { requireAuth } = useAuthGate()
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // Crawls feed — fetched independently when the tab is active
+  const [crawls, setCrawls] = useState<WingCrawlDetailed[]>([])
+  const [crawlsLoading, setCrawlsLoading] = useState(false)
+
+  useEffect(() => {
+    if (feed !== 'crawls') return
+    let cancelled = false
+    setCrawlsLoading(true)
+    supabase
+      .from('wing_crawls_detailed')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (cancelled) return
+        setCrawls((data ?? []) as WingCrawlDetailed[])
+        setCrawlsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [feed])
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -36,7 +60,7 @@ export default function GalleryView({ currentUserId }: Props) {
       {/* Feed tabs */}
       <div className="max-w-2xl mx-auto px-4 pt-4">
         <div className="flex gap-1.5 mb-4">
-          {([['following', 'Following'], ['discover', 'Discover'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
+          {([['following', 'Following'], ['discover', 'Discover'], ['crawls', 'Crawls'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
             <button
               key={f}
               onClick={() => setFeed(f)}
@@ -54,6 +78,32 @@ export default function GalleryView({ currentUserId }: Props) {
 
       {feed === 'people' ? (
         <PeopleView currentUserId={currentUserId} />
+      ) : feed === 'crawls' ? (
+        <div className="max-w-2xl mx-auto px-4 pb-safe-8">
+          {crawlsLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+            </div>
+          ) : crawls.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+              <div className="text-5xl mb-4">📋</div>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">No crawls yet</h3>
+              <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed mb-5">
+                Be the first to curate a wing crawl. Stake your claim.
+              </p>
+              <button
+                onClick={() => { if (requireAuth()) navigate('/crawls/new') }}
+                className="btn-primary px-5"
+              >
+                + New crawl
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {crawls.map(c => <CrawlFeedCard key={c.id} crawl={c} />)}
+            </div>
+          )}
+        </div>
       ) : gallery.loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />

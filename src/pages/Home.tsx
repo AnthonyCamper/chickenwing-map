@@ -94,8 +94,10 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
   // Handle in-app deep link events (from service worker via useNotifications)
   useEffect(() => {
     const handler = (e: Event) => {
-      const { photoId, reviewId } = (e as CustomEvent).detail
-      if (reviewId) {
+      const { photoId, reviewId, crawlSlug } = (e as CustomEvent).detail
+      if (crawlSlug) {
+        navigate(`/lists/${crawlSlug}`)
+      } else if (reviewId) {
         navigate(`/reviews/${reviewId}`)
       } else if (photoId) {
         ;(async () => {

@@ -3,13 +3,19 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { deleteCrawl } from '../lib/crawlActions'
+import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
 import TopBar from '../components/ui/TopBar'
+import PhotoLightbox from '../components/ui/PhotoLightbox'
+import CrawlRouteMap from '../components/ui/CrawlRouteMap'
+import HeartIcon from '../components/gallery/HeartIcon'
+import { useAuthGate } from '../components/AuthGateModal'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
+
+interface SpotPhoto { id: string; url: string }
 
 interface ItemWithSpot extends WingCrawlItem {
   spot: WingSpot | null
-  spot_top_photo: string | null
+  spot_photos: SpotPhoto[]
   spot_avg_rating: number | null
   spot_review_count: number
 }
@@ -27,6 +33,10 @@ export default function CrawlPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [likeBusy, setLikeBusy] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [lightbox, setLightbox] = useState<{ photos: SpotPhoto[]; index: number } | null>(null)
+  const { requireAuth } = useAuthGate()
 
   const load = useCallback(async () => {
     if (!slug) return
@@ -44,6 +54,7 @@ export default function CrawlPage() {
     const { data: { session } } = await supabase.auth.getSession()
     const viewerId = session?.user?.id ?? ''
     const isOwner = viewerId === (crawl as WingCrawlDetailed).user_id
+    setCurrentUserId(viewerId)
 
     const { data: rawItems } = await supabase
       .from('wing_crawl_items')
@@ -56,46 +67,49 @@ export default function CrawlPage() {
 
     let spotsById: Record<string, WingSpot> = {}
     let ratingsBySpot: Record<string, { avg: number; count: number }> = {}
-    let topPhotoBySpot: Record<string, string> = {}
+    let photosBySpot: Record<string, SpotPhoto[]> = {}
 
     if (spotIds.length > 0) {
       const [{ data: spots }, { data: reviews }] = await Promise.all([
         supabase.from('wing_spots').select('*').in('id', spotIds),
         supabase
           .from('reviews_with_profiles')
-          .select('id, wing_spot_id, overall_rating')
-          .in('wing_spot_id', spotIds),
+          .select('id, wing_spot_id, overall_rating, visited_at')
+          .in('wing_spot_id', spotIds)
+          .order('visited_at', { ascending: false }),
       ])
 
       for (const s of (spots ?? []) as WingSpot[]) spotsById[s.id] = s
 
       const groups: Record<string, number[]> = {}
       const reviewIdsBySpot: Record<string, string[]> = {}
-      for (const r of (reviews ?? []) as { id: string; wing_spot_id: string; overall_rating: number }[]) {
+      const reviewToSpot: Record<string, string> = {}
+      for (const r of (reviews ?? []) as { id: string; wing_spot_id: string; overall_rating: number; visited_at: string }[]) {
         if (!groups[r.wing_spot_id]) groups[r.wing_spot_id] = []
         groups[r.wing_spot_id].push(Number(r.overall_rating))
         if (!reviewIdsBySpot[r.wing_spot_id]) reviewIdsBySpot[r.wing_spot_id] = []
         reviewIdsBySpot[r.wing_spot_id].push(r.id)
+        reviewToSpot[r.id] = r.wing_spot_id
       }
       for (const [sid, ratings] of Object.entries(groups)) {
         const sum = ratings.reduce((a, b) => a + b, 0)
         ratingsBySpot[sid] = { avg: sum / ratings.length, count: ratings.length }
       }
 
-      const allReviewIds = Object.values(reviewIdsBySpot).flat()
+      const allReviewIds = Object.keys(reviewToSpot)
       if (allReviewIds.length > 0) {
         const { data: photos } = await supabase
           .from('review_photos')
-          .select('review_id, url, display_order')
+          .select('id, review_id, url, display_order')
           .in('review_id', allReviewIds)
           .order('display_order', { ascending: true })
-        const reviewToPhoto: Record<string, string> = {}
-        for (const p of (photos ?? []) as { review_id: string; url: string }[]) {
-          if (!reviewToPhoto[p.review_id]) reviewToPhoto[p.review_id] = p.url
-        }
-        for (const [sid, rids] of Object.entries(reviewIdsBySpot)) {
-          for (const rid of rids) {
-            if (reviewToPhoto[rid]) { topPhotoBySpot[sid] = reviewToPhoto[rid]; break }
+
+        for (const p of (photos ?? []) as { id: string; review_id: string; url: string }[]) {
+          const sid = reviewToSpot[p.review_id]
+          if (!sid) continue
+          if (!photosBySpot[sid]) photosBySpot[sid] = []
+          if (photosBySpot[sid].length < 6) {
+            photosBySpot[sid].push({ id: p.id, url: p.url })
           }
         }
       }
@@ -106,7 +120,7 @@ export default function CrawlPage() {
       spot: spotsById[it.wing_spot_id] ?? null,
       spot_avg_rating: ratingsBySpot[it.wing_spot_id]?.avg ?? null,
       spot_review_count: ratingsBySpot[it.wing_spot_id]?.count ?? 0,
-      spot_top_photo: topPhotoBySpot[it.wing_spot_id] ?? null,
+      spot_photos: photosBySpot[it.wing_spot_id] ?? [],
     }))
 
     setData({ crawl: crawl as WingCrawlDetailed, items, isOwner })
@@ -114,6 +128,37 @@ export default function CrawlPage() {
   }, [slug])
 
   useEffect(() => { load() }, [load])
+
+  async function handleToggleLike() {
+    if (!data) return
+    if (!requireAuth()) return
+    if (likeBusy) return
+
+    setLikeBusy(true)
+    const wasLiked = data.crawl.is_liked_by_me
+    setData({
+      ...data,
+      crawl: {
+        ...data.crawl,
+        is_liked_by_me: !wasLiked,
+        like_count: data.crawl.like_count + (wasLiked ? -1 : 1),
+      },
+    })
+
+    const { error } = await toggleCrawlLike(data.crawl.id, currentUserId, wasLiked)
+    if (error) {
+      setData(d => d ? {
+        ...d,
+        crawl: {
+          ...d.crawl,
+          is_liked_by_me: wasLiked,
+          like_count: d.crawl.like_count + (wasLiked ? 1 : -1),
+        },
+      } : d)
+      toast.error('Could not update like')
+    }
+    setLikeBusy(false)
+  }
 
   async function handleDelete() {
     if (!data) return
@@ -158,10 +203,9 @@ export default function CrawlPage() {
   }
 
   const { crawl, items, isOwner } = data
-  const coverPhoto = crawl.cover_image_url ?? items.find(i => i.spot_top_photo)?.spot_top_photo ?? null
-  const gridPhotos = !crawl.cover_image_url
-    ? items.filter(i => i.spot_top_photo).slice(0, 4).map(i => i.spot_top_photo!)
-    : []
+  const allItemPhotos = items.flatMap(i => i.spot_photos.map(p => p.url))
+  const coverPhoto = crawl.cover_image_url ?? allItemPhotos[0] ?? null
+  const gridPhotos = !crawl.cover_image_url ? allItemPhotos.slice(0, 4) : []
   const authorPrivate = crawl.author_is_private
   const authorLinkable = !authorPrivate && crawl.author_username
   const description = crawl.description?.trim()
@@ -232,6 +276,18 @@ export default function CrawlPage() {
               <span className="text-charcoal-400"> · {crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}</span>
             </div>
 
+            <button
+              onClick={handleToggleLike}
+              disabled={likeBusy}
+              aria-label={crawl.is_liked_by_me ? 'Unlike crawl' : 'Like crawl'}
+              className="inline-flex items-center gap-1.5 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
+            >
+              <HeartIcon filled={crawl.is_liked_by_me} className="w-5 h-5" />
+              {crawl.like_count > 0 && (
+                <span className="text-xs font-bold">{crawl.like_count}</span>
+              )}
+            </button>
+
             {isOwner && (
               <div className="ml-auto flex items-center gap-2">
                 <Link to={`/crawls/${crawl.id}/edit`} className="btn-secondary px-3 py-1 text-xs">
@@ -269,6 +325,12 @@ export default function CrawlPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-8">
+        {items.length > 0 && (
+          <div className="mb-6">
+            <CrawlRouteMap items={items} ranked={crawl.is_ranked} />
+          </div>
+        )}
+
         {items.length === 0 ? (
           <p className="text-charcoal-500 text-sm italic">
             No spots yet.{isOwner && (
@@ -279,18 +341,36 @@ export default function CrawlPage() {
           <ol className="space-y-3">
             {items.map((it, idx) => (
               <li key={it.id}>
-                <CrawlItemRow item={it} rank={crawl.is_ranked ? idx + 1 : null} />
+                <CrawlItemRow
+                  item={it}
+                  rank={crawl.is_ranked ? idx + 1 : null}
+                  onPhotoClick={(photoIdx) => setLightbox({ photos: it.spot_photos, index: photoIdx })}
+                />
               </li>
             ))}
           </ol>
         )}
       </main>
+
+      {lightbox && (
+        <PhotoLightbox
+          photos={lightbox.photos}
+          initialIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   )
 }
 
-function CrawlItemRow({ item, rank }: { item: ItemWithSpot; rank: number | null }) {
-  const { spot } = item
+function CrawlItemRow({
+  item, rank, onPhotoClick,
+}: {
+  item: ItemWithSpot
+  rank: number | null
+  onPhotoClick: (index: number) => void
+}) {
+  const { spot, spot_photos: photos } = item
   if (!spot) {
     return (
       <div className="bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker">
@@ -300,44 +380,61 @@ function CrawlItemRow({ item, rank }: { item: ItemWithSpot; rank: number | null 
   }
 
   return (
-    <Link
-      to={spot.slug ? `/spots/${spot.slug}` : '#'}
-      className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker hover:shadow-stickerHover transition-shadow"
-    >
-      <div className="flex items-start gap-3">
-        {rank != null && (
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sauce-400 border-2 border-night-900 flex items-center justify-center font-display text-lg text-night-900 shadow-sticker-sm">
-            {rank}
-          </div>
-        )}
-
-        {item.spot_top_photo ? (
-          <img
-            src={item.spot_top_photo}
-            alt=""
-            loading="lazy"
-            className="flex-shrink-0 w-16 h-16 rounded-lg object-cover border-2 border-night-900"
-          />
-        ) : null}
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="font-display uppercase text-lg text-night-900 truncate tracking-tightest">{spot.name}</p>
-              <p className="text-xs text-charcoal-500 truncate">{spot.address}</p>
+    <div className="bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker overflow-hidden">
+      {/* Header — links to spot */}
+      <Link
+        to={spot.slug ? `/spots/${spot.slug}` : '#'}
+        className="block p-4 hover:bg-cream-100/50 transition-colors"
+      >
+        <div className="flex items-start gap-3">
+          {rank != null && (
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sauce-400 border-2 border-night-900 flex items-center justify-center font-display text-lg text-night-900 shadow-sticker-sm">
+              {rank}
             </div>
-            {item.spot_avg_rating != null && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-cream-100 border-2 border-night-900 rounded shrink-0">
-                <span className="font-display text-sm text-night-900">{item.spot_avg_rating.toFixed(1)}</span>
-                <span className="text-[10px] uppercase font-bold tracking-crowd text-charcoal-500">/10</span>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-display uppercase text-lg text-night-900 truncate tracking-tightest">{spot.name}</p>
+                <p className="text-xs text-charcoal-500 truncate">{spot.address}</p>
               </div>
+              {item.spot_avg_rating != null && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-cream-100 border-2 border-night-900 rounded shrink-0">
+                  <span className="font-display text-sm text-night-900">{item.spot_avg_rating.toFixed(1)}</span>
+                  <span className="text-[10px] uppercase font-bold tracking-crowd text-charcoal-500">/10</span>
+                </div>
+              )}
+            </div>
+            {item.note && (
+              <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap">"{item.note}"</p>
             )}
           </div>
-          {item.note && (
-            <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap">"{item.note}"</p>
+        </div>
+      </Link>
+
+      {/* Photo strip — taps open lightbox, not the link */}
+      {photos.length > 0 && (
+        <div className="border-t-2 border-night-900/10 px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide">
+          {photos.map((p, i) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onPhotoClick(i)}
+              className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 border-night-900 hover:border-sauce-400 transition-colors"
+            >
+              <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
+            </button>
+          ))}
+          {spot.slug && (
+            <Link
+              to={`/spots/${spot.slug}`}
+              className="flex-shrink-0 w-20 h-20 rounded-lg border-2 border-dashed border-night-900/30 hover:border-sauce-400 flex flex-col items-center justify-center text-charcoal-400 hover:text-sauce-500 transition-colors text-[10px] font-extrabold uppercase tracking-crowd text-center px-1"
+            >
+              See all →
+            </Link>
           )}
         </div>
-      </div>
-    </Link>
+      )}
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
@@ -11,8 +11,11 @@ import {
   removeCrawlItem,
   updateCrawlItemNote,
   reorderCrawlItems,
+  uploadCrawlCover,
 } from '../lib/crawlActions'
 import TopBar from '../components/ui/TopBar'
+import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
+import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import type { WingCrawl, WingCrawlItem, WingSpot } from '../lib/types'
 
 interface ItemWithSpot extends WingCrawlItem {
@@ -26,11 +29,11 @@ export default function CrawlEditor() {
 
   const [authChecked, setAuthChecked] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [userId, setUserId] = useState<string>('')
   const [crawl, setCrawl] = useState<WingCrawl | null>(null)
   const [items, setItems] = useState<ItemWithSpot[]>([])
   const [loading, setLoading] = useState(!isNew)
 
-  // Meta-form state (local until Save)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [isPublic, setIsPublic] = useState(true)
@@ -44,6 +47,7 @@ export default function CrawlEditor() {
       if (cancelled) return
       const ok = !!session?.user
       setAuthed(ok)
+      setUserId(session?.user?.id ?? '')
       setAuthChecked(true)
       if (!ok) navigate('/login', { replace: true })
     })
@@ -95,22 +99,16 @@ export default function CrawlEditor() {
   useEffect(() => { load() }, [load])
 
   async function handleSaveMeta() {
-    if (!title.trim()) {
-      toast.error('Title is required')
-      return
-    }
+    if (!title.trim()) { toast.error('Title is required'); return }
     setSavingMeta(true)
     try {
       if (isNew) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const userId = session?.user?.id
         if (!userId) { toast.error('Not signed in'); return }
         const result = await createCrawl({
           title, description, is_public: isPublic, is_ranked: isRanked,
         }, userId)
         if (result.error || !result.crawl) {
-          toast.error(result.error ?? 'Could not create')
-          return
+          toast.error(result.error ?? 'Could not create'); return
         }
         toast.success('Crawl created')
         navigate(`/crawls/${result.crawl.id}/edit`, { replace: true })
@@ -136,15 +134,35 @@ export default function CrawlEditor() {
     navigate('/', { replace: true })
   }
 
-  async function handleAddSpot(spot: WingSpot) {
+  async function handleCoverChange(file: File) {
     if (!crawl) return
-    if (items.some(i => i.wing_spot_id === spot.id)) {
-      toast('Already in this crawl', { icon: '👀' })
-      return
+    const toastId = toast.loading('Uploading cover…')
+    const { error, url } = await uploadCrawlCover(crawl.id, userId, file)
+    toast.dismiss(toastId)
+    if (error) { toast.error(error); return }
+    if (url) {
+      setCrawl({ ...crawl, cover_image_url: url })
+      toast.success('Cover updated')
     }
-    const { error } = await addCrawlItem(crawl.id, spot.id)
+  }
+
+  async function handleClearCover() {
+    if (!crawl) return
+    const { error } = await updateCrawl(crawl.id, { cover_image_url: null })
+    if (error) { toast.error(error); return }
+    setCrawl({ ...crawl, cover_image_url: null })
+    toast.success('Cover removed')
+  }
+
+  async function handleAddSpot(spotId: string) {
+    if (!crawl) return
+    if (items.some(i => i.wing_spot_id === spotId)) {
+      toast('Already in this crawl', { icon: '👀' }); return
+    }
+    const { error } = await addCrawlItem(crawl.id, spotId)
     if (error) { toast.error(error); return }
     await load()
+    toast.success('Spot added')
   }
 
   async function handleRemoveItem(itemId: string) {
@@ -170,7 +188,7 @@ export default function CrawlEditor() {
     if (error) { toast.error(error); await load() }
   }
 
-  if (!authChecked) {
+  if (!authChecked || loading) {
     return (
       <div className="min-h-dvh bg-paper flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
@@ -178,13 +196,6 @@ export default function CrawlEditor() {
     )
   }
   if (!authed) return null
-  if (loading) {
-    return (
-      <div className="min-h-dvh bg-paper flex items-center justify-center">
-        <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-dvh bg-paper">
@@ -195,97 +206,124 @@ export default function CrawlEditor() {
       <TopBar />
 
       <header className="border-b-2 border-night-900 bg-cream-100">
-        <div className="max-w-3xl mx-auto px-5 py-6">
-          <p className="eyebrow mb-2">{isNew ? 'New crawl' : 'Editing'}</p>
-          <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-            {isNew ? 'Start a new crawl' : crawl?.title ?? 'Crawl'}
-          </h1>
+        <div className="max-w-3xl mx-auto px-5 py-6 flex items-center justify-between gap-3">
+          <div>
+            <p className="eyebrow mb-1">{isNew ? 'New crawl' : 'Editing'}</p>
+            <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
+              {isNew ? 'Start a new crawl' : crawl?.title ?? 'Crawl'}
+            </h1>
+          </div>
+          {!isNew && crawl && (
+            <Link to={`/lists/${crawl.slug}`} className="btn-ghost text-xs">
+              ← Back to crawl
+            </Link>
+          )}
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 space-y-8">
-        {/* Meta form */}
-        <section className="bg-cream-50 border-2 border-night-900 rounded-xl p-5 shadow-sticker space-y-4">
+      <main className="max-w-3xl mx-auto px-5 py-8 space-y-5">
+        {/* ── Crawl details ─────────────────────────────────────────── */}
+        <div className="card px-5 py-5 space-y-4">
+          <h2 className="font-display text-lg text-charcoal-800">Crawl details</h2>
+
           <div>
-            <label className="eyebrow block mb-1">Title</label>
+            <label className="label">Title</label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Best hot wings in Brooklyn"
+              placeholder="Best hot wings in Brooklyn 2026"
               maxLength={120}
-              className="w-full px-3 py-2 border-2 border-night-900 rounded-lg bg-cream-50 text-night-900 placeholder-charcoal-300 focus:outline-none focus:border-sauce-400"
+              className="input"
             />
           </div>
 
           <div>
-            <label className="eyebrow block mb-1">Description (optional)</label>
+            <label className="label">Description</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Why this list? What's the through-line?"
               rows={3}
               maxLength={600}
-              className="w-full px-3 py-2 border-2 border-night-900 rounded-lg bg-cream-50 text-night-900 placeholder-charcoal-300 focus:outline-none focus:border-sauce-400 resize-none"
+              className="input resize-none"
             />
+            <p className="mt-1 text-[11px] text-charcoal-400">{description.length} / 600</p>
           </div>
 
-          <div className="flex flex-wrap gap-5 text-sm">
-            <label className="inline-flex items-center gap-2 cursor-pointer">
+          {!isNew && crawl && (
+            <CoverImagePicker
+              preview={crawl.cover_image_url}
+              onChange={handleCoverChange}
+              onClear={handleClearCover}
+            />
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isRanked}
                 onChange={e => setIsRanked(e.target.checked)}
-                className="w-4 h-4 accent-sauce-400"
+                className="w-4 h-4 rounded accent-sauce-400"
               />
-              <span className="font-bold text-night-800">Ranked</span>
-              <span className="text-xs text-charcoal-500">(numbered top → bottom)</span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-night-800">Ranked</p>
+                <p className="text-[11px] text-charcoal-400 leading-tight">Numbered top → bottom</p>
+              </div>
             </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
+            <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isPublic}
                 onChange={e => setIsPublic(e.target.checked)}
-                className="w-4 h-4 accent-sauce-400"
+                className="w-4 h-4 rounded accent-sauce-400"
               />
-              <span className="font-bold text-night-800">Public</span>
-              <span className="text-xs text-charcoal-500">(shareable link)</span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-night-800">Public</p>
+                <p className="text-[11px] text-charcoal-400 leading-tight">Shareable link</p>
+              </div>
             </label>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pt-1">
             <button
               onClick={handleSaveMeta}
               disabled={savingMeta || !title.trim()}
               className="btn-primary px-5 disabled:opacity-50"
             >
-              {savingMeta ? 'Saving…' : isNew ? 'Create crawl' : 'Save'}
+              {savingMeta ? 'Saving…' : isNew ? 'Create crawl' : 'Save changes'}
             </button>
-            {!isNew && crawl && (
-              <Link to={`/lists/${crawl.slug}`} className="btn-secondary px-4 text-xs">
-                View public page
-              </Link>
-            )}
             {!isNew && (
-              <button
-                onClick={handleDeleteCrawl}
-                className="ml-auto text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-600"
-              >
+              <button onClick={handleDeleteCrawl} className="btn-danger ml-auto px-3 py-1.5 text-xs">
                 Delete crawl
               </button>
             )}
           </div>
-        </section>
+        </div>
 
-        {/* Items section — only after the crawl exists */}
+        {/* ── Spots ────────────────────────────────────────────────── */}
         {!isNew && crawl && (
-          <section className="space-y-4">
-            <h2 className="eyebrow">Spots</h2>
+          <div className="card px-5 py-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg text-charcoal-800">Spots</h2>
+              <span className="text-xs text-charcoal-400">
+                {items.length} {items.length === 1 ? 'spot' : 'spots'}
+              </span>
+            </div>
 
-            <SpotPicker existingSpotIds={items.map(i => i.wing_spot_id)} onPick={handleAddSpot} />
+            {items.length > 0 && (
+              <CrawlRouteMap
+                items={items}
+                ranked={isRanked}
+                className="w-full h-48 sm:h-56 rounded-2xl border-2 border-night-900/10 overflow-hidden"
+              />
+            )}
 
             {items.length === 0 ? (
-              <p className="text-charcoal-500 text-sm italic">No spots yet — search above to add some.</p>
+              <p className="text-sm text-charcoal-400 italic text-center py-3">
+                No spots yet — add some below.
+              </p>
             ) : (
               <ol className="space-y-2">
                 {items.map((item, idx) => (
@@ -295,7 +333,6 @@ export default function CrawlEditor() {
                     rank={isRanked ? idx + 1 : null}
                     canMoveUp={idx > 0}
                     canMoveDown={idx < items.length - 1}
-                    showMove={isRanked}
                     onMoveUp={() => handleMove(item.id, -1)}
                     onMoveDown={() => handleMove(item.id, 1)}
                     onRemove={() => handleRemoveItem(item.id)}
@@ -304,92 +341,254 @@ export default function CrawlEditor() {
                 ))}
               </ol>
             )}
-          </section>
+
+            <AddSpotForm
+              existingSpotIds={new Set(items.map(i => i.wing_spot_id))}
+              onAdded={handleAddSpot}
+            />
+          </div>
         )}
       </main>
     </div>
   )
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Cover picker ────────────────────────────────────────────────────────────
 
-function SpotPicker({ existingSpotIds, onPick }: {
-  existingSpotIds: string[]
-  onPick: (spot: WingSpot) => void
+function CoverImagePicker({
+  preview, onChange, onClear,
+}: {
+  preview: string | null
+  onChange: (file: File) => void
+  onClear: () => void
 }) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<WingSpot[]>([])
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.size > 5 * 1024 * 1024) { return }
+    onChange(f)
+    e.target.value = ''
+  }
+
+  return (
+    <div>
+      <label className="label">Cover image</label>
+
+      {preview ? (
+        <div className="relative rounded-2xl overflow-hidden bg-warmgray-100 border-2 border-night-900">
+          <img src={preview} alt="Cover preview" className="w-full max-h-72 object-contain bg-night-900" />
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t-2 border-night-900 bg-cream-50">
+            <span className="text-xs text-charcoal-400">Click change to replace</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors"
+              >
+                Change
+              </button>
+              <span className="text-warmgray-300">|</span>
+              <button
+                type="button"
+                onClick={onClear}
+                className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-600 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-full h-32 rounded-2xl border-2 border-dashed border-warmgray-300 hover:border-sauce-400 hover:bg-cream-100 transition-colors flex flex-col items-center justify-center gap-2 text-charcoal-400 hover:text-sauce-500"
+        >
+          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+          <span className="text-sm font-medium">Upload cover image</span>
+          <span className="text-xs">JPG, PNG, WebP · max 5 MB</span>
+        </button>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={pick}
+      />
+    </div>
+  )
+}
+
+// ─── Add spot form (existing or new) ─────────────────────────────────────────
+
+function AddSpotForm({
+  existingSpotIds, onAdded,
+}: {
+  existingSpotIds: Set<string>
+  onAdded: (spotId: string) => void
+}) {
+  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+
+  // Existing-mode state
+  const [search, setSearch] = useState('')
+  const [existingResults, setExistingResults] = useState<WingSpot[]>([])
   const [searching, setSearching] = useState(false)
 
+  // New-mode state
+  const [newName, setNewName] = useState('')
+  const [newAddr, setNewAddr] = useState('')
+  const [newLat, setNewLat] = useState('')
+  const [newLng, setNewLng] = useState('')
+  const [creating, setCreating] = useState(false)
+
   useEffect(() => {
-    if (query.trim().length < 2) { setResults([]); return }
+    if (mode !== 'existing' || search.trim().length < 2) { setExistingResults([]); return }
     let cancelled = false
     setSearching(true)
     const t = setTimeout(async () => {
       const { data } = await supabase
         .from('wing_spots')
         .select('*')
-        .ilike('name', `%${query.trim()}%`)
+        .ilike('name', `%${search.trim()}%`)
         .order('name')
         .limit(20)
       if (cancelled) return
-      setResults((data ?? []) as WingSpot[])
+      setExistingResults((data ?? []) as WingSpot[])
       setSearching(false)
     }, 200)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [query])
+  }, [search, mode])
+
+  async function handleCreateAndAdd() {
+    if (!newName.trim() || !newAddr.trim() || !newLat || !newLng) {
+      toast.error('Pick from the autocomplete or fill in all fields'); return
+    }
+    setCreating(true)
+    const { data: spot, error } = await supabase
+      .from('wing_spots')
+      .upsert(
+        { name: newName.trim(), address: newAddr.trim(), lat: parseFloat(newLat), lng: parseFloat(newLng) },
+        { onConflict: 'name,address', ignoreDuplicates: false }
+      )
+      .select('id')
+      .single()
+    setCreating(false)
+    if (error || !spot) { toast.error(error?.message ?? 'Could not add spot'); return }
+    setNewName(''); setNewAddr(''); setNewLat(''); setNewLng('')
+    onAdded(spot.id)
+  }
 
   return (
-    <div className="bg-cream-50 border-2 border-night-900 rounded-xl p-3 shadow-sticker">
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Search wing spots to add…"
-        className="w-full px-3 py-2 border-2 border-night-900 rounded-lg bg-paper text-night-900 placeholder-charcoal-300 focus:outline-none focus:border-sauce-400 text-sm"
-      />
+    <div className="border-t-2 border-night-900/10 pt-4 space-y-3">
+      <div className="flex gap-1 p-1 bg-warmgray-100 rounded-xl">
+        <button
+          onClick={() => setMode('existing')}
+          className={`flex-1 px-3 py-1.5 text-xs font-extrabold uppercase tracking-crowd rounded-lg transition-colors ${
+            mode === 'existing' ? 'bg-cream-50 shadow-sticker-sm text-night-900' : 'text-charcoal-400'
+          }`}
+        >
+          Existing spot
+        </button>
+        <button
+          onClick={() => setMode('new')}
+          className={`flex-1 px-3 py-1.5 text-xs font-extrabold uppercase tracking-crowd rounded-lg transition-colors ${
+            mode === 'new' ? 'bg-cream-50 shadow-sticker-sm text-night-900' : 'text-charcoal-400'
+          }`}
+        >
+          + New spot
+        </button>
+      </div>
 
-      {query.trim().length >= 2 && (
-        <div className="mt-2 max-h-72 overflow-y-auto divide-y divide-night-900/10">
-          {searching ? (
-            <p className="text-xs text-charcoal-400 py-2">Searching…</p>
-          ) : results.length === 0 ? (
-            <p className="text-xs text-charcoal-400 py-2 italic">
-              No matches. Add a review for a new spot first, then come back.
-            </p>
-          ) : results.map(s => {
-            const already = existingSpotIds.includes(s.id)
-            return (
-              <button
-                key={s.id}
-                disabled={already}
-                onClick={() => { onPick(s); setQuery(''); setResults([]) }}
-                className="w-full text-left py-2 px-1 flex items-center justify-between gap-2 hover:bg-cream-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-night-900 truncate">{s.name}</p>
-                  <p className="text-xs text-charcoal-500 truncate">{s.address}</p>
-                </div>
-                <span className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 shrink-0">
-                  {already ? 'Added' : '+ Add'}
-                </span>
-              </button>
-            )
-          })}
+      {mode === 'existing' ? (
+        <>
+          <input
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name…"
+            className="input"
+          />
+          {search.trim().length >= 2 && (
+            <div className="max-h-72 overflow-y-auto rounded-xl border-2 border-night-900/10 bg-cream-50 divide-y divide-night-900/10">
+              {searching ? (
+                <p className="text-xs text-charcoal-400 p-3">Searching…</p>
+              ) : existingResults.length === 0 ? (
+                <p className="text-xs text-charcoal-400 italic p-3">
+                  Nothing matches. Try the <button onClick={() => setMode('new')} className="text-sauce-500 hover:underline">+ New spot</button> tab.
+                </p>
+              ) : existingResults.map(s => {
+                const already = existingSpotIds.has(s.id)
+                return (
+                  <button
+                    key={s.id}
+                    disabled={already}
+                    onClick={() => { onAdded(s.id); setSearch(''); setExistingResults([]) }}
+                    className="w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:bg-cream-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-night-900 truncate">{s.name}</p>
+                      <p className="text-xs text-charcoal-500 truncate">{s.address}</p>
+                    </div>
+                    <span className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 shrink-0">
+                      {already ? 'Added' : '+ Add'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="space-y-2">
+          <div>
+            <label className="label">Name</label>
+            <BusinessAutocomplete
+              value={newName}
+              onChange={setNewName}
+              onSelect={(s) => { setNewName(s.name); setNewAddr(s.address); setNewLat(s.lat); setNewLng(s.lng) }}
+              placeholder="Start typing — autocomplete pulls address + coords"
+            />
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <input type="text" value={newAddr} onChange={e => setNewAddr(e.target.value)} className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">Latitude</label>
+              <input type="text" value={newLat} onChange={e => setNewLat(e.target.value)} className="input" inputMode="decimal" />
+            </div>
+            <div>
+              <label className="label">Longitude</label>
+              <input type="text" value={newLng} onChange={e => setNewLng(e.target.value)} className="input" inputMode="decimal" />
+            </div>
+          </div>
+          <button onClick={handleCreateAndAdd} disabled={creating} className="btn-primary w-full mt-1">
+            {creating ? 'Adding…' : 'Add spot to crawl'}
+          </button>
         </div>
       )}
     </div>
   )
 }
 
+// ─── Item editor ─────────────────────────────────────────────────────────────
+
 function ItemEditor({
-  item, rank, canMoveUp, canMoveDown, showMove, onMoveUp, onMoveDown, onRemove, onSaveNote,
+  item, rank, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onRemove, onSaveNote,
 }: {
   item: ItemWithSpot
   rank: number | null
   canMoveUp: boolean
   canMoveDown: boolean
-  showMove: boolean
   onMoveUp: () => void
   onMoveDown: () => void
   onRemove: () => void
@@ -401,90 +600,86 @@ function ItemEditor({
   const { spot } = item
 
   return (
-    <li className="bg-cream-50 border-2 border-night-900 rounded-xl p-3 shadow-sticker">
-      <div className="flex items-start gap-3">
+    <li className="rounded-2xl bg-cream-50 border-2 border-night-900/10 overflow-hidden">
+      <div className="flex items-center gap-3 p-3">
         {rank != null && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-sauce-400 border-2 border-night-900 flex items-center justify-center font-display text-sm text-night-900">
+          <div className="w-7 h-7 rounded-full bg-sauce-400 text-cream-50 text-xs font-bold flex items-center justify-center flex-shrink-0 border-2 border-night-900">
             {rank}
           </div>
         )}
 
-        <div className="flex-1 min-w-0">
-          <p className="font-display uppercase text-base text-night-900 truncate">{spot?.name ?? 'Unknown spot'}</p>
-          {spot?.address && <p className="text-xs text-charcoal-500 truncate">{spot.address}</p>}
-
-          {editingNote ? (
-            <div className="mt-2">
-              <textarea
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                rows={2}
-                maxLength={280}
-                placeholder="Why this spot? (max 280 chars)"
-                className="w-full px-2 py-1.5 text-sm border-2 border-night-900 rounded-lg bg-paper text-night-900 placeholder-charcoal-300 focus:outline-none focus:border-sauce-400 resize-none"
-                autoFocus
-              />
-              <div className="flex gap-2 mt-1.5">
-                <button
-                  onClick={() => { onSaveNote(noteText); setEditingNote(false) }}
-                  className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600"
-                >
-                  Save note
-                </button>
-                <button
-                  onClick={() => { setNoteText(item.note ?? ''); setEditingNote(false) }}
-                  className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-charcoal-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : item.note ? (
-            <p
-              className="text-sm text-charcoal-700 mt-1.5 italic cursor-text"
-              onClick={() => setEditingNote(true)}
-            >
-              "{item.note}"
-            </p>
-          ) : (
-            <button
-              onClick={() => setEditingNote(true)}
-              className="text-xs font-bold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-500 mt-1.5 transition-colors"
-            >
-              + Add a note
-            </button>
-          )}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-sm text-charcoal-700 truncate">{spot?.name ?? 'Unknown spot'}</p>
+          {spot?.address && <p className="text-xs text-charcoal-400 truncate">{spot.address}</p>}
         </div>
 
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          {showMove && (
-            <>
-              <button
-                onClick={onMoveUp}
-                disabled={!canMoveUp}
-                aria-label="Move up"
-                className="w-6 h-6 flex items-center justify-center text-charcoal-400 hover:text-night-900 disabled:opacity-20 disabled:cursor-not-allowed"
-              >
-                ▲
-              </button>
-              <button
-                onClick={onMoveDown}
-                disabled={!canMoveDown}
-                aria-label="Move down"
-                className="w-6 h-6 flex items-center justify-center text-charcoal-400 hover:text-night-900 disabled:opacity-20 disabled:cursor-not-allowed"
-              >
-                ▼
-              </button>
-            </>
-          )}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+            aria-label="Move up"
+          >
+            ↑
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+            aria-label="Move down"
+          >
+            ↓
+          </button>
           <button
             onClick={onRemove}
+            className="w-7 h-7 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center"
             aria-label="Remove"
-            className="w-6 h-6 flex items-center justify-center text-charcoal-300 hover:text-sauce-600 text-base"
           >
             ×
           </button>
         </div>
+      </div>
+
+      <div className="border-t border-warmgray-200 px-3 pb-3 pt-2">
+        {editingNote ? (
+          <div className="space-y-2">
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              rows={2}
+              maxLength={280}
+              placeholder="Why this spot? (max 280 chars)"
+              className="input resize-none text-sm"
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setNoteText(item.note ?? ''); setEditingNote(false) }}
+                className="btn-ghost text-xs text-charcoal-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onSaveNote(noteText); setEditingNote(false) }}
+                className="btn-primary text-xs py-1.5 px-3"
+              >
+                Save note
+              </button>
+            </div>
+          </div>
+        ) : item.note ? (
+          <button onClick={() => setEditingNote(true)} className="w-full text-left text-sm text-charcoal-700 italic hover:text-night-900 transition-colors">
+            "{item.note}"
+            <span className="ml-2 text-[10px] uppercase tracking-crowd not-italic text-charcoal-300">Edit</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditingNote(true)}
+            className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-500 transition-colors"
+          >
+            + Add a note
+          </button>
+        )}
       </div>
     </li>
   )

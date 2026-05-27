@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 import { triggerPushDelivery } from './pushManager'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
-async function compressImage(file: File): Promise<Blob> {
+export async function compressImage(file: File): Promise<Blob> {
   const MAX_WIDTH = 1200
   const QUALITY = 0.85
   return new Promise((resolve, reject) => {
