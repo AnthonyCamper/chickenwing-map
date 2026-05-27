@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
@@ -103,20 +104,37 @@ export default function ReviewCard({
 
         {/* Meta */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
-          {review.reviewer_avatar ? (
-            <img
-              src={review.reviewer_avatar}
-              alt={review.reviewer_name ?? ''}
-              className="w-5 h-5 rounded-full object-cover border border-night-900"
-            />
-          ) : (
-            <span className="w-5 h-5 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
-              {(review.reviewer_name ?? review.reviewer_email ?? '?').charAt(0)}
-            </span>
-          )}
-          <span className="font-extrabold uppercase tracking-crowd text-night-800">
-            {review.reviewer_name ?? review.reviewer_email ?? 'Unknown'}
-          </span>
+          {(() => {
+            const isPrivate = review.reviewer_is_private === true
+            const displayName = isPrivate ? 'Private' : (review.reviewer_name ?? review.reviewer_email ?? 'Unknown')
+            const avatar = isPrivate ? null : review.reviewer_avatar
+            const linkable = !isPrivate && review.reviewer_username
+            const chip = (
+              <>
+                {avatar ? (
+                  <img
+                    src={avatar}
+                    alt={displayName}
+                    className="w-5 h-5 rounded-full object-cover border border-night-900"
+                  />
+                ) : (
+                  <span className="w-5 h-5 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
+                    {displayName.charAt(0)}
+                  </span>
+                )}
+                <span className="font-extrabold uppercase tracking-crowd text-night-800">
+                  {displayName}
+                </span>
+              </>
+            )
+            return linkable ? (
+              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 hover:text-sauce-500 transition-colors">
+                {chip}
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-2">{chip}</span>
+            )
+          })()}
           <span className="text-charcoal-300">·</span>
           <span className="text-charcoal-500 font-medium">{visitedDate}</span>
 

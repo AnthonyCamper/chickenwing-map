@@ -1,11 +1,10 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import StarRating from './ui/StarRating'
-import ReviewCard from './ReviewCard'
-import PhotoGallery from './ui/PhotoGallery'
 import PhotoModal from './gallery/PhotoModal'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
-import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
+import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 
 type SortKey = 'name' | 'rating'
 
@@ -15,21 +14,16 @@ interface Props {
   error: string | null
   currentUserId: string
   isAdmin: boolean
-  onUpdate: (id: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
-  onDelete: (id: string) => Promise<{ error: string | null }>
   onViewOnMap?: (shopId: string) => void
   sortBy: SortKey
   onSortChange: (sort: SortKey) => void
   filterReviewer: string
   onFilterChange: (reviewer: string) => void
-  expandedShop: string | null
-  onExpandShop: (shopId: string | null) => void
 }
 
 export default function ListView({
-  shops, loading, error, currentUserId, isAdmin, onUpdate, onDelete, onViewOnMap,
+  shops, loading, error, currentUserId, isAdmin, onViewOnMap,
   sortBy, onSortChange: setSortBy, filterReviewer, onFilterChange: setFilterReviewer,
-  expandedShop, onExpandShop: setExpandedShop,
 }: Props) {
 
   const photoDetail = usePhotoDetail(currentUserId)
@@ -161,6 +155,7 @@ export default function ListView({
               <ShopCard
                 key={spot.id}
                 shopId={spot.id}
+                slug={spot.slug}
                 rank={idx + 1}
                 showRank={showRanks}
                 name={spot.name}
@@ -168,13 +163,6 @@ export default function ListView({
                 reviews={reviews}
                 avgRating={avg_rating}
                 photos={photos}
-                expanded={expandedShop === spot.id}
-                onToggle={() => setExpandedShop(expandedShop === spot.id ? null : spot.id)}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-                onPhotoOpen={photoDetail.open}
                 onViewOnMap={onViewOnMap}
               />
             ))}
@@ -216,20 +204,13 @@ interface ShopCardProps {
   reviews: Review[]
   avgRating: number
   photos: ReviewPhoto[]
-  expanded: boolean
-  onToggle: () => void
-  currentUserId: string
-  isAdmin: boolean
-  onUpdate: Props['onUpdate']
-  onDelete: Props['onDelete']
-  onPhotoOpen: (photoId: string) => void
+  slug: string | null
   onViewOnMap?: (shopId: string) => void
 }
 
 function ShopCard({
-  shopId, rank, showRank, name, address, reviews, avgRating, photos,
-  expanded, onToggle, currentUserId, isAdmin, onUpdate, onDelete,
-  onPhotoOpen, onViewOnMap,
+  shopId, slug, rank, showRank, name, address, reviews, avgRating, photos,
+  onViewOnMap,
 }: ShopCardProps) {
   const isPodium = showRank && rank <= 3
   const podiumTag = rank === 1 ? 'Champ' : rank === 2 ? 'Runner-up' : rank === 3 ? 'Third' : null
@@ -249,10 +230,10 @@ function ShopCard({
       )}
 
       <div className={`card ${isPodium ? 'shadow-sticker' : ''}`}>
-      {/* Header row */}
-      <button
-        onClick={onToggle}
-        className="w-full text-left px-4 sm:px-5 py-4 flex items-start gap-3 hover:bg-cream-100/60 transition-colors"
+      {/* Header row — whole-row link to spot page */}
+      <Link
+        to={slug ? `/spots/${slug}` : '#'}
+        className="block w-full text-left px-4 sm:px-5 py-4 flex items-start gap-3 hover:bg-cream-100/60 transition-colors"
       >
         {/* Rank stencil */}
         {showRank && (
@@ -274,8 +255,8 @@ function ShopCard({
             <p className="text-xs text-charcoal-500 truncate">{address}</p>
             {onViewOnMap && (
               <span
-                onClick={e => { e.stopPropagation(); onViewOnMap(shopId) }}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onViewOnMap(shopId) } }}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); onViewOnMap(shopId) }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onViewOnMap(shopId) } }}
                 role="button"
                 tabIndex={0}
                 className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors cursor-pointer"
@@ -336,41 +317,17 @@ function ShopCard({
           </div>
         )}
 
-        {/* Toggle chevron */}
+        {/* Forward chevron — leads to spot page */}
         <div className="flex-shrink-0 self-center text-night-400">
           <svg
-            className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className="w-4 h-4"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
             strokeLinecap="round" strokeLinejoin="round"
           >
-            <polyline points="6 9 12 15 18 9" />
+            <polyline points="9 6 15 12 9 18" />
           </svg>
         </div>
-      </button>
-
-      {/* Expanded content */}
-      {expanded && (
-        <div className="border-t-2 border-night-900 bg-cream-100/40">
-          {photos.length > 0 && (
-            <div className="px-4 sm:px-5 pt-4 pb-2">
-              <PhotoGallery photos={photos} onPhotoOpen={onPhotoOpen} />
-            </div>
-          )}
-
-          <div className="px-4 sm:px-5 divide-y-2 divide-night-900/10">
-            {reviews.map(review => (
-              <ReviewCard
-                key={review.id}
-                review={review}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      </Link>
       </div>
     </div>
   )

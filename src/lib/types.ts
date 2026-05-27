@@ -17,6 +17,7 @@ export interface UserProfile {
   email: string
   full_name: string | null
   display_name: string | null
+  username: string | null
   avatar_url: string | null
   bio: string | null
   status: UserStatus
@@ -48,6 +49,7 @@ export interface SiteSettings {
 export interface WingSpot {
   id: string
   name: string
+  slug: string | null
   address: string
   lat: number
   lng: number
@@ -83,8 +85,12 @@ export interface Review {
   updated_at: string
   // Joined from profiles
   reviewer_name: string | null
+  reviewer_username: string | null
   reviewer_avatar: string | null
   reviewer_email: string | null
+  reviewer_is_private: boolean | null
+  // Joined from wing_spots (when fetched via reviews_with_profiles)
+  spot_slug?: string | null
   // Attached photos
   photos?: ReviewPhoto[]
 }
@@ -112,11 +118,14 @@ export interface GalleryPhoto {
   visited_at: string
   wing_spot_id: string
   spot_name: string
+  spot_slug: string | null
   spot_address: string
   reviewer_id: string
   reviewer_name: string | null
+  reviewer_username: string | null
   reviewer_avatar: string | null
   reviewer_email: string | null
+  reviewer_is_private: boolean | null
   like_count: number
   comment_count: number
   is_liked_by_me: boolean
@@ -134,11 +143,14 @@ export interface GalleryReviewItem {
   visited_at: string
   wing_spot_id: string
   spot_name: string
+  spot_slug: string | null
   spot_address: string
   reviewer_id: string
   reviewer_name: string | null
+  reviewer_username: string | null
   reviewer_avatar: string | null
   reviewer_email: string | null
+  reviewer_is_private: boolean | null
   like_count: number
   comment_count: number
   is_liked_by_me: boolean

@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useReviews } from '../hooks/useReviews'
-import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
+import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import LiveScene from '../components/LiveScene'
 import ListView from '../components/ListView'
 import MapView from '../components/MapView'
 import GalleryView from '../components/gallery/GalleryView'
-import PhotoModal from '../components/gallery/PhotoModal'
 import ReviewFormModal from '../components/ReviewFormModal'
-import { AuthGateProvider } from '../components/AuthGateModal'
 import { UserProfileProvider } from '../components/UserProfileContext'
 import type { AuthState } from '../hooks/useAuth'
 
@@ -22,6 +20,7 @@ type HomeProps = { auth: AuthState; readOnly?: boolean }
 
 export default function Home({ auth, readOnly = false }: HomeProps) {
   const reviews = useReviews()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
   const [focusShopId, setFocusShopId] = useState<string | null>(null)
@@ -42,7 +41,6 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
   // ── Lifted list-view state (persists across view switches) ───────────
   const [listSort, setListSort] = useState<SortKey>('name')
   const [listFilter, setListFilter] = useState<string>('all')
-  const [listExpandedShop, setListExpandedShop] = useState<string | null>(null)
 
   // ── Scroll position tracking per view ────────────────────────────────
   const scrollPositions = useRef<Record<string, number>>({})
@@ -64,32 +62,32 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
     }
   }, [view])
 
-  // ── Deep link photo detail ───────────────────────────────────────────
-  const deepLinkPhoto = usePhotoDetail(auth.user?.id ?? '')
-
-  // Handle deep link URL params on mount
+  // Handle legacy deep link URL params on mount — redirect to canonical pages.
+  // /?review=<id>  → /reviews/<id>
+  // /?photo=<id>   → resolve photo to its review, then /reviews/<reviewId>
   useEffect(() => {
     if (deepLinkHandled.current) return
     const params = new URLSearchParams(window.location.search)
     const photoId = params.get('photo')
     const reviewId = params.get('review')
 
-    if (photoId) {
+    if (reviewId) {
       deepLinkHandled.current = true
-      deepLinkPhoto.open(photoId)
-      window.history.replaceState({}, '', window.location.pathname)
-    } else if (reviewId) {
+      navigate(`/reviews/${reviewId}`, { replace: true })
+    } else if (photoId) {
       deepLinkHandled.current = true
-      setView('list')
-      requestAnimationFrame(() => {
-        const el = document.getElementById(`review-${reviewId}`)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('ring-4', 'ring-sauce-400', 'ring-offset-2', 'ring-offset-cream-50')
-          setTimeout(() => el.classList.remove('ring-4', 'ring-sauce-400', 'ring-offset-2', 'ring-offset-cream-50'), 3000)
+      ;(async () => {
+        const { data } = await supabase
+          .from('review_photos')
+          .select('review_id')
+          .eq('id', photoId)
+          .maybeSingle()
+        if (data?.review_id) {
+          navigate(`/reviews/${data.review_id}`, { replace: true })
+        } else {
+          window.history.replaceState({}, '', window.location.pathname)
         }
-      })
-      window.history.replaceState({}, '', window.location.pathname)
+      })()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -97,38 +95,33 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
   useEffect(() => {
     const handler = (e: Event) => {
       const { photoId, reviewId } = (e as CustomEvent).detail
-      if (photoId) {
-        deepLinkPhoto.open(photoId)
-      } else if (reviewId) {
-        setView('list')
-        requestAnimationFrame(() => {
-          const el = document.getElementById(`review-${reviewId}`)
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            el.classList.add('ring-2', 'ring-amber-300', 'ring-offset-2')
-            setTimeout(() => el.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-2'), 3000)
-          }
-        })
+      if (reviewId) {
+        navigate(`/reviews/${reviewId}`)
+      } else if (photoId) {
+        ;(async () => {
+          const { data } = await supabase
+            .from('review_photos')
+            .select('review_id')
+            .eq('id', photoId)
+            .maybeSingle()
+          if (data?.review_id) navigate(`/reviews/${data.review_id}`)
+        })()
       }
     }
     window.addEventListener('push-deep-link', handler)
     return () => window.removeEventListener('push-deep-link', handler)
-  }, [deepLinkPhoto.open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [navigate])
 
   // ── History-backed modals (browser back closes them) ─────────────────
   useHistoryModal(showAddModal, () => setShowAddModal(false))
-  useHistoryModal(!!deepLinkPhoto.photo, deepLinkPhoto.close)
 
   const handleViewOnMap = (shopId: string) => {
     setFocusShopId(shopId)
     setView('map')
   }
 
-  const isAuthenticated = !!auth.user
-
   return (
     <UserProfileProvider currentUserId={auth.user?.id ?? ''}>
-    <AuthGateProvider isAuthenticated={isAuthenticated} onSignInGoogle={auth.signInWithGoogle}>
     <Layout
       auth={auth}
       view={view}
@@ -150,15 +143,11 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
           error={reviews.error}
           currentUserId={auth.user?.id ?? ''}
           isAdmin={auth.isAdmin}
-          onUpdate={reviews.updateReview}
-          onDelete={reviews.deleteReview}
           onViewOnMap={handleViewOnMap}
           sortBy={listSort}
           onSortChange={setListSort}
           filterReviewer={listFilter}
           onFilterChange={setListFilter}
-          expandedShop={listExpandedShop}
-          onExpandShop={setListExpandedShop}
         />
       )}
       {view === 'map' && (
@@ -192,25 +181,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
         />
       )}
 
-      {/* Deep link photo modal — opened from notification clicks / URL params */}
-      {deepLinkPhoto.loading && (
-        <div className="fixed inset-0 z-50 bg-night-900/70 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full border-4 border-night-700 border-t-sauce-400 animate-spin" />
-        </div>
-      )}
-      {deepLinkPhoto.photo && (
-        <PhotoModal
-          photo={deepLinkPhoto.photo}
-          currentUserId={auth.user?.id ?? ''}
-          isAdmin={auth.isAdmin}
-          onClose={deepLinkPhoto.close}
-          onLike={deepLinkPhoto.toggleLike}
-          onCommentAdded={deepLinkPhoto.onCommentAdded}
-          onViewOnMap={(shopId) => { deepLinkPhoto.close(); handleViewOnMap(shopId) }}
-        />
-      )}
     </Layout>
-    </AuthGateProvider>
     </UserProfileProvider>
   )
 }

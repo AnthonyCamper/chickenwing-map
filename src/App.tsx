@@ -8,6 +8,10 @@ import PendingApproval from './pages/PendingApproval'
 import AdminDashboard from './pages/AdminDashboard'
 import EventPage from './pages/EventPage'
 import EventsIndex from './pages/EventsIndex'
+import SpotPage from './pages/SpotPage'
+import UserProfilePage from './pages/UserProfilePage'
+import ReviewPage from './pages/ReviewPage'
+import { AuthGateProvider } from './components/AuthGateModal'
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
@@ -46,9 +50,10 @@ export default function App() {
   }
 
   const isPublic = auth.siteSettings?.is_public ?? false
+  const isAuthenticated = auth.status === 'authorized'
 
   return (
-    <>
+    <AuthGateProvider isAuthenticated={isAuthenticated} onSignInGoogle={auth.signInWithGoogle}>
       <Toaster
         position="top-center"
         gutter={8}
@@ -171,8 +176,12 @@ export default function App() {
           }
         />
 
+        <Route path="/spots/:slug" element={<SpotPage />} />
+        <Route path="/u/:username" element={<UserProfilePage />} />
+        <Route path="/reviews/:id" element={<ReviewPage />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+    </AuthGateProvider>
   )
 }

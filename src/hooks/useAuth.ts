@@ -63,7 +63,7 @@ export function useAuth(): AuthState {
     const [{ data, error }, { data: settingsData }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, bio, email, is_private, created_at')
+        .select('status, is_admin, can_leave_reviews, display_name, full_name, username, avatar_url, bio, email, is_private, created_at')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -96,6 +96,7 @@ export function useAuth(): AuthState {
       email: data.email ?? user.email ?? '',
       full_name: data.full_name,
       display_name: data.display_name,
+      username: data.username ?? null,
       avatar_url: data.avatar_url,
       bio: data.bio ?? null,
       status: data.status,
@@ -254,7 +255,7 @@ export function useAuth(): AuthState {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('status, is_admin, can_leave_reviews, display_name, full_name, avatar_url, bio, email, is_private, created_at')
+      .select('status, is_admin, can_leave_reviews, display_name, full_name, username, avatar_url, bio, email, is_private, created_at')
       .maybeSingle()
 
     if (data) {

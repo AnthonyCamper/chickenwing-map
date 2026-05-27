@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { GalleryReviewItem } from '../../lib/types'
 import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
@@ -68,9 +69,19 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
                    max-sm:opacity-100"
         onClick={onOpen}
       >
-        <p className="text-white text-xs font-semibold leading-tight truncate drop-shadow">
-          {review.spot_name}
-        </p>
+        {review.spot_slug ? (
+          <Link
+            to={`/spots/${review.spot_slug}`}
+            onClick={e => e.stopPropagation()}
+            className="block text-white text-xs font-semibold leading-tight truncate drop-shadow hover:text-sauce-300 transition-colors"
+          >
+            {review.spot_name}
+          </Link>
+        ) : (
+          <p className="text-white text-xs font-semibold leading-tight truncate drop-shadow">
+            {review.spot_name}
+          </p>
+        )}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); openProfile(review.reviewer_id) }}

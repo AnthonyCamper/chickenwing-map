@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useGallery } from '../../hooks/useGallery'
-import { useHistoryModal } from '../../hooks/useHistoryModal'
 import { useAuthGate } from '../AuthGateModal'
 import ReviewFeedCard from './ReviewFeedCard'
-import PhotoModal from './PhotoModal'
 import PeopleView from './PeopleView'
-import type { GalleryReviewItem } from '../../lib/types'
 
 type Feed = 'following' | 'discover' | 'people'
 
@@ -15,14 +13,12 @@ interface Props {
   onViewOnMap?: (spotId: string) => void
 }
 
-export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Props) {
+export default function GalleryView({ currentUserId }: Props) {
+  const navigate = useNavigate()
   const [feed, setFeed] = useState<Feed>('following')
   const gallery = useGallery(currentUserId, feed === 'following' ? true : false)
   const { requireAuth } = useAuthGate()
-  const [selectedReview, setSelectedReview] = useState<GalleryReviewItem | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
-
-  useHistoryModal(!!selectedReview, () => setSelectedReview(null))
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -34,10 +30,6 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
     observer.observe(el)
     return () => observer.disconnect()
   }, [gallery.loadMore]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const syncedReview = selectedReview
-    ? (gallery.reviews.find(r => r.review_id === selectedReview.review_id) ?? selectedReview)
-    : null
 
   return (
     <>
@@ -111,7 +103,7 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
               <ReviewFeedCard
                 key={review.review_id}
                 review={review}
-                onOpen={() => setSelectedReview(review)}
+                onOpen={() => navigate(`/reviews/${review.review_id}`)}
                 onLike={() => { if (requireAuth()) gallery.toggleLike(review.review_id) }}
               />
             ))}
@@ -131,18 +123,6 @@ export default function GalleryView({ currentUserId, isAdmin, onViewOnMap }: Pro
             </p>
           )}
         </div>
-      )}
-
-      {syncedReview && (
-        <PhotoModal
-          review={syncedReview}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          onClose={() => setSelectedReview(null)}
-          onLike={() => { if (requireAuth()) gallery.toggleLike(syncedReview.review_id) }}
-          onCommentAdded={() => gallery.refreshReview(syncedReview.review_id)}
-          onViewOnMap={onViewOnMap ? (spotId) => { setSelectedReview(null); onViewOnMap(spotId) } : undefined}
-        />
       )}
     </>
   )

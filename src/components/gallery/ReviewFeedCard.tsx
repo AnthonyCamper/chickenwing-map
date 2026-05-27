@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { GalleryReviewItem } from '../../lib/types'
@@ -33,7 +34,7 @@ export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
 
   function handleShare(e: React.MouseEvent) {
     e.stopPropagation()
-    const url = `${window.location.origin}${window.location.pathname}?review=${review.review_id}`
+    const url = `${window.location.origin}/reviews/${review.review_id}`
     navigator.clipboard.writeText(url).then(() => {
       toast.success('Link copied', { duration: 2000 })
     }).catch(() => {
@@ -67,7 +68,17 @@ export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
             {name}
           </button>
           <div className="text-xs text-charcoal-400 mt-0.5 leading-none truncate">
-            <span className="font-semibold text-charcoal-600">{review.spot_name}</span>
+            {review.spot_slug ? (
+              <Link
+                to={`/spots/${review.spot_slug}`}
+                onClick={e => e.stopPropagation()}
+                className="font-semibold text-charcoal-600 hover:text-sauce-500 transition-colors"
+              >
+                {review.spot_name}
+              </Link>
+            ) : (
+              <span className="font-semibold text-charcoal-600">{review.spot_name}</span>
+            )}
             {timeAgo && <span> · {timeAgo}</span>}
           </div>
         </div>

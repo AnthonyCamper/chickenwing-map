@@ -1,5 +1,6 @@
-import { createContext, useContext, useState } from 'react'
-import UserProfileModal from './UserProfileModal'
+import { createContext, useCallback, useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 interface UserProfileContextValue {
   openProfile: (userId: string) => void
@@ -16,19 +17,26 @@ interface ProviderProps {
   children: React.ReactNode
 }
 
-export function UserProfileProvider({ currentUserId, children }: ProviderProps) {
-  const [viewingId, setViewingId] = useState<string | null>(null)
+export function UserProfileProvider({ children }: ProviderProps) {
+  const navigate = useNavigate()
+
+  const openProfile = useCallback((userId: string) => {
+    if (!userId) return
+    void (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .maybeSingle()
+      if (data?.username) {
+        navigate(`/u/${data.username}`)
+      }
+    })()
+  }, [navigate])
 
   return (
-    <UserProfileContext.Provider value={{ openProfile: setViewingId }}>
+    <UserProfileContext.Provider value={{ openProfile }}>
       {children}
-      {viewingId && (
-        <UserProfileModal
-          userId={viewingId}
-          currentUserId={currentUserId}
-          onClose={() => setViewingId(null)}
-        />
-      )}
     </UserProfileContext.Provider>
   )
 }
