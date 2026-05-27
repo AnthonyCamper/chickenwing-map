@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import TopBar from '../components/ui/TopBar'
 import { useAuthGate } from '../components/AuthGateModal'
-import type { UserProfile, Review, WingSpot, BadgeWithEarned } from '../lib/types'
+import type { UserProfile, Review, WingSpot, BadgeWithEarned, WingCrawlDetailed } from '../lib/types'
 
 interface Stats {
   reviewCount: number
@@ -22,6 +22,7 @@ interface ProfileDetail {
   reviews: Review[]
   spotsById: Record<string, WingSpot>
   badges: BadgeWithEarned[]
+  crawls: WingCrawlDetailed[]
   stats: Stats
   followerCount: number
   followingCount: number
@@ -64,7 +65,7 @@ export default function UserProfilePage() {
       if (profile.is_private && !isOwner) {
         setData({
           profile: profile as UserProfile,
-          reviews: [], spotsById: {}, badges: [],
+          reviews: [], spotsById: {}, badges: [], crawls: [],
           stats: { reviewCount: 0, uniqueSpots: 0, avgRating: null, badgeCount: 0, totalLikesReceived: 0 },
           followerCount: 0, followingCount: 0, isOwner: false,
         })
@@ -72,7 +73,7 @@ export default function UserProfilePage() {
         return
       }
 
-      const [reviewsRes, badgesRes, statsRes, followerRes, followingRes, followCheckRes] = await Promise.all([
+      const [reviewsRes, badgesRes, statsRes, followerRes, followingRes, followCheckRes, crawlsRes] = await Promise.all([
         supabase
           .from('reviews_with_profiles')
           .select('*')
@@ -94,6 +95,11 @@ export default function UserProfilePage() {
         viewerId && !isOwner
           ? supabase.from('follows').select('id').match({ follower_id: viewerId, following_id: profile.id }).maybeSingle()
           : Promise.resolve({ data: null }),
+        supabase
+          .from('wing_crawls_detailed')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false }),
       ])
 
       if (cancelled) return
@@ -127,6 +133,7 @@ export default function UserProfilePage() {
         reviews: reviewList,
         spotsById,
         badges,
+        crawls: (crawlsRes.data ?? []) as WingCrawlDetailed[],
         stats,
         followerCount: followerRes.count ?? 0,
         followingCount: followingRes.count ?? 0,
@@ -213,7 +220,7 @@ export default function UserProfilePage() {
     )
   }
 
-  const { profile, reviews, spotsById, badges, stats, followerCount, followingCount, isOwner } = data
+  const { profile, reviews, spotsById, badges, crawls, stats, followerCount, followingCount, isOwner } = data
   const displayName = profile.display_name ?? profile.full_name ?? profile.username ?? 'Unknown'
   const description = stats.reviewCount > 0
     ? `${displayName} on WingKingTony — ${stats.reviewCount} wing ${stats.reviewCount === 1 ? 'review' : 'reviews'}${stats.avgRating != null ? ` · avg ${stats.avgRating.toFixed(1)}/10` : ''}.`
@@ -278,6 +285,42 @@ export default function UserProfilePage() {
           <section>
             <h2 className="eyebrow mb-3">Badges</h2>
             <BadgeGrid badges={badges} emptyMessage="No badges yet." />
+          </section>
+        )}
+
+        {(crawls.length > 0 || isOwner) && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="eyebrow">Crawls</h2>
+              {isOwner && (
+                <Link to="/crawls/new" className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600">
+                  + New crawl
+                </Link>
+              )}
+            </div>
+            {crawls.length === 0 ? (
+              <p className="text-charcoal-500 text-sm italic">No crawls yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {crawls.map(c => (
+                  <Link
+                    key={c.id}
+                    to={`/lists/${c.slug}`}
+                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker hover:shadow-stickerHover transition-shadow"
+                  >
+                    <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest">{c.title}</p>
+                    <p className="text-xs text-charcoal-500 mt-1">
+                      {c.item_count} {c.item_count === 1 ? 'spot' : 'spots'}
+                      {c.is_ranked && ' · Ranked'}
+                      {!c.is_public && ' · Private'}
+                    </p>
+                    {c.description && (
+                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-2">{c.description}</p>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )}
           </section>
         )}
 

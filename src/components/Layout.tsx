@@ -184,7 +184,11 @@ export default function Layout({
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/events') }}>
-                        All crawls
+                        Events
+                      </MenuItem>
+
+                      <MenuItem onClick={() => { setProfileOpen(false); navigate('/crawls/new') }}>
+                        + New crawl
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); setShowNotifSettings(true) }}>

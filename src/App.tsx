@@ -11,6 +11,8 @@ import EventsIndex from './pages/EventsIndex'
 import SpotPage from './pages/SpotPage'
 import UserProfilePage from './pages/UserProfilePage'
 import ReviewPage from './pages/ReviewPage'
+import CrawlPage from './pages/CrawlPage'
+import CrawlEditor from './pages/CrawlEditor'
 import { AuthGateProvider } from './components/AuthGateModal'
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
@@ -179,6 +181,9 @@ export default function App() {
         <Route path="/spots/:slug" element={<SpotPage />} />
         <Route path="/u/:username" element={<UserProfilePage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
+        <Route path="/lists/:slug" element={<CrawlPage />} />
+        <Route path="/crawls/new" element={<CrawlEditor />} />
+        <Route path="/crawls/:id/edit" element={<CrawlEditor />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

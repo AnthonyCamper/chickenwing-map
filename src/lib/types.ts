@@ -419,6 +419,47 @@ export interface UserBadge {
   earned_at: string
 }
 
+// ─── Crawls (Lists) ──────────────────────────────────────────────────────────
+
+export interface WingCrawl {
+  id: string
+  user_id: string
+  slug: string
+  title: string
+  description: string | null
+  cover_image_url: string | null
+  is_public: boolean
+  is_ranked: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WingCrawlItem {
+  id: string
+  crawl_id: string
+  wing_spot_id: string
+  position: number
+  note: string | null
+  added_at: string
+}
+
+/** wing_crawls_detailed view — adds masked author fields + item_count. */
+export interface WingCrawlDetailed extends WingCrawl {
+  author_name: string | null
+  author_avatar: string | null
+  author_username: string | null
+  author_is_private: boolean
+  item_count: number
+}
+
+export interface CrawlFormData {
+  title: string
+  description?: string
+  is_public?: boolean
+  is_ranked?: boolean
+  cover_image_url?: string | null
+}
+
 export interface EventWithDetails {
   event: WingEvent
   stops: EventStop[]
