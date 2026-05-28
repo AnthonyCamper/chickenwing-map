@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 import { updateReview as updateReviewAction, deleteReview as deleteReviewAction } from '../lib/reviewActions'
 import ReviewCard from '../components/ReviewCard'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
-import TopBar from '../components/ui/TopBar'
+import AppHeader from '../components/AppHeader'
 import type { Review, ReviewPhoto, WingSpot, ReviewUpdateData } from '../lib/types'
 
 interface OtherReview {
@@ -133,7 +133,7 @@ export default function ReviewPage() {
         <link rel="canonical" href={`https://wingkingtony.com/reviews/${review.id}`} />
       </Helmet>
 
-      <TopBar />
+      <AppHeader />
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-2xl mx-auto px-5 py-6">

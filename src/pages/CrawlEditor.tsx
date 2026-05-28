@@ -13,7 +13,7 @@ import {
   reorderCrawlItems,
   uploadCrawlCover,
 } from '../lib/crawlActions'
-import TopBar from '../components/ui/TopBar'
+import AppHeader from '../components/AppHeader'
 import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
@@ -229,7 +229,7 @@ export default function CrawlEditor() {
         <title>{isNew ? 'New crawl' : `Edit: ${crawl?.title ?? 'Crawl'}`} — WingKingTony</title>
       </Helmet>
 
-      <TopBar />
+      <AppHeader />
 
       {!isNew && crawl && (
         <CrawlOwnerToolbar

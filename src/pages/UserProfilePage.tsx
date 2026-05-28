@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import BadgeGrid from '../components/badges/BadgeGrid'
-import TopBar from '../components/ui/TopBar'
+import AppHeader from '../components/AppHeader'
 import { useAuthGate } from '../components/AuthGateModal'
 import type { UserProfile, Review, WingSpot, BadgeWithEarned, WingCrawlDetailed } from '../lib/types'
 
@@ -238,7 +238,7 @@ export default function UserProfilePage() {
         <link rel="canonical" href={`https://wingkingtony.com/u/${profile.username}`} />
       </Helmet>
 
-      <TopBar />
+      <AppHeader />
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-3xl mx-auto px-5 py-6">

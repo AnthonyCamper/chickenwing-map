@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
-import TopBar from '../components/ui/TopBar'
+import AppHeader from '../components/AppHeader'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
@@ -221,7 +221,7 @@ export default function CrawlPage() {
         <link rel="canonical" href={`https://wingkingtony.com/lists/${crawl.slug}`} />
       </Helmet>
 
-      <TopBar />
+      <AppHeader />
 
       {isOwner && (
         <CrawlOwnerToolbar

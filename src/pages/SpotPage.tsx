@@ -11,7 +11,7 @@ import {
 import ReviewCard from '../components/ReviewCard'
 import ReviewFormModal from '../components/ReviewFormModal'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
-import TopBar from '../components/ui/TopBar'
+import AppHeader from '../components/AppHeader'
 import { useAuthGate } from '../components/AuthGateModal'
 import type { WingSpot, Review, ReviewPhoto, ReviewUpdateData, ReviewFormData } from '../lib/types'
 
@@ -167,7 +167,7 @@ export default function SpotPage() {
         <link rel="canonical" href={`https://wingkingtony.com/spots/${spot.slug}`} />
       </Helmet>
 
-      <TopBar />
+      <AppHeader />
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-3xl mx-auto px-5 py-6">

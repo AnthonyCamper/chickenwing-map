@@ -14,6 +14,7 @@ import ReviewPage from './pages/ReviewPage'
 import CrawlPage from './pages/CrawlPage'
 import CrawlEditor from './pages/CrawlEditor'
 import { AuthGateProvider } from './components/AuthGateModal'
+import { AuthProvider } from './components/AuthProvider'
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
@@ -55,6 +56,7 @@ export default function App() {
   const isAuthenticated = auth.status === 'authorized'
 
   return (
+    <AuthProvider auth={auth}>
     <AuthGateProvider isAuthenticated={isAuthenticated} onSignInGoogle={auth.signInWithGoogle}>
       <Toaster
         position="top-center"
@@ -188,5 +190,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthGateProvider>
+    </AuthProvider>
   )
 }
