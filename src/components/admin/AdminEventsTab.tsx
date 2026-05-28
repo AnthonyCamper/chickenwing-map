@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAdminEvents } from '../../hooks/useAdminEvents'
 import BusinessAutocomplete from '../ui/BusinessAutocomplete'
+import CoverImagePicker from '../ui/CoverImagePicker'
 import type { WingEvent, EventStop, EventFormData, WingSpot } from '../../lib/types'
 
 async function uploadEventCover(slug: string, file: File): Promise<string | null> {
@@ -145,13 +146,10 @@ function NewEventForm({ onCreate, onCancel }: NewEventFormProps) {
   const [endsAt, setEndsAt] = useState('')
   const [isPublished, setIsPublished] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const slugAuto = slugify(name)
 
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleCoverChange = (file: File) => {
     if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return }
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
@@ -225,7 +223,6 @@ function NewEventForm({ onCreate, onCancel }: NewEventFormProps) {
 
       <CoverImagePicker
         preview={coverPreview}
-        fileRef={fileRef}
         onChange={handleCoverChange}
         onClear={() => { setCoverFile(null); setCoverPreview(null) }}
       />
@@ -289,11 +286,8 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
   const [endsAt, setEndsAt] = useState(event.ends_at?.slice(0, 16) ?? '')
   const [isPublished, setIsPublished] = useState(event.is_published)
   const [saving, setSaving] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
 
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleCoverChange = (file: File) => {
     if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return }
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
@@ -398,7 +392,6 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
 
         <CoverImagePicker
           preview={coverPreview ?? coverImageUrl}
-          fileRef={fileRef}
           onChange={handleCoverChange}
           onClear={() => {
             setCoverFile(null)
@@ -744,75 +737,3 @@ function AddStopForm({ eventId, existingSpotIds, onAdded, admin }: AddStopFormPr
   )
 }
 
-// ── Cover image picker ─────────────────────────────────────────────────────
-
-interface CoverImagePickerProps {
-  preview: string | null
-  fileRef: React.RefObject<HTMLInputElement | null>
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  onClear: () => void
-}
-
-function CoverImagePicker({ preview, fileRef, onChange, onClear }: CoverImagePickerProps) {
-  return (
-    <div>
-      <label className="label">Cover image</label>
-
-      {preview ? (
-        <div className="relative rounded-2xl overflow-hidden bg-warmgray-100 border border-warmgray-200">
-          {/* Click image to open full-size in new tab */}
-          <a href={preview} target="_blank" rel="noopener noreferrer" className="block">
-            <img
-              src={preview}
-              alt="Cover preview"
-              className="w-full max-h-72 object-contain"
-            />
-          </a>
-          {/* Action bar below image */}
-          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-warmgray-200 bg-white">
-            <span className="text-xs text-charcoal-400">Click image to view full size</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors"
-              >
-                Change
-              </button>
-              <span className="text-warmgray-300">|</span>
-              <button
-                type="button"
-                onClick={onClear}
-                className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="w-full h-32 rounded-2xl border-2 border-dashed border-warmgray-300 hover:border-amber-400 hover:bg-amber-50 transition-colors flex flex-col items-center justify-center gap-2 text-charcoal-400 hover:text-amber-600"
-        >
-          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="3" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
-          <span className="text-sm font-medium">Upload cover image</span>
-          <span className="text-xs">JPG, PNG, WebP · max 5 MB</span>
-        </button>
-      )}
-
-      <input
-        ref={fileRef as React.RefObject<HTMLInputElement>}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
-        onChange={onChange}
-      />
-    </div>
-  )
-}
