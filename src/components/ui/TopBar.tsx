@@ -41,9 +41,9 @@ export default function TopBar() {
   }, [])
 
   return (
-    <div className="border-b-2 border-night-900 bg-night-900">
+    <div className="border-b-2 border-night-900 bg-night-900 pt-safe">
       <div className="max-w-6xl mx-auto px-5 h-12 flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-2 group">
+        <Link to="/" className="flex items-center gap-2 group min-h-[44px] -my-2">
           <img src="/favicon.svg" alt="" className="w-7 h-7 rounded-md border-2 border-cream-50/20 group-hover:border-sauce-400 transition-colors" />
           <span className="font-display uppercase tracking-crowd text-sm text-cream-50 group-hover:text-sauce-300 transition-colors">
             WingKingTony
@@ -56,7 +56,8 @@ export default function TopBar() {
           ) : viewer?.username ? (
             <Link
               to={`/u/${viewer.username}`}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-crowd text-cream-50/80 hover:text-sauce-300 transition-colors"
+              className="flex items-center gap-2 text-xs font-bold uppercase tracking-crowd text-cream-50/80 hover:text-sauce-300 transition-colors min-h-[44px] -my-2 px-1"
+              aria-label="My profile"
             >
               {viewer.avatar_url ? (
                 <img src={viewer.avatar_url} alt="" className="w-7 h-7 rounded-full border-2 border-cream-50/30 object-cover" />
@@ -69,7 +70,7 @@ export default function TopBar() {
           ) : (
             <Link
               to="/login"
-              className="text-xs font-extrabold uppercase tracking-crowd text-cream-50/80 hover:text-sauce-300 transition-colors"
+              className="text-xs font-extrabold uppercase tracking-crowd text-cream-50/80 hover:text-sauce-300 transition-colors min-h-[44px] -my-2 flex items-center px-2"
             >
               Sign in
             </Link>

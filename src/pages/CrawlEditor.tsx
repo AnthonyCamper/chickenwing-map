@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
@@ -16,6 +16,7 @@ import {
 import TopBar from '../components/ui/TopBar'
 import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
+import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter,
   useSensor, useSensors, type DragEndEvent,
@@ -136,7 +137,6 @@ export default function CrawlEditor() {
 
   async function handleDeleteCrawl() {
     if (!crawl) return
-    if (!window.confirm('Delete this crawl? This cannot be undone.')) return
     const { error } = await deleteCrawl(crawl.id)
     if (error) { toast.error(error); return }
     toast.success('Deleted')
@@ -231,23 +231,25 @@ export default function CrawlEditor() {
 
       <TopBar />
 
+      {!isNew && crawl && (
+        <CrawlOwnerToolbar
+          mode="edit"
+          viewHref={`/lists/${crawl.slug}`}
+          editHref={`/crawls/${crawl.id}/edit`}
+          onDelete={handleDeleteCrawl}
+        />
+      )}
+
       <header className="border-b-2 border-night-900 bg-cream-100">
-        <div className="max-w-3xl mx-auto px-5 py-6 flex items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow mb-1">{isNew ? 'New crawl' : 'Editing'}</p>
-            <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-              {isNew ? 'Start a new crawl' : crawl?.title ?? 'Crawl'}
-            </h1>
-          </div>
-          {!isNew && crawl && (
-            <Link to={`/lists/${crawl.slug}`} className="btn-ghost text-xs">
-              ← Back to crawl
-            </Link>
-          )}
+        <div className="max-w-3xl mx-auto px-5 py-6">
+          <p className="eyebrow mb-1">{isNew ? 'New crawl' : 'Editing'}</p>
+          <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
+            {isNew ? 'Start a new crawl' : crawl?.title ?? 'Crawl'}
+          </h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 space-y-5">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-5">
         {/* ── Crawl details ─────────────────────────────────────────── */}
         <div className="card px-5 py-5 space-y-4">
           <h2 className="font-display text-lg text-charcoal-800">Crawl details</h2>
@@ -320,11 +322,6 @@ export default function CrawlEditor() {
             >
               {savingMeta ? 'Saving…' : isNew ? 'Create crawl' : 'Save changes'}
             </button>
-            {!isNew && (
-              <button onClick={handleDeleteCrawl} className="btn-danger ml-auto px-3 py-1.5 text-xs">
-                Delete crawl
-              </button>
-            )}
           </div>
         </div>
 
@@ -650,7 +647,7 @@ function ItemEditor({
           {...attributes}
           {...listeners}
           aria-label="Drag to reorder"
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-charcoal-300 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-charcoal-300 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
         >
           <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
             <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
@@ -674,7 +671,7 @@ function ItemEditor({
           <button
             onClick={onMoveUp}
             disabled={!canMoveUp}
-            className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+            className="w-10 h-10 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
             aria-label="Move up"
           >
             ↑
@@ -682,14 +679,14 @@ function ItemEditor({
           <button
             onClick={onMoveDown}
             disabled={!canMoveDown}
-            className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+            className="w-10 h-10 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
             aria-label="Move down"
           >
             ↓
           </button>
           <button
             onClick={onRemove}
-            className="w-7 h-7 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center text-lg"
             aria-label="Remove"
           >
             ×

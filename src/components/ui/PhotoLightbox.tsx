@@ -35,7 +35,8 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
       <button
         onClick={(e) => { e.stopPropagation(); onClose() }}
         aria-label="Close"
-        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-cream-50/10 hover:bg-cream-50/20 text-cream-50 text-2xl leading-none flex items-center justify-center transition-colors"
+        style={{ top: 'calc(1rem + env(safe-area-inset-top))', right: 'calc(1rem + env(safe-area-inset-right))' }}
+        className="absolute w-11 h-11 rounded-full bg-cream-50/10 hover:bg-cream-50/20 text-cream-50 text-2xl leading-none flex items-center justify-center transition-colors"
       >
         ×
       </button>

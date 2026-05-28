@@ -149,7 +149,7 @@ export default function ReviewPage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-5 py-8">
+      <main className="max-w-2xl mx-auto px-5 py-8 pb-safe-8">
         <div className="bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker px-5">
           <ReviewCard
             review={review}

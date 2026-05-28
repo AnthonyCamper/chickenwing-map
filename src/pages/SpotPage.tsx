@@ -193,7 +193,7 @@ export default function SpotPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 space-y-6">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-6">
         {spot.lat != null && spot.lng != null && (
           <SpotMap lat={spot.lat} lng={spot.lng} name={spot.name} />
         )}

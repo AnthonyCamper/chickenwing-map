@@ -280,7 +280,7 @@ export default function UserProfilePage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 space-y-8">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-8">
         {badges.length > 0 && (
           <section>
             <h2 className="eyebrow mb-3">Badges</h2>

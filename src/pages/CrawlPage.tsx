@@ -7,6 +7,7 @@ import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
 import TopBar from '../components/ui/TopBar'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
+import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
 import HeartIcon from '../components/gallery/HeartIcon'
 import CrawlCommentThread from '../components/CrawlCommentThread'
 import { useAuthGate } from '../components/AuthGateModal'
@@ -32,8 +33,6 @@ export default function CrawlPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<CrawlDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [likeBusy, setLikeBusy] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [lightbox, setLightbox] = useState<{ photos: SpotPhoto[]; index: number } | null>(null)
@@ -163,17 +162,14 @@ export default function CrawlPage() {
 
   async function handleDelete() {
     if (!data) return
-    setDeleting(true)
     const { error } = await deleteCrawl(data.crawl.id)
     if (error) {
       toast.error(error)
-      setDeleting(false)
-      setConfirmDelete(false)
-    } else {
-      toast.success('Crawl deleted')
-      if (data.crawl.author_username) navigate(`/u/${data.crawl.author_username}`)
-      else navigate('/')
+      return
     }
+    toast.success('Crawl deleted')
+    if (data.crawl.author_username) navigate(`/u/${data.crawl.author_username}`)
+    else navigate('/')
   }
 
   if (status === 'loading') {
@@ -226,6 +222,15 @@ export default function CrawlPage() {
       </Helmet>
 
       <TopBar />
+
+      {isOwner && (
+        <CrawlOwnerToolbar
+          mode="view"
+          viewHref={`/lists/${crawl.slug}`}
+          editHref={`/crawls/${crawl.id}/edit`}
+          onDelete={handleDelete}
+        />
+      )}
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         {/* Cover */}
@@ -281,51 +286,18 @@ export default function CrawlPage() {
               onClick={handleToggleLike}
               disabled={likeBusy}
               aria-label={crawl.is_liked_by_me ? 'Unlike crawl' : 'Like crawl'}
-              className="inline-flex items-center gap-1.5 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
+              className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
             >
               <HeartIcon filled={crawl.is_liked_by_me} className="w-5 h-5" />
               {crawl.like_count > 0 && (
                 <span className="text-xs font-bold">{crawl.like_count}</span>
               )}
             </button>
-
-            {isOwner && (
-              <div className="ml-auto flex items-center gap-2">
-                <Link to={`/crawls/${crawl.id}/edit`} className="btn-secondary px-3 py-1 text-xs">
-                  Edit
-                </Link>
-                {!confirmDelete ? (
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-600 transition-colors"
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500">Sure?</span>
-                    <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 disabled:opacity-50"
-                    >
-                      {deleting ? 'Deleting…' : 'Yes'}
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(false)}
-                      className="text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-charcoal-600"
-                    >
-                      Nope
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8">
         {items.length > 0 && (
           <div className="mb-6">
             <CrawlRouteMap items={items} ranked={crawl.is_ranked} />
