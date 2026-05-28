@@ -198,6 +198,11 @@ export interface ReviewComment extends Comment {
   replies?: ReviewComment[]
 }
 
+export interface CrawlComment extends Comment {
+  crawl_id: string
+  replies?: CrawlComment[]
+}
+
 export interface AddCommentOptions {
   text?: string
   parentCommentId?: string | null

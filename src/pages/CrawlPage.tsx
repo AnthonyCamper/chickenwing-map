@@ -8,6 +8,7 @@ import TopBar from '../components/ui/TopBar'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import HeartIcon from '../components/gallery/HeartIcon'
+import CrawlCommentThread from '../components/CrawlCommentThread'
 import { useAuthGate } from '../components/AuthGateModal'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
 
@@ -350,6 +351,16 @@ export default function CrawlPage() {
             ))}
           </ol>
         )}
+
+        {/* Comments */}
+        <section className="mt-10 pt-6 border-t-2 border-night-900/10">
+          <h2 className="eyebrow mb-3">Comments</h2>
+          <CrawlCommentThread
+            crawlId={crawl.id}
+            currentUserId={currentUserId}
+            isAdmin={false}
+          />
+        </section>
       </main>
 
       {lightbox && (

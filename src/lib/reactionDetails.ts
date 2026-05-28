@@ -127,3 +127,59 @@ export async function fetchReviewCommentReactors(commentId: string): Promise<Rea
     }
   })
 }
+
+// ── Crawl comment variants ──────────────────────────────────────────────────
+
+export async function fetchCrawlCommentLikers(commentId: string): Promise<ReactionUser[]> {
+  const { data: likes } = await supabase
+    .from('crawl_comment_likes')
+    .select('user_id')
+    .eq('comment_id', commentId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (!likes?.length) return []
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, avatar_url, email')
+    .in('id', likes.map(l => l.user_id))
+
+  const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
+
+  return likes.map(l => {
+    const p = profileMap.get(l.user_id)
+    return {
+      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      avatar: p?.avatar_url ?? null,
+    }
+  })
+}
+
+export async function fetchCrawlCommentReactors(commentId: string): Promise<ReactionUser[]> {
+  const { data: reactions } = await supabase
+    .from('crawl_comment_reactions')
+    .select('user_id, reaction_type')
+    .eq('comment_id', commentId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (!reactions?.length) return []
+
+  const userIds = [...new Set(reactions.map(r => r.user_id))]
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, display_name, avatar_url, email')
+    .in('id', userIds)
+
+  const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
+
+  return reactions.map(r => {
+    const p = profileMap.get(r.user_id)
+    return {
+      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      avatar: p?.avatar_url ?? null,
+      reactionType: r.reaction_type,
+    }
+  })
+}

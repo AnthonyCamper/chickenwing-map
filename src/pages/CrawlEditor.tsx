@@ -16,6 +16,15 @@ import {
 import TopBar from '../components/ui/TopBar'
 import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
+import {
+  DndContext, KeyboardSensor, PointerSensor, closestCenter,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, arrayMove, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { WingCrawl, WingCrawlItem, WingSpot } from '../lib/types'
 
 interface ItemWithSpot extends WingCrawlItem {
@@ -188,6 +197,23 @@ export default function CrawlEditor() {
     if (error) { toast.error(error); await load() }
   }
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = items.findIndex(i => i.id === active.id)
+    const newIdx = items.findIndex(i => i.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const next = arrayMove(items, oldIdx, newIdx)
+    setItems(next)
+    const { error } = await reorderCrawlItems(next.map(i => i.id))
+    if (error) { toast.error(error); await load() }
+  }
+
   if (!authChecked || loading) {
     return (
       <div className="min-h-dvh bg-paper flex items-center justify-center">
@@ -325,21 +351,25 @@ export default function CrawlEditor() {
                 No spots yet — add some below.
               </p>
             ) : (
-              <ol className="space-y-2">
-                {items.map((item, idx) => (
-                  <ItemEditor
-                    key={item.id}
-                    item={item}
-                    rank={isRanked ? idx + 1 : null}
-                    canMoveUp={idx > 0}
-                    canMoveDown={idx < items.length - 1}
-                    onMoveUp={() => handleMove(item.id, -1)}
-                    onMoveDown={() => handleMove(item.id, 1)}
-                    onRemove={() => handleRemoveItem(item.id)}
-                    onSaveNote={(note) => handleSaveNote(item.id, note)}
-                  />
-                ))}
-              </ol>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  <ol className="space-y-2">
+                    {items.map((item, idx) => (
+                      <ItemEditor
+                        key={item.id}
+                        item={item}
+                        rank={isRanked ? idx + 1 : null}
+                        canMoveUp={idx > 0}
+                        canMoveDown={idx < items.length - 1}
+                        onMoveUp={() => handleMove(item.id, -1)}
+                        onMoveDown={() => handleMove(item.id, 1)}
+                        onRemove={() => handleRemoveItem(item.id)}
+                        onSaveNote={(note) => handleSaveNote(item.id, note)}
+                      />
+                    ))}
+                  </ol>
+                </SortableContext>
+              </DndContext>
             )}
 
             <AddSpotForm
@@ -597,11 +627,38 @@ function ItemEditor({
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(item.note ?? '')
 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
   const { spot } = item
 
   return (
-    <li className="rounded-2xl bg-cream-50 border-2 border-night-900/10 overflow-hidden">
-      <div className="flex items-center gap-3 p-3">
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="rounded-2xl bg-cream-50 border-2 border-night-900/10 overflow-hidden"
+    >
+      <div className="flex items-center gap-2 p-3">
+        {/* Drag handle */}
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label="Drag to reorder"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-charcoal-300 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+        >
+          <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+            <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
+            <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
+            <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
+          </svg>
+        </button>
+
         {rank != null && (
           <div className="w-7 h-7 rounded-full bg-sauce-400 text-cream-50 text-xs font-bold flex items-center justify-center flex-shrink-0 border-2 border-night-900">
             {rank}
