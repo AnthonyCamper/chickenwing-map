@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAdminUsers } from '../hooks/useAdminUsers'
 import AdminEventsTab from '../components/admin/AdminEventsTab'
+import AppHeader from '../components/AppHeader'
 import type { UserProfile, UserStatus } from '../lib/types'
 
 type Tab = 'pending' | 'users' | 'events' | 'settings'
 
 export default function AdminDashboard() {
-  const navigate = useNavigate()
   const admin = useAdminUsers()
 
   const pendingUsers = admin.users.filter(u => u.status === 'pending')
@@ -35,16 +34,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-dvh bg-warmgray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-warmgray-50/90 backdrop-blur-md border-b border-warmgray-200">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-ghost px-2 py-1.5 text-charcoal-500"
-            aria-label="Back"
-          >
-            ← Back
-          </button>
+      <AppHeader />
+
+      <header className="border-b border-warmgray-200 bg-warmgray-50">
+        <div className="max-w-3xl mx-auto px-4 py-2.5 flex items-center gap-3">
           <h1 className="font-display text-lg text-charcoal-800 flex-1">Admin Dashboard</h1>
           <button onClick={admin.refresh} className="btn-ghost px-2 py-1.5 text-charcoal-400 text-xs">
             Refresh

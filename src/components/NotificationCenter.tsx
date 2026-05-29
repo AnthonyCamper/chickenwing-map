@@ -221,8 +221,8 @@ function getDefaultText(notif: Notification): string {
     case 'photo_like': return 'Someone liked your photo'
     case 'comment_like': return 'Someone liked your comment'
     case 'comment_reaction': return 'New reaction on your comment'
-    case 'crawl_like': return 'Someone liked your crawl'
-    case 'new_crawl_from_followed_user': return 'New crawl from someone you follow'
+    case 'crawl_like': return 'Someone liked your list'
+    case 'new_crawl_from_followed_user': return 'New list from someone you follow'
     default: return 'New notification'
   }
 }

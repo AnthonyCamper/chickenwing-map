@@ -290,15 +290,15 @@ export default function UserProfilePage() {
         {(crawls.length > 0 || isOwner) && (
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="eyebrow">Crawls</h2>
+              <h2 className="eyebrow">Lists</h2>
               {isOwner && (
-                <Link to="/crawls/new" className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600">
-                  + New crawl
+                <Link to="/lists/new" className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600">
+                  + New list
                 </Link>
               )}
             </div>
             {crawls.length === 0 ? (
-              <p className="text-charcoal-500 text-sm italic">No crawls yet.</p>
+              <p className="text-charcoal-500 text-sm italic">No lists yet.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {crawls.map(c => (

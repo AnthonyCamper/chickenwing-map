@@ -168,7 +168,7 @@ export default function CrawlPage() {
       toast.error(error)
       return
     }
-    toast.success('Crawl deleted')
+    toast.success('List deleted')
     if (data.crawl.author_username) navigate(`/u/${data.crawl.author_username}`)
     else navigate('/')
   }
@@ -185,7 +185,7 @@ export default function CrawlPage() {
     return (
       <PageStateShell>
         <p className="eyebrow">404</p>
-        <h1 className="font-display uppercase text-3xl text-night-900">No crawl here</h1>
+        <h1 className="font-display uppercase text-3xl text-night-900">No list here</h1>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -228,7 +228,7 @@ export default function CrawlPage() {
         <CrawlOwnerToolbar
           mode="view"
           viewHref={`/lists/${crawl.slug}`}
-          editHref={`/crawls/${crawl.id}/edit`}
+          editHref={`/lists/${crawl.id}/edit`}
           onDelete={handleDelete}
         />
       )}
@@ -253,7 +253,7 @@ export default function CrawlPage() {
 
         <div className="max-w-3xl mx-auto px-5 py-6">
           <p className="eyebrow mb-2">
-            {crawl.is_ranked ? 'Ranked crawl' : 'Crawl'}
+            {crawl.is_ranked ? 'Ranked list' : 'List'}
             {!crawl.is_public && ' · Private'}
           </p>
           <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest">
@@ -286,7 +286,7 @@ export default function CrawlPage() {
             <button
               onClick={handleToggleLike}
               disabled={likeBusy}
-              aria-label={crawl.is_liked_by_me ? 'Unlike crawl' : 'Like crawl'}
+              aria-label={crawl.is_liked_by_me ? 'Unlike list' : 'Like list'}
               className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
             >
               <HeartIcon filled={crawl.is_liked_by_me} className="w-5 h-5" />
@@ -308,7 +308,7 @@ export default function CrawlPage() {
         {items.length === 0 ? (
           <p className="text-charcoal-500 text-sm italic">
             No spots yet.{isOwner && (
-              <> <Link to={`/crawls/${crawl.id}/edit`} className="text-sauce-500 hover:underline">Add some →</Link></>
+              <> <Link to={`/lists/${crawl.id}/edit`} className="text-sauce-500 hover:underline">Add some →</Link></>
             )}
           </p>
         ) : (

@@ -60,7 +60,7 @@ export default function GalleryView({ currentUserId }: Props) {
       {/* Feed tabs */}
       <div className="max-w-2xl mx-auto px-4 pt-4">
         <div className="flex gap-1.5 mb-4">
-          {([['following', 'Following'], ['discover', 'Discover'], ['crawls', 'Crawls'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
+          {([['following', 'Following'], ['discover', 'Discover'], ['crawls', 'Lists'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
             <button
               key={f}
               onClick={() => setFeed(f)}
@@ -87,15 +87,15 @@ export default function GalleryView({ currentUserId }: Props) {
           ) : crawls.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center px-6">
               <div className="text-5xl mb-4">📋</div>
-              <h3 className="font-display text-lg text-charcoal-700 mb-2">No crawls yet</h3>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">No lists yet</h3>
               <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed mb-5">
-                Be the first to curate a wing crawl. Stake your claim.
+                Be the first to curate a list. Stake your claim.
               </p>
               <button
-                onClick={() => { if (requireAuth()) navigate('/crawls/new') }}
+                onClick={() => { if (requireAuth()) navigate('/lists/new') }}
                 className="btn-primary px-5"
               >
-                + New crawl
+                + New list
               </button>
             </div>
           ) : (

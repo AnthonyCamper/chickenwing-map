@@ -198,8 +198,8 @@ export default function App() {
         <Route path="/u/:username" element={<UserProfilePage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
         <Route path="/lists/:slug" element={<CrawlPage />} />
-        <Route path="/crawls/new" element={<CrawlEditor />} />
-        <Route path="/crawls/:id/edit" element={<CrawlEditor />} />
+        <Route path="/lists/new" element={<CrawlEditor />} />
+        <Route path="/lists/:id/edit" element={<CrawlEditor />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

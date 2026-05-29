@@ -184,11 +184,11 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/events') }}>
-                        Events
+                        Crawls
                       </MenuItem>
 
-                      <MenuItem onClick={() => { setProfileOpen(false); navigate('/crawls/new') }}>
-                        + New crawl
+                      <MenuItem onClick={() => { setProfileOpen(false); navigate('/lists/new') }}>
+                        + New list
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); setShowNotifSettings(true) }}>

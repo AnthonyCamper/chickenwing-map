@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
+import AppHeader from '../components/AppHeader'
 import type { WingEvent } from '../lib/types'
 
 export default function EventsIndex() {
-  const navigate = useNavigate()
   const [events, setEvents] = useState<WingEvent[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -27,18 +27,13 @@ export default function EventsIndex() {
 
   return (
     <div className="min-h-dvh bg-warmgray-50">
-      <header className="sticky top-0 z-40 bg-warmgray-50/95 backdrop-blur-md border-b border-warmgray-200">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-ghost px-2 py-1.5 text-charcoal-500 text-sm"
-            aria-label="Back"
-          >
-            ← Back
-          </button>
-          <h1 className="font-display text-base text-charcoal-800 flex-1">Events</h1>
+      <AppHeader />
+
+      <div className="border-b border-warmgray-200 bg-warmgray-50">
+        <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
+          <h1 className="font-display text-base text-charcoal-800 flex-1">Crawls</h1>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {loading ? (

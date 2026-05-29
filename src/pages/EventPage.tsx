@@ -8,6 +8,8 @@ import { useReviews } from '../hooks/useReviews'
 import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
 import BadgeGrid from '../components/badges/BadgeGrid'
+import AppHeader from '../components/AppHeader'
+import PageStateShell from '../components/ui/PageStateShell'
 import { supabase } from '../lib/supabase'
 import type { EventStop, ReviewFormData, RsvpStatus } from '../lib/types'
 
@@ -191,20 +193,20 @@ export default function EventPage({ auth }: Props) {
 
   if (evt.loading) {
     return (
-      <div className="min-h-dvh bg-warmgray-50 flex items-center justify-center">
+      <PageStateShell>
         <div className="w-10 h-10 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
-      </div>
+      </PageStateShell>
     )
   }
 
   if (!evt.event) {
     return (
-      <div className="min-h-dvh bg-warmgray-50 flex flex-col items-center justify-center px-6 text-center">
-        <p className="text-5xl mb-3">🍗</p>
-        <h2 className="font-display text-xl text-charcoal-800 mb-2">No active event</h2>
-        <p className="text-sm text-charcoal-400 mb-6">There's no published crawl right now. Check back soon.</p>
+      <PageStateShell>
+        <p className="text-5xl">🍗</p>
+        <h2 className="font-display text-xl text-charcoal-800">No active crawl</h2>
+        <p className="text-sm text-charcoal-400">There's no published crawl right now. Check back soon.</p>
         <button onClick={() => navigate('/')} className="btn-secondary">Back home</button>
-      </div>
+      </PageStateShell>
     )
   }
 
@@ -268,16 +270,11 @@ export default function EventPage({ auth }: Props) {
 
   return (
     <div className="min-h-dvh bg-warmgray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-warmgray-50/95 backdrop-blur-md border-b border-warmgray-200">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-ghost px-2 py-1.5 text-charcoal-500 text-sm"
-            aria-label="Back"
-          >
-            ← Back
-          </button>
+      <AppHeader />
+
+      {/* Sub-bar with event title + share */}
+      <div className="border-b border-warmgray-200 bg-warmgray-50">
+        <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
           <h1 className="font-display text-base text-charcoal-800 flex-1 truncate">{e.name}</h1>
           <button
             onClick={async () => {
@@ -292,7 +289,6 @@ export default function EventPage({ auth }: Props) {
                   await navigator.share(shareData)
                   return
                 } catch (err) {
-                  // User cancelled or share failed — fall through to clipboard
                   if (err instanceof Error && err.name === 'AbortError') return
                 }
               }
@@ -304,7 +300,7 @@ export default function EventPage({ auth }: Props) {
               }
             }}
             className="btn-ghost px-2 py-1.5 text-charcoal-500 text-sm flex items-center gap-1"
-            aria-label="Share event"
+            aria-label="Share crawl"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="18" cy="5" r="3" />
@@ -316,7 +312,7 @@ export default function EventPage({ auth }: Props) {
             <span className="hidden sm:inline">Share</span>
           </button>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Hero */}

@@ -78,7 +78,7 @@ export default function CrawlEditor() {
       .maybeSingle()
 
     if (error || !c) {
-      toast.error('Crawl not found')
+      toast.error('List not found')
       navigate('/', { replace: true })
       return
     }
@@ -137,8 +137,8 @@ export default function CrawlEditor() {
         if (result.error || !result.crawl) {
           toast.error(result.error ?? 'Could not create'); return
         }
-        toast.success('Crawl created')
-        navigate(`/crawls/${result.crawl.id}/edit`, { replace: true })
+        toast.success('List created')
+        navigate(`/lists/${result.crawl.id}/edit`, { replace: true })
       } else if (crawl) {
         const result = await updateCrawl(crawl.id, {
           title, description, is_public: isPublic, is_ranked: isRanked,
@@ -183,7 +183,7 @@ export default function CrawlEditor() {
   async function handleAddSpot(spotId: string) {
     if (!crawl) return
     if (items.some(i => i.wing_spot_id === spotId)) {
-      toast('Already in this crawl', { icon: '👀' }); return
+      toast('Already in this list', { icon: '👀' }); return
     }
     const { error } = await addCrawlItem(crawl.id, spotId)
     if (error) { toast.error(error); return }
@@ -243,7 +243,7 @@ export default function CrawlEditor() {
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
-        <title>{isNew ? 'New crawl' : `Edit: ${crawl?.title ?? 'Crawl'}`} — WingKingTony</title>
+        <title>{isNew ? 'New list' : `Edit: ${crawl?.title ?? 'List'}`} — WingKingTony</title>
       </Helmet>
 
       <AppHeader />
@@ -252,24 +252,24 @@ export default function CrawlEditor() {
         <CrawlOwnerToolbar
           mode="edit"
           viewHref={`/lists/${crawl.slug}`}
-          editHref={`/crawls/${crawl.id}/edit`}
+          editHref={`/lists/${crawl.id}/edit`}
           onDelete={handleDeleteCrawl}
         />
       )}
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-3xl mx-auto px-5 py-6">
-          <p className="eyebrow mb-1">{isNew ? 'New crawl' : 'Editing'}</p>
+          <p className="eyebrow mb-1">{isNew ? 'New list' : 'Editing'}</p>
           <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-            {isNew ? 'Start a new crawl' : crawl?.title ?? 'Crawl'}
+            {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
           </h1>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-8 pb-32 sm:pb-safe-8 space-y-5">
-        {/* ── Crawl details ─────────────────────────────────────────── */}
+        {/* ── List details ─────────────────────────────────────────── */}
         <div className="card px-5 py-5 space-y-4">
-          <h2 className="font-display text-lg text-charcoal-800">Crawl details</h2>
+          <h2 className="font-display text-lg text-charcoal-800">List details</h2>
 
           <div>
             <label className="label">Title</label>
@@ -337,7 +337,7 @@ export default function CrawlEditor() {
               disabled={savingMeta || !title.trim()}
               className="btn-primary px-5 disabled:opacity-50"
             >
-              {savingMeta ? 'Saving…' : isNew ? 'Create crawl' : 'Save changes'}
+              {savingMeta ? 'Saving…' : isNew ? 'Create list' : 'Save changes'}
             </button>
           </div>
         </div>
@@ -571,7 +571,7 @@ function AddSpotForm({
             </div>
           </div>
           <button onClick={handleCreateAndAdd} disabled={creating} className="btn-primary w-full mt-1">
-            {creating ? 'Adding…' : 'Add spot to crawl'}
+            {creating ? 'Adding…' : 'Add spot to list'}
           </button>
         </div>
       )}

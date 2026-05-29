@@ -31,7 +31,7 @@ export default function CrawlFeedCard({ crawl }: Props) {
       {/* Body */}
       <div className="p-4">
         <p className="eyebrow mb-1">
-          {crawl.is_ranked ? 'Ranked crawl' : 'Crawl'}
+          {crawl.is_ranked ? 'Ranked list' : 'List'}
           {' · '}{crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}
         </p>
         <h3 className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2">
