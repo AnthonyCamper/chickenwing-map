@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
@@ -5,16 +6,28 @@ import Login from './pages/Login'
 import Home from './pages/Home'
 import Register from './pages/Register'
 import PendingApproval from './pages/PendingApproval'
-import AdminDashboard from './pages/AdminDashboard'
-import EventPage from './pages/EventPage'
-import EventsIndex from './pages/EventsIndex'
 import SpotPage from './pages/SpotPage'
 import UserProfilePage from './pages/UserProfilePage'
 import ReviewPage from './pages/ReviewPage'
 import CrawlPage from './pages/CrawlPage'
-import CrawlEditor from './pages/CrawlEditor'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
+
+// ── Lazy-loaded routes — off the main path / heavy deps ──────────────────
+// AdminDashboard / EventPage / EventsIndex: admin or event-specific paths
+// CrawlEditor: pulls in @dnd-kit + the cover-upload pipeline; only owners hit it
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const EventPage = lazy(() => import('./pages/EventPage'))
+const EventsIndex = lazy(() => import('./pages/EventsIndex'))
+const CrawlEditor = lazy(() => import('./pages/CrawlEditor'))
+
+function LazyFallback() {
+  return (
+    <div className="min-h-dvh bg-paper flex items-center justify-center">
+      <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
+    </div>
+  )
+}
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
@@ -95,6 +108,7 @@ export default function App() {
         }}
       />
 
+      <Suspense fallback={<LazyFallback />}>
       <Routes>
         <Route path="/login" element={
           auth.status === 'unauthenticated' ? (
@@ -189,6 +203,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </AuthGateProvider>
     </AuthProvider>
   )

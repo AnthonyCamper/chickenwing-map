@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import AppHeader from '../components/AppHeader'
+import PageStateShell from '../components/ui/PageStateShell'
 import { useAuthGate } from '../components/AuthGateModal'
 import type { UserProfile, Review, WingSpot, BadgeWithEarned, WingCrawlDetailed } from '../lib/types'
 
@@ -178,45 +179,43 @@ export default function UserProfilePage() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-dvh bg-paper flex items-center justify-center">
+      <PageStateShell>
         <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      </div>
+      </PageStateShell>
     )
   }
 
   if (status === 'not-found') {
     return (
-      <div className="min-h-dvh bg-paper flex flex-col items-center justify-center px-6 text-center gap-4">
+      <PageStateShell>
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">No user here</h1>
-        <Link to="/" className="btn-secondary">Back to the map</Link>
-      </div>
+        <Link to="/" className="btn-secondary">Back home</Link>
+      </PageStateShell>
     )
   }
 
   if (status === 'private' && data) {
     return (
-      <div className="min-h-dvh bg-paper">
+      <PageStateShell>
         <Helmet>
           <title>Private profile — WingKingTony</title>
           <meta name="description" content="This wing-logger has set their profile to private." />
         </Helmet>
-        <div className="max-w-2xl mx-auto px-5 py-20 text-center">
-          <p className="eyebrow mb-3">Members only</p>
-          <h1 className="font-display uppercase text-3xl text-night-900 mb-3">Private profile</h1>
-          <p className="text-sm text-charcoal-600 mb-8">This wing-logger keeps their stuff to themselves.</p>
-          <Link to="/" className="btn-secondary">Back to the map</Link>
-        </div>
-      </div>
+        <p className="eyebrow">Members only</p>
+        <h1 className="font-display uppercase text-3xl text-night-900">Private profile</h1>
+        <p className="text-sm text-charcoal-600 max-w-prose">This wing-logger keeps their stuff to themselves.</p>
+        <Link to="/" className="btn-secondary">Back home</Link>
+      </PageStateShell>
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <div className="min-h-dvh bg-paper flex flex-col items-center justify-center px-6 text-center gap-4">
+      <PageStateShell>
         <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back to the map</Link>
-      </div>
+        <Link to="/" className="btn-secondary">Back home</Link>
+      </PageStateShell>
     )
   }
 

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
 import AppHeader from '../components/AppHeader'
+import PageStateShell from '../components/ui/PageStateShell'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
@@ -174,28 +175,28 @@ export default function CrawlPage() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-dvh bg-paper flex items-center justify-center">
+      <PageStateShell>
         <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      </div>
+      </PageStateShell>
     )
   }
 
   if (status === 'not-found') {
     return (
-      <div className="min-h-dvh bg-paper flex flex-col items-center justify-center px-6 text-center gap-4">
+      <PageStateShell>
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">No crawl here</h1>
-        <Link to="/" className="btn-secondary">Back to the map</Link>
-      </div>
+        <Link to="/" className="btn-secondary">Back home</Link>
+      </PageStateShell>
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <div className="min-h-dvh bg-paper flex flex-col items-center justify-center px-6 text-center gap-4">
+      <PageStateShell>
         <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back to the map</Link>
-      </div>
+        <Link to="/" className="btn-secondary">Back home</Link>
+      </PageStateShell>
     )
   }
 

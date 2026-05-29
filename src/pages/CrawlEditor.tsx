@@ -14,6 +14,7 @@ import {
   uploadCrawlCover,
 } from '../lib/crawlActions'
 import AppHeader from '../components/AppHeader'
+import PageStateShell from '../components/ui/PageStateShell'
 import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
@@ -108,6 +109,21 @@ export default function CrawlEditor() {
   }, [id, isNew, navigate])
 
   useEffect(() => { load() }, [load])
+
+  const metaDirty = !!crawl && (
+    title !== crawl.title
+    || description !== (crawl.description ?? '')
+    || isRanked !== crawl.is_ranked
+    || isPublic !== crawl.is_public
+  )
+
+  function handleDiscardMeta() {
+    if (!crawl) return
+    setTitle(crawl.title)
+    setDescription(crawl.description ?? '')
+    setIsRanked(crawl.is_ranked)
+    setIsPublic(crawl.is_public)
+  }
 
   async function handleSaveMeta() {
     if (!title.trim()) { toast.error('Title is required'); return }
@@ -217,9 +233,9 @@ export default function CrawlEditor() {
 
   if (!authChecked || loading) {
     return (
-      <div className="min-h-dvh bg-paper flex items-center justify-center">
+      <PageStateShell>
         <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      </div>
+      </PageStateShell>
     )
   }
   if (!authed) return null
@@ -250,7 +266,7 @@ export default function CrawlEditor() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-5">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-32 sm:pb-safe-8 space-y-5">
         {/* ── Crawl details ─────────────────────────────────────────── */}
         <div className="card px-5 py-5 space-y-4">
           <h2 className="font-display text-lg text-charcoal-800">Crawl details</h2>
@@ -377,6 +393,34 @@ export default function CrawlEditor() {
           </div>
         )}
       </main>
+
+      {/* Sticky save bar — appears when meta is dirty (edit mode only) */}
+      {!isNew && metaDirty && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-night-900 bg-cream-100/95 backdrop-blur supports-[backdrop-filter]:bg-cream-100/85 shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="max-w-3xl mx-auto px-5 py-3 flex items-center gap-3">
+            <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500">
+              Unsaved changes
+            </span>
+            <button
+              onClick={handleDiscardMeta}
+              disabled={savingMeta}
+              className="btn-ghost ml-auto text-xs"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleSaveMeta}
+              disabled={savingMeta || !title.trim()}
+              className="btn-primary px-5 disabled:opacity-50"
+            >
+              {savingMeta ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
