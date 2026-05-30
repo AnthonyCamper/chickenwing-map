@@ -5,19 +5,24 @@ import toast from 'react-hot-toast'
 import type { GalleryReviewItem } from '../../lib/types'
 import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
+import ReviewCommentThread from '../ReviewCommentThread'
 import { fetchReviewLikers } from '../../lib/reactionDetails'
 import { useUserProfile } from '../UserProfileContext'
 
 interface Props {
   review: GalleryReviewItem
+  currentUserId: string
+  isAdmin: boolean
   onOpen: () => void
   onLike: () => void
 }
 
-export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
+export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen, onLike }: Props) {
   const { openProfile } = useUserProfile()
   const fetchLikers = useCallback(() => fetchReviewLikers(review.review_id), [review.review_id])
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [showComments, setShowComments] = useState(false)
+  const [commentCount, setCommentCount] = useState(review.comment_count)
 
   const primaryPhoto = review.photos[0]
   const displayPhoto = review.photos[carouselIndex] ?? primaryPhoto
@@ -187,17 +192,22 @@ export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
           </button>
         </LikedByOverlay>
 
-        {/* Comment */}
+        {/* Comment — toggles the inline thread open in place */}
         <button
-          onClick={onOpen}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold text-charcoal-500 hover:bg-cream-100 transition-colors"
-          aria-label="View comments"
+          onClick={() => setShowComments(v => !v)}
+          aria-expanded={showComments}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
+            showComments
+              ? 'text-sauce-500 bg-sauce-50 hover:bg-sauce-100'
+              : 'text-charcoal-500 hover:bg-cream-100'
+          }`}
+          aria-label={showComments ? 'Hide comments' : 'Show comments'}
         >
-          <svg className="w-4 h-4 text-charcoal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className={`w-4 h-4 ${showComments ? 'text-sauce-500' : 'text-charcoal-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          {review.comment_count > 0 && (
-            <span className="tabular-nums">{review.comment_count}</span>
+          {commentCount > 0 && (
+            <span className="tabular-nums">{commentCount}</span>
           )}
         </button>
 
@@ -214,6 +224,34 @@ export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
           </svg>
         </button>
       </div>
+
+      {/* Inline comments — expands in place like a social feed */}
+      {showComments ? (
+        <div className="border-t-2 border-night-900/8 bg-cream-50">
+          <ReviewCommentThread
+            reviewId={review.review_id}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            onCommentCountChange={setCommentCount}
+            autoFocus
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowComments(true)}
+          className="w-full flex items-center gap-2 px-4 py-3 border-t-2 border-night-900/8 bg-cream-50 text-left hover:bg-cream-100 transition-colors"
+        >
+          <svg className="w-4 h-4 text-charcoal-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span className="text-sm text-charcoal-400">
+            {commentCount > 0
+              ? `View ${commentCount === 1 ? '1 comment' : `all ${commentCount} comments`}`
+              : 'Add a comment…'}
+          </span>
+        </button>
+      )}
     </article>
   )
 }

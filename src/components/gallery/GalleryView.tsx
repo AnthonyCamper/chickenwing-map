@@ -19,7 +19,7 @@ interface Props {
 const FEEDS: Feed[] = ['following', 'discover', 'crawls', 'people']
 function isFeed(x: string | null): x is Feed { return !!x && (FEEDS as string[]).includes(x) }
 
-export default function GalleryView({ currentUserId }: Props) {
+export default function GalleryView({ currentUserId, isAdmin }: Props) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -207,6 +207,8 @@ export default function GalleryView({ currentUserId }: Props) {
               <ReviewFeedCard
                 key={review.review_id}
                 review={review}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
                 onOpen={() => navigate(`/reviews/${review.review_id}`)}
                 onLike={() => { if (requireAuth()) gallery.toggleLike(review.review_id) }}
               />
