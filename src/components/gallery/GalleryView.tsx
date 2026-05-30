@@ -99,7 +99,7 @@ export default function GalleryView({ currentUserId }: Props) {
       {feed === 'people' ? (
         <PeopleView currentUserId={currentUserId} />
       ) : feed === 'crawls' ? (
-        <div className="max-w-2xl mx-auto px-4 pb-safe-8">
+        <div className="max-w-2xl mx-auto px-4 pb-safe-fab">
           {crawlsLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
@@ -167,7 +167,7 @@ export default function GalleryView({ currentUserId }: Props) {
           )}
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto px-4 pb-safe-8">
+        <div className="max-w-2xl mx-auto px-4 pb-safe-fab">
           <div className="space-y-3">
             {gallery.reviews.map(review => (
               <ReviewFeedCard

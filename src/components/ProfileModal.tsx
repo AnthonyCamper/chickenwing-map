@@ -148,9 +148,16 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     </span>
                   )}
                   {badgesHook.earned.length > 0 && (
-                    <span className="text-[10px] text-charcoal-500 font-bold">
-                      {badgesHook.earned.length} badge{badgesHook.earned.length !== 1 ? 's' : ''}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTab('badges')}
+                      className="inline-flex items-center gap-1.5 text-[10px] text-charcoal-500 font-bold hover:text-sauce-500 transition-colors"
+                    >
+                      {badgesHook.earned.slice(0, 3).map(b => (
+                        <span key={b.id} title={b.name} className="text-base leading-none">{b.icon}</span>
+                      ))}
+                      <span>{badgesHook.earned.length} badge{badgesHook.earned.length !== 1 ? 's' : ''} →</span>
+                    </button>
                   )}
                   <span className="text-[10px] text-charcoal-500 font-bold">
                     {followerCount} follower{followerCount !== 1 ? 's' : ''}

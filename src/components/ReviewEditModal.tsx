@@ -12,13 +12,15 @@ interface Props {
 }
 
 export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
-  const [overallRating, setOverallRating] = useState(review.overall_rating)
+  const [overallRating, setOverallRating] = useState<number>(Number(review.overall_rating) || 5)
   const [wingSize, setWingSize] = useState(review.wing_size ?? '')
   const [wingFlavor, setWingFlavor] = useState(review.wing_flavor ?? '')
   const [isTakeout, setIsTakeout] = useState(review.is_takeout ?? false)
   const [takeoutContainer, setTakeoutContainer] = useState(review.takeout_container ?? '')
   const [reviewText, setReviewText] = useState(review.review_text ?? '')
-  const [visitedAt, setVisitedAt] = useState(review.visited_at.split('T')[0])
+  const [visitedAt, setVisitedAt] = useState(
+    (review.visited_at ?? new Date().toISOString()).split('T')[0]
+  )
 
   // Photo editing state — `deletedPhotoIds` is the ground truth for what will
   // be removed on save; UI marks photos with `pendingRemoval` so the user can
@@ -43,11 +45,11 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
     e.preventDefault()
     setSubmitting(true)
     await onSubmit({
-      overall_rating: overallRating,
+      overall_rating: overallRating > 0 ? overallRating : 5,
       wing_size: wingSize || undefined,
       wing_flavor: wingFlavor || undefined,
       is_takeout: isTakeout,
-      takeout_container: isTakeout ? takeoutContainer || undefined : undefined,
+      takeout_container: isTakeout ? takeoutContainer || undefined : '',
       review_text: reviewText || undefined,
       visited_at: visitedAt,
       photos_to_delete: deletedPhotoIds,

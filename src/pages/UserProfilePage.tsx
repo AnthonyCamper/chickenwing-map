@@ -272,7 +272,19 @@ export default function UserProfilePage() {
             <Stat label="Reviews" value={stats.reviewCount} />
             <Stat label="Spots" value={stats.uniqueSpots} />
             <Stat label="Avg" value={stats.avgRating != null ? stats.avgRating.toFixed(1) : '—'} />
-            <Stat label="Badges" value={stats.badgeCount} />
+            {badges.length > 0 ? (
+              <a href="#badges" className="flex flex-col hover:text-sauce-500 transition-colors group">
+                <span className="flex items-center gap-1">
+                  <span className="font-display text-2xl text-night-900 group-hover:text-sauce-500">{stats.badgeCount}</span>
+                  {badges.slice(0, 3).map(b => (
+                    <span key={b.id} className="text-base leading-none">{b.icon}</span>
+                  ))}
+                </span>
+                <span className="text-[11px] uppercase font-bold tracking-crowd text-charcoal-500 group-hover:text-sauce-500">Badges →</span>
+              </a>
+            ) : (
+              <Stat label="Badges" value={stats.badgeCount} />
+            )}
             <Stat label="Followers" value={followerCount} />
             <Stat label="Following" value={followingCount} />
           </div>
@@ -281,7 +293,7 @@ export default function UserProfilePage() {
 
       <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-8">
         {badges.length > 0 && (
-          <section>
+          <section id="badges">
             <h2 className="eyebrow mb-3">Badges</h2>
             <BadgeGrid badges={badges} emptyMessage="No badges yet." />
           </section>

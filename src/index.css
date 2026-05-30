@@ -263,6 +263,8 @@
   .pt-safe-4 { padding-top:    calc(1rem    + env(safe-area-inset-top)); }
   .pb-safe-6 { padding-bottom: calc(1.5rem  + env(safe-area-inset-bottom)); }
   .pb-safe-8 { padding-bottom: calc(2rem    + env(safe-area-inset-bottom)); }
+  /* Clears the floating action button (h-14 + 1.5rem bottom gap + 0.5rem breathing room) */
+  .pb-safe-fab { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
   .mb-safe-6 { margin-bottom:  calc(1.5rem  + env(safe-area-inset-bottom)); }
   .bottom-safe-6 { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
 }

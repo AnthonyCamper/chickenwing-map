@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
@@ -16,11 +17,22 @@ import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
 
 interface SpotPhoto { id: string; url: string }
 
+interface SpotReview {
+  id: string
+  overall_rating: number
+  wing_flavor: string | null
+  review_text: string | null
+  visited_at: string
+  reviewer_name: string | null
+  reviewer_avatar: string | null
+}
+
 interface ItemWithSpot extends WingCrawlItem {
   spot: WingSpot | null
   spot_photos: SpotPhoto[]
   spot_avg_rating: number | null
   spot_review_count: number
+  spot_reviews: SpotReview[]
 }
 
 interface CrawlDetail {
@@ -69,13 +81,14 @@ export default function CrawlPage() {
     let spotsById: Record<string, WingSpot> = {}
     let ratingsBySpot: Record<string, { avg: number; count: number }> = {}
     let photosBySpot: Record<string, SpotPhoto[]> = {}
+    let reviewsBySpot: Record<string, SpotReview[]> = {}
 
     if (spotIds.length > 0) {
       const [{ data: spots }, { data: reviews }] = await Promise.all([
         supabase.from('wing_spots').select('*').in('id', spotIds),
         supabase
           .from('reviews_with_profiles')
-          .select('id, wing_spot_id, overall_rating, visited_at')
+          .select('id, wing_spot_id, overall_rating, wing_flavor, review_text, visited_at, reviewer_name, reviewer_avatar')
           .in('wing_spot_id', spotIds)
           .order('visited_at', { ascending: false }),
       ])
@@ -83,14 +96,24 @@ export default function CrawlPage() {
       for (const s of (spots ?? []) as WingSpot[]) spotsById[s.id] = s
 
       const groups: Record<string, number[]> = {}
-      const reviewIdsBySpot: Record<string, string[]> = {}
       const reviewToSpot: Record<string, string> = {}
-      for (const r of (reviews ?? []) as { id: string; wing_spot_id: string; overall_rating: number; visited_at: string }[]) {
+      type RawReview = { id: string; wing_spot_id: string; overall_rating: number; wing_flavor: string | null; review_text: string | null; visited_at: string; reviewer_name: string | null; reviewer_avatar: string | null }
+      for (const r of (reviews ?? []) as RawReview[]) {
         if (!groups[r.wing_spot_id]) groups[r.wing_spot_id] = []
         groups[r.wing_spot_id].push(r.overall_rating)
-        if (!reviewIdsBySpot[r.wing_spot_id]) reviewIdsBySpot[r.wing_spot_id] = []
-        reviewIdsBySpot[r.wing_spot_id].push(r.id)
         reviewToSpot[r.id] = r.wing_spot_id
+        if (!reviewsBySpot[r.wing_spot_id]) reviewsBySpot[r.wing_spot_id] = []
+        if (reviewsBySpot[r.wing_spot_id].length < 3) {
+          reviewsBySpot[r.wing_spot_id].push({
+            id: r.id,
+            overall_rating: r.overall_rating,
+            wing_flavor: r.wing_flavor,
+            review_text: r.review_text,
+            visited_at: r.visited_at,
+            reviewer_name: r.reviewer_name,
+            reviewer_avatar: r.reviewer_avatar,
+          })
+        }
       }
       for (const [sid, ratings] of Object.entries(groups)) {
         const sum = ratings.reduce((a, b) => a + b, 0)
@@ -122,6 +145,7 @@ export default function CrawlPage() {
       spot_avg_rating: ratingsBySpot[it.wing_spot_id]?.avg ?? null,
       spot_review_count: ratingsBySpot[it.wing_spot_id]?.count ?? 0,
       spot_photos: photosBySpot[it.wing_spot_id] ?? [],
+      spot_reviews: reviewsBySpot[it.wing_spot_id] ?? [],
     }))
 
     setData({ crawl: crawl as WingCrawlDetailed, items, isOwner })
@@ -298,7 +322,7 @@ export default function CrawlPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8">
+      <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-fab">
         {items.length > 0 && (
           <div className="mb-6">
             <CrawlRouteMap items={items} ranked={crawl.is_ranked} />
@@ -354,7 +378,7 @@ function CrawlItemRow({
   rank: number | null
   onPhotoClick: (index: number) => void
 }) {
-  const { spot, spot_photos: photos } = item
+  const { spot, spot_photos: photos, spot_reviews: reviews } = item
   if (!spot) {
     return (
       <div className="bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker">
@@ -396,7 +420,7 @@ function CrawlItemRow({
         </div>
       </Link>
 
-      {/* Photo strip — taps open lightbox, not the link */}
+      {/* Photo strip */}
       {photos.length > 0 && (
         <div className="border-t-2 border-night-900/10 px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {photos.map((p, i) => (
@@ -415,6 +439,46 @@ function CrawlItemRow({
               className="flex-shrink-0 w-20 h-20 rounded-lg border-2 border-dashed border-night-900/30 hover:border-sauce-400 flex flex-col items-center justify-center text-charcoal-400 hover:text-sauce-500 transition-colors text-[10px] font-extrabold uppercase tracking-crowd text-center px-1"
             >
               See all →
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Recent reviews */}
+      {reviews.length > 0 && (
+        <div className="border-t-2 border-night-900/10 divide-y divide-night-900/8">
+          {reviews.map(r => {
+            const dateStr = (() => { try { return format(new Date(r.visited_at), 'MMM d, yyyy') } catch { return r.visited_at } })()
+            const name = r.reviewer_name ?? 'Anonymous'
+            const initials = name.charAt(0).toUpperCase()
+            return (
+              <Link key={r.id} to={`/reviews/${r.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-cream-100/50 transition-colors">
+                <div className="flex-shrink-0 w-7 h-7 rounded-full border-2 border-night-900 bg-night-700 flex items-center justify-center overflow-hidden">
+                  {r.reviewer_avatar
+                    ? <img src={r.reviewer_avatar} alt={name} className="w-full h-full object-cover" />
+                    : <span className="text-[10px] font-extrabold text-cream-50 uppercase">{initials}</span>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-extrabold uppercase tracking-crowd text-night-800">{name}</span>
+                    <span className="font-display text-sm text-sauce-500">{Number(r.overall_rating).toFixed(1)}<span className="text-[10px] text-charcoal-400">/10</span></span>
+                    {r.wing_flavor && <span className="text-[11px] text-charcoal-500">{r.wing_flavor}</span>}
+                    <span className="text-[10px] text-charcoal-400 ml-auto">{dateStr}</span>
+                  </div>
+                  {r.review_text && (
+                    <p className="text-xs text-charcoal-600 mt-0.5 line-clamp-2 leading-relaxed">{r.review_text}</p>
+                  )}
+                </div>
+              </Link>
+            )
+          })}
+          {item.spot_review_count > reviews.length && spot.slug && (
+            <Link
+              to={`/spots/${spot.slug}`}
+              className="block px-4 py-2.5 text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:bg-cream-100/50 transition-colors"
+            >
+              See all {item.spot_review_count} reviews →
             </Link>
           )}
         </div>
