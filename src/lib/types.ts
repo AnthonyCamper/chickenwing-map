@@ -71,7 +71,8 @@ export interface Review {
   user_id: string
   overall_rating: number  // 1–10
   wing_size: string | null  // 'small' | 'medium' | 'large' | 'jumbo'
-  wing_flavor: string | null
+  wing_flavor: string | null  // legacy: comma-joined string, still dual-written
+  wing_flavors: string[]      // source of truth: one entry per sauce/flavor
   is_takeout: boolean
   takeout_container: string | null  // 'styrofoam' | 'cardboard' | 'plastic' | 'aluminum' | 'bag_only' | 'other'
   review_text: string | null
@@ -114,6 +115,7 @@ export interface GalleryPhoto {
   review_id: string
   overall_rating: number
   wing_flavor: string | null
+  wing_flavors: string[]
   review_text: string | null
   visited_at: string
   wing_spot_id: string
@@ -139,6 +141,7 @@ export interface GalleryReviewItem {
   review_id: string
   overall_rating: number
   wing_flavor: string | null
+  wing_flavors: string[]
   review_text: string | null
   visited_at: string
   wing_spot_id: string

@@ -25,6 +25,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     overall_rating: 6.5,
     wing_size: 'large',
     wing_flavor: 'Buffalo Medium',
+    wing_flavors: ['Buffalo Medium'],
     is_takeout: false,
     takeout_container: null,
     review_text: 'Hot and crispy',

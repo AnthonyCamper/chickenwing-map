@@ -19,6 +19,7 @@ export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
         review_id: p.review_id,
         overall_rating: p.overall_rating,
         wing_flavor: p.wing_flavor,
+        wing_flavors: p.wing_flavors,
         review_text: p.review_text,
         visited_at: p.visited_at,
         wing_spot_id: p.wing_spot_id,

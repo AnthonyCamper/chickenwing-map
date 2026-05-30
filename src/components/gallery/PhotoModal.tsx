@@ -52,6 +52,7 @@ export default function PhotoModal(props: Props) {
     review_id: props.photo.review_id,
     overall_rating: props.photo.overall_rating,
     wing_flavor: props.photo.wing_flavor,
+    wing_flavors: props.photo.wing_flavors,
     review_text: props.photo.review_text,
     visited_at: props.photo.visited_at,
     wing_spot_id: props.photo.wing_spot_id,
