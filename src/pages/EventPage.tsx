@@ -545,22 +545,27 @@ export default function EventPage({ auth }: Props) {
                                 ✓ Checked in
                               </span>
                             )}
-                            <button
-                              onClick={() => {
-                                if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
-                                if (hasReview && myCheckin?.review_id) {
-                                  handleEditReview(myCheckin.review_id)
-                                } else {
-                                  setReviewingStop(stop)
-                                }
-                              }}
-                              disabled={loadingReviewId === myCheckin?.review_id}
-                              className="btn-secondary px-4 py-2 text-xs disabled:opacity-50"
-                            >
-                              ✏️ {loadingReviewId === myCheckin?.review_id
-                                ? 'Loading…'
-                                : isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
-                            </button>
+                            {(() => {
+                              const isLoadingThisReview = !!myCheckin?.review_id && loadingReviewId === myCheckin.review_id
+                              return (
+                                <button
+                                  onClick={() => {
+                                    if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
+                                    if (hasReview && myCheckin?.review_id) {
+                                      handleEditReview(myCheckin.review_id)
+                                    } else {
+                                      setReviewingStop(stop)
+                                    }
+                                  }}
+                                  disabled={isLoadingThisReview}
+                                  className="btn-secondary px-4 py-2 text-xs disabled:opacity-50"
+                                >
+                                  ✏️ {isLoadingThisReview
+                                    ? 'Loading…'
+                                    : isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
+                                </button>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>
