@@ -6,6 +6,22 @@ import type { GalleryPhoto, GalleryReviewItem } from '../lib/types'
 const PAGE_SIZE = 21 // 3-column multiples look clean
 
 /**
+ * Module-level cache of loaded feed pages, keyed by (user, followingOnly).
+ * Survives component unmount/remount within an SPA session, so navigating
+ * into a detail route and swiping back restores the full list (and therefore
+ * the scroll position) instead of refetching from page 0 and snapping to top.
+ * Cleared naturally on full page reload.
+ */
+interface FeedCache {
+  photos: GalleryPhoto[]
+  offset: number
+  hasMore: boolean
+}
+const feedCache = new Map<string, FeedCache>()
+const feedCacheKey = (userId: string, followingOnly: boolean) =>
+  `${userId}|${followingOnly ? 'following' : 'all'}`
+
+/**
  * Group flat gallery_feed rows (one per photo) into review-level items.
  * Photos within each review are sorted by display_order.
  */
@@ -70,6 +86,9 @@ interface UseGalleryReturn {
   loadingMore: boolean
   hasMore: boolean
   error: string | null
+  /** True when this mount seeded its list from the module cache (back-nav
+   *  remount) rather than fetching fresh — used to gate scroll restoration. */
+  restoredFromCache: boolean
   loadMore: () => void
   toggleLike: (reviewId: string) => Promise<void>
   refreshReview: (reviewId: string) => void
@@ -78,12 +97,20 @@ interface UseGalleryReturn {
 }
 
 export function useGallery(currentUserId: string, followingOnly = false): UseGalleryReturn {
-  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = feedCacheKey(currentUserId, followingOnly)
+  const cached = feedCache.get(cacheKey)
+
+  // Seed from cache so a remount paints the full list immediately (no spinner,
+  // no top-snap) — this is what makes swipe-back scroll restoration work.
+  const [photos, setPhotos] = useState<GalleryPhoto[]>(cached?.photos ?? [])
+  const [loading, setLoading] = useState(!cached)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? true)
   const [error, setError] = useState<string | null>(null)
-  const offsetRef = useRef(0)
+  const offsetRef = useRef(cached?.offset ?? 0)
+  // Capture "was there a cache at mount" once — distinguishes a back-nav
+  // remount (restore scroll) from a cold load (start at top).
+  const restoredFromCacheRef = useRef(!!cached)
 
   const fetchPage = useCallback(async (offset: number, append: boolean) => {
     if (offset === 0) setLoading(true)
@@ -132,9 +159,19 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
   }, [currentUserId, followingOnly])
 
   useEffect(() => {
+    // If this feed is already cached (returning via back nav), don't refetch —
+    // the seeded state above already holds the full loaded list.
+    if (feedCache.has(cacheKey)) return
     offsetRef.current = 0
     fetchPage(0, false)
-  }, [fetchPage])
+  }, [fetchPage, cacheKey])
+
+  // Keep the module cache in sync with local state (covers paging + optimistic
+  // like/comment updates) so the next remount restores the latest list.
+  useEffect(() => {
+    if (loading) return
+    feedCache.set(cacheKey, { photos, offset: offsetRef.current, hasMore })
+  }, [photos, hasMore, loading, cacheKey])
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return
@@ -207,6 +244,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     loadingMore,
     hasMore,
     error,
+    restoredFromCache: restoredFromCacheRef.current,
     loadMore,
     toggleLike,
     refreshReview,
