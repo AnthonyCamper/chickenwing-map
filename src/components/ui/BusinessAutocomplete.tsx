@@ -61,6 +61,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Request user location on mount (silently)
   useEffect(() => {
@@ -78,6 +79,11 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
       setOpen(false)
       return
     }
+
+    // Cancel any in-flight request before starting a new one.
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     setLoading(true)
     try {
@@ -99,6 +105,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
 
       const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
         headers: { 'Accept-Language': 'en' },
+        signal: controller.signal,
       })
       const data = (await res.json()) as NominatimResult[]
 
@@ -113,13 +120,19 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
       setSuggestions(mapped)
       setOpen(mapped.length > 0)
       setActiveIndex(-1)
-    } catch {
+    } catch (err) {
+      // Aborted requests are expected when the user keeps typing — ignore them.
+      if ((err as { name?: string })?.name === 'AbortError') return
       setSuggestions([])
       setOpen(false)
     } finally {
-      setLoading(false)
+      // Only clear loading if this is still the active request.
+      if (abortRef.current === controller) setLoading(false)
     }
   }, [userLocation])
+
+  // Cancel any pending fetch on unmount.
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value

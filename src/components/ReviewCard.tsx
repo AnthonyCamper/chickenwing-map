@@ -8,10 +8,13 @@ import ReviewEditModal from './ReviewEditModal'
 import ReviewCommentThread from './ReviewCommentThread'
 import ReactionPicker from './gallery/ReactionPicker'
 import LikedByOverlay from './gallery/LikedByOverlay'
+import Modal from './ui/Modal'
 import { useReviewReactions } from '../hooks/useReviewReactions'
 import { useAuthGate } from './AuthGateModal'
 import { fetchReviewReactors } from '../lib/reactionDetails'
 import type { Review, ReviewUpdateData } from '../lib/types'
+
+const UNDO_WINDOW_MS = 5000
 
 interface Props {
   review: Review
@@ -34,11 +37,22 @@ export default function ReviewCard({
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [localCommentCount, setLocalCommentCount] = useState(commentCount)
+
+  // Deferred-delete window: the card stays mounted as an "Undo" stub for
+  // UNDO_WINDOW_MS; only after that does the real delete fire.
+  const [pendingDelete, setPendingDelete] = useState(false)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cleanupTimer = () => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+      deleteTimerRef.current = null
+    }
+  }
+  useEffect(() => cleanupTimer, [])
 
   // Close kebab menu when clicking outside
   useEffect(() => {
@@ -62,16 +76,54 @@ export default function ReviewCard({
     catch { return review.visited_at }
   })()
 
-  const handleDelete = async () => {
-    setDeleting(true)
-    const { error } = await onDelete(review.id)
-    if (error) {
-      toast.error('Could not delete review')
-      setDeleting(false)
-      setConfirmDelete(false)
-    } else {
-      toast.success('Review deleted')
-    }
+  const undoDelete = () => {
+    cleanupTimer()
+    setPendingDelete(false)
+  }
+
+  const startDelete = () => {
+    setConfirmDelete(false)
+    setPendingDelete(true)
+    deleteTimerRef.current = setTimeout(async () => {
+      deleteTimerRef.current = null
+      const { error } = await onDelete(review.id)
+      if (error) {
+        setPendingDelete(false)
+        toast.error('Could not delete review')
+      }
+    }, UNDO_WINDOW_MS)
+    toast(
+      (t) => (
+        <span className="flex items-center gap-3">
+          <span>Review deleted</span>
+          <button
+            onClick={() => { undoDelete(); toast.dismiss(t.id) }}
+            className="font-extrabold uppercase tracking-crowd text-sauce-300 hover:text-sauce-200"
+          >
+            Undo
+          </button>
+        </span>
+      ),
+      { duration: UNDO_WINDOW_MS, id: `undo-delete-${review.id}` }
+    )
+  }
+
+  if (pendingDelete) {
+    return (
+      <div id={`review-${review.id}`} className={`${compact ? 'py-3' : 'py-4'} animate-fade-in`}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-night-900/30 bg-cream-100">
+          <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-600">
+            Review deleted
+          </span>
+          <button
+            onClick={undoDelete}
+            className="text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700"
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -157,50 +209,32 @@ export default function ReviewCard({
           {/* Edit/Delete — behind a muted kebab, requires deliberate tap */}
           {canEdit && (
             <div ref={menuRef} className="relative ml-auto">
-              {!confirmDelete ? (
-                <>
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                aria-label="Review options"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="w-9 h-9 flex items-center justify-center rounded-lg text-charcoal-500 hover:text-night-800 hover:bg-cream-100 active:bg-cream-200 transition-colors text-base leading-none"
+              >
+                ···
+              </button>
+              {menuOpen && (
+                <div role="menu" className="absolute right-0 bottom-full mb-1 w-32 bg-cream-50 border-2 border-night-900 rounded-lg shadow-sticker overflow-hidden z-20 animate-fade-in">
                   <button
-                    onClick={() => setMenuOpen(v => !v)}
-                    aria-label="Review options"
-                    aria-expanded={menuOpen}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg text-charcoal-400 hover:text-night-800 hover:bg-cream-100 active:bg-cream-200 transition-colors text-base leading-none"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setEditing(true) }}
+                    className="w-full px-3 py-2.5 text-left text-xs font-extrabold uppercase tracking-crowd text-night-800 hover:bg-cream-100 transition-colors"
                   >
-                    ···
-                  </button>
-                  {menuOpen && (
-                    <div className="absolute right-0 bottom-full mb-1 w-32 bg-cream-50 border-2 border-night-900 rounded-lg shadow-sticker overflow-hidden z-20 animate-fade-in">
-                      <button
-                        onClick={() => { setMenuOpen(false); setEditing(true) }}
-                        className="w-full px-3 py-2.5 text-left text-xs font-extrabold uppercase tracking-crowd text-night-800 hover:bg-cream-100 transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
-                        className="w-full px-3 py-2.5 text-left text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:bg-sauce-50 transition-colors border-t border-night-900/15"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <span className="inline-flex items-center gap-2">
-                  <span className="text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500">Sure?</span>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 disabled:opacity-50"
-                  >
-                    {deleting ? 'Deleting…' : 'Delete'}
+                    Edit
                   </button>
                   <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-charcoal-600"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
+                    className="w-full px-3 py-2.5 text-left text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:bg-sauce-50 transition-colors border-t border-night-900/15"
                   >
-                    Nope
+                    Delete
                   </button>
-                </span>
+                </div>
               )}
             </div>
           )}
@@ -223,6 +257,7 @@ export default function ReviewCard({
               currentUserId={currentUserId}
               isAdmin={isAdmin}
               onCommentCountChange={setLocalCommentCount}
+              autoFocus
             />
           </div>
         )}
@@ -242,6 +277,37 @@ export default function ReviewCard({
             }
           }}
         />
+      )}
+
+      {confirmDelete && (
+        <Modal title="Delete this review?" onClose={() => setConfirmDelete(false)} size="sm">
+          <div className="px-6 py-5 space-y-4">
+            <p className="text-sm text-charcoal-700 leading-relaxed">
+              You're about to delete your review
+              {review.wing_flavor ? <> of <span className="font-bold">{review.wing_flavor}</span></> : null}
+              {' '}from <span className="font-bold">{visitedDate}</span>. Photos and comments will be removed.
+            </p>
+            <p className="text-xs text-charcoal-500">
+              You'll have {Math.round(UNDO_WINDOW_MS / 1000)} seconds to undo.
+            </p>
+            <div className="flex gap-3 pt-1 pb-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={startDelete}
+                className="btn-primary flex-1 bg-sauce-500 hover:bg-sauce-400"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   )

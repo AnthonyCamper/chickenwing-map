@@ -1,5 +1,5 @@
-import { ReactNode, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { ReactNode, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from './AuthProvider'
 import { useNotifications } from '../hooks/useNotifications'
 import { useHistoryModal } from '../hooks/useHistoryModal'
@@ -19,21 +19,90 @@ interface Props {
   onViewChange?: (v: View) => void
 }
 
-const VIEWS: { key: View; label: string; short: string }[] = [
-  { key: 'gallery', label: 'Feed',   short: 'F' },
-  { key: 'list',    label: 'Spots',  short: 'S' },
-  { key: 'map',     label: 'Map',    short: 'M' },
+function ViewIcon({ kind, className = 'w-4 h-4' }: { kind: View; className?: string }) {
+  if (kind === 'gallery') {
+    // Grid/feed
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    )
+  }
+  if (kind === 'list') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6" />
+        <line x1="8" y1="12" x2="21" y2="12" />
+        <line x1="8" y1="18" x2="21" y2="18" />
+        <circle cx="3.5" cy="6" r="1.2" />
+        <circle cx="3.5" cy="12" r="1.2" />
+        <circle cx="3.5" cy="18" r="1.2" />
+      </svg>
+    )
+  }
+  // Map pin
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+
+const VIEWS: { key: View; label: string }[] = [
+  { key: 'gallery', label: 'Feed' },
+  { key: 'list',    label: 'Spots' },
+  { key: 'map',     label: 'Map' },
 ]
 
 export default function AppHeader({ view, onViewChange }: Props) {
   const navigate = useNavigate()
+  const location = useLocation()
   const auth = useAuthContext()
+  const isHome = location.pathname === '/'
+
+  const handleBack = () => {
+    // Use history if there's somewhere to go back to within this session,
+    // otherwise fall back to the home feed.
+    if (window.history.length > 1 && document.referrer.includes(window.location.host)) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
   const [profileOpen, setProfileOpen] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showNotifSettings, setShowNotifSettings] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const notificationsHook = useNotifications(auth?.user?.id)
   const [activeEvent, setActiveEvent] = useState<WingEvent | null>(null)
+  const profileTriggerRef = useRef<HTMLButtonElement>(null)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close profile menu on Escape; restore focus to the trigger.
+  useEffect(() => {
+    if (!profileOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setProfileOpen(false)
+        profileTriggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [profileOpen])
+
+  // Focus the first menuitem when the menu opens (keyboard users).
+  useEffect(() => {
+    if (!profileOpen) return
+    requestAnimationFrame(() => {
+      const first = profileMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')
+      first?.focus()
+    })
+  }, [profileOpen])
 
   useEffect(() => {
     if (!auth?.user) { setActiveEvent(null); return }
@@ -82,6 +151,19 @@ export default function AppHeader({ view, onViewChange }: Props) {
         <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-25" aria-hidden="true" />
 
         <div className="relative max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+          {/* Back button — visible on non-home routes for predictable navigation */}
+          {!isHome && (
+            <button
+              onClick={handleBack}
+              aria-label="Back"
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-cream-100 hover:text-cream-50 hover:bg-night-800 active:bg-night-700 transition-colors -ml-1"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+
           {/* Brand — shrinks if the toggle + actions need more space */}
           <button
             onClick={handleBrandClick}
@@ -108,21 +190,23 @@ export default function AppHeader({ view, onViewChange }: Props) {
 
           {/* View toggle — only when caller provided one */}
           {view && onViewChange && (
-            <div className="flex items-center gap-0.5 bg-night-800 rounded-full p-1 border-2 border-night-900 flex-shrink-0">
-              {VIEWS.map(({ key, label, short }) => {
+            <div className="flex items-center gap-0.5 bg-night-800 rounded-full p-1 border-2 border-night-900 flex-shrink-0" role="tablist" aria-label="View">
+              {VIEWS.map(({ key, label }) => {
                 const active = view === key
                 return (
                   <button
                     key={key}
+                    role="tab"
                     onClick={() => onViewChange(key)}
                     aria-label={label}
+                    aria-selected={active}
                     aria-pressed={active}
-                    className={`px-3 sm:px-3.5 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
                       ${active
                         ? 'bg-cream-50 text-night-900 shadow-sticker-sm'
-                        : 'text-cream-200/70 hover:text-cream-50'}`}
+                        : 'text-cream-100/85 hover:text-cream-50'}`}
                   >
-                    <span className="sm:hidden">{short}</span>
+                    <ViewIcon kind={key} />
                     <span className="hidden sm:inline">{label}</span>
                   </button>
                 )
@@ -136,11 +220,14 @@ export default function AppHeader({ view, onViewChange }: Props) {
               <NotificationBell notifications={notificationsHook} />
               <div className="relative">
                 <button
+                  ref={profileTriggerRef}
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="w-10 h-10 rounded-full overflow-hidden border-2 border-cream-50
                              hover:border-sauce-300 transition-colors
                              flex items-center justify-center bg-night-700 shadow-sticker-sm"
                   aria-label="Profile menu"
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
                 >
                   {avatar ? (
                     <img src={avatar} alt={name} className="w-full h-full object-cover" />
@@ -157,7 +244,12 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       className="fixed inset-0 z-40"
                       onClick={() => setProfileOpen(false)}
                     />
-                    <div className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-cream-50 rounded-xl border-2 border-night-900 shadow-sticker z-50 animate-slide-up text-night-800">
+                    <div
+                      ref={profileMenuRef}
+                      role="menu"
+                      aria-label="Account"
+                      className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-cream-50 rounded-xl border-2 border-night-900 shadow-sticker z-50 animate-slide-up text-night-800"
+                    >
                       <div className="px-4 py-3 border-b-2 border-night-900 bg-cream-100">
                         <p className="text-sm font-bold text-night-900 truncate">{name}</p>
                         <p className="text-[11px] text-charcoal-500 truncate mt-0.5">{email}</p>
@@ -277,14 +369,14 @@ function MenuItem({
   accent?: boolean
   danger?: boolean
 }) {
-  const base = 'w-full px-4 py-3 text-left text-sm font-bold border-t border-night-900/15 transition-colors'
+  const base = 'w-full px-4 py-3 text-left text-sm font-bold border-t border-night-900/15 transition-colors focus:outline-none focus:bg-cream-100'
   const tone = danger
     ? 'text-sauce-600 hover:bg-sauce-50 active:bg-sauce-100'
     : accent
       ? 'text-night-900 hover:bg-cream-100 active:bg-cream-200'
       : 'text-night-800 hover:bg-cream-100 active:bg-cream-200'
   return (
-    <button onClick={onClick} className={`${base} ${tone}`}>
+    <button role="menuitem" onClick={onClick} className={`${base} ${tone}`}>
       {children}
     </button>
   )

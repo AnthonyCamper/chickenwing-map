@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useGallery } from '../../hooks/useGallery'
 import { useAuthGate } from '../AuthGateModal'
 import ReviewFeedCard from './ReviewFeedCard'
@@ -16,9 +16,27 @@ interface Props {
   onViewOnMap?: (spotId: string) => void
 }
 
+const FEEDS: Feed[] = ['following', 'discover', 'crawls', 'people']
+function isFeed(x: string | null): x is Feed { return !!x && (FEEDS as string[]).includes(x) }
+
 export default function GalleryView({ currentUserId }: Props) {
   const navigate = useNavigate()
-  const [feed, setFeed] = useState<Feed>('following')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Default tab: signed-out / new users land on Discover, signed-in on Following.
+  const defaultFeed: Feed = currentUserId ? 'following' : 'discover'
+  const tabParam = searchParams.get('tab')
+  const feed: Feed = isFeed(tabParam) ? tabParam : defaultFeed
+
+  const setFeed = (next: Feed) => {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      if (next === defaultFeed) p.delete('tab')
+      else p.set('tab', next)
+      return p
+    }, { replace: true })
+  }
+
   const gallery = useGallery(currentUserId, feed === 'following' ? true : false)
   const { requireAuth } = useAuthGate()
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -59,15 +77,17 @@ export default function GalleryView({ currentUserId }: Props) {
     <>
       {/* Feed tabs */}
       <div className="max-w-2xl mx-auto px-4 pt-4">
-        <div className="flex gap-1.5 mb-4">
+        <div className="flex gap-1.5 mb-4" role="tablist" aria-label="Feed">
           {([['following', 'Following'], ['discover', 'Discover'], ['crawls', 'Lists'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
             <button
               key={f}
+              role="tab"
+              aria-selected={feed === f}
               onClick={() => setFeed(f)}
               className={`px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
                 feed === f
                   ? 'bg-night-900 border-night-900 text-cream-50'
-                  : 'border-night-900/20 text-charcoal-500 hover:border-night-900/40'
+                  : 'border-night-900/20 text-charcoal-600 hover:border-night-900/40'
               }`}
             >
               {label}
@@ -88,7 +108,7 @@ export default function GalleryView({ currentUserId }: Props) {
             <div className="flex flex-col items-center justify-center py-24 text-center px-6">
               <div className="text-5xl mb-4">📋</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">No lists yet</h3>
-              <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed mb-5">
+              <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
                 Be the first to curate a list. Stake your claim.
               </p>
               <button
@@ -110,7 +130,7 @@ export default function GalleryView({ currentUserId }: Props) {
         </div>
       ) : gallery.error ? (
         <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-          <p className="text-charcoal-400 text-sm">{gallery.error}</p>
+          <p className="text-charcoal-600 text-sm">{gallery.error}</p>
         </div>
       ) : gallery.reviews.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center px-6">
@@ -118,7 +138,7 @@ export default function GalleryView({ currentUserId }: Props) {
             <>
               <div className="text-5xl mb-4">🍗</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">No takes yet</h3>
-              <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed mb-5">
+              <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
                 Follow some wing heads to see their takes here. Or check out Discover to see what everyone's eating.
               </p>
               <div className="flex gap-2">
@@ -140,7 +160,7 @@ export default function GalleryView({ currentUserId }: Props) {
             <>
               <div className="text-5xl mb-4">🥁</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">Nothing here yet</h3>
-              <p className="text-sm text-charcoal-400 max-w-xs leading-relaxed">
+              <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
                 Be the first to drop a take. The wing council is waiting.
               </p>
             </>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Map as LeafletMap } from 'leaflet'
 import Supercluster from 'supercluster'
+import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import PhotoModal from './gallery/PhotoModal'
@@ -28,6 +29,30 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   const renderRef = useRef<(() => void) | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [selectedSpot, setSelectedShop] = useState<SpotWithReviews | null>(null)
+  const [locating, setLocating] = useState(false)
+
+  const handleLocateMe = () => {
+    if (!leafletRef.current || !navigator.geolocation) {
+      toast.error('Location not available in this browser.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        leafletRef.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 14, { duration: 0.6 })
+        setLocating(false)
+      },
+      err => {
+        setLocating(false)
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error('Location permission denied.')
+        } else {
+          toast.error("Couldn't find your location.")
+        }
+      },
+      { timeout: 8000, enableHighAccuracy: false }
+    )
+  }
 
   const photoDetail = usePhotoDetail(currentUserId)
 
@@ -216,6 +241,26 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       style={{ height: 'calc(100dvh - 96px - env(safe-area-inset-top))' }}
     >
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* Locate Me button */}
+      {mapReady && (
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          disabled={locating}
+          aria-label="Show my location"
+          className="absolute z-[20] right-3 bottom-24 w-11 h-11 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
+        >
+          {locating ? (
+            <span className="w-4 h-4 rounded-full border-2 border-night-700 border-t-sauce-400 animate-spin" />
+          ) : (
+            <svg className="w-5 h-5 text-night-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+          )}
+        </button>
+      )}
 
       {loading && (
         <div className="absolute inset-0 bg-cream-50/60 flex items-center justify-center z-10">

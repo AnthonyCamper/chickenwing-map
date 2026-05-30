@@ -50,19 +50,19 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           <h1 className="font-display text-3xl text-charcoal-800 tracking-tight">
             WingMap
           </h1>
-          <p className="mt-2 text-sm text-charcoal-400 text-center leading-relaxed">
+          <p className="mt-2 text-sm text-charcoal-600 text-center leading-relaxed">
             A private corner for rating the wing spots we love.
           </p>
         </div>
 
         {/* Sign-in card */}
         <div className="card px-8 py-8 space-y-5">
-          <p className="text-center text-xs uppercase tracking-widest font-semibold text-charcoal-400">
+          <p className="text-center text-xs uppercase tracking-widest font-semibold text-charcoal-600">
             Sign in to continue
           </p>
 
           {error && (
-            <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p role="alert" className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
           )}
 
           {/* Google */}
@@ -113,10 +113,6 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
               />
             </div>
 
-            {error && (
-              <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-            )}
-
             <button
               type="submit"
               disabled={emailLoading || googleLoading || !email || !password}
@@ -129,9 +125,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
             </button>
           </form>
 
-          <p className="text-center text-xs text-charcoal-400">
+          <p className="text-center text-xs text-charcoal-600">
             Don't have an account?{' '}
-            <Link to="/register" className="text-amber-500 font-semibold hover:underline">
+            <Link to="/register" className="text-amber-600 font-semibold hover:underline">
               Request access
             </Link>
           </p>
@@ -139,7 +135,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           {isPublic && onBrowse && (
             <button
               onClick={onBrowse}
-              className="w-full text-xs text-charcoal-400 hover:text-charcoal-600 transition-colors py-1"
+              className="w-full text-xs text-charcoal-600 hover:text-charcoal-800 transition-colors py-1"
             >
               Browse without signing in →
             </button>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import Modal from './ui/Modal'
 import RatingPicker from './ui/RatingPicker'
@@ -47,14 +47,43 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
   const [step, setStep] = useState<1 | 2>(prefill ? 2 : 1)
   const [showManual, setShowManual] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
+  // Per-field errors (cleared when the user edits the field).
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const clearError = (key: string) =>
+    setFieldErrors(prev => { if (!prev[key]) return prev; const { [key]: _, ...rest } = prev; return rest })
+
+  // Track whether the user has put real input in — used for the discard guard.
+  const isDirty =
+    overallRating > 0
+    || !!wingFlavor
+    || !!wingSize
+    || isTakeout
+    || !!reviewText.trim()
+    || photos.length > 0
+    || (!prefill && (!!shopName.trim() || !!address.trim()))
+
+  const handleCloseAttempt = () => {
+    if (isDirty && !submitting) {
+      const ok = window.confirm('Discard your review? Anything you entered will be lost.')
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  const geoAbortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => geoAbortRef.current?.abort(), [])
 
   const geocodeAddress = async () => {
     if (!address.trim()) return
+    geoAbortRef.current?.abort()
+    const controller = new AbortController()
+    geoAbortRef.current = controller
     setGeoLoading(true)
     try {
       const encoded = encodeURIComponent(address.trim())
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1`
+        `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1`,
+        { signal: controller.signal, headers: { 'Accept-Language': 'en' } }
       )
       const data = await res.json() as Array<{ lat: string; lon: string }>
       if (data[0]) {
@@ -64,10 +93,11 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       } else {
         toast.error('Could not find address — enter coordinates manually.')
       }
-    } catch {
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return
       toast.error('Geocoding failed — enter coordinates manually.')
     } finally {
-      setGeoLoading(false)
+      if (geoAbortRef.current === controller) setGeoLoading(false)
     }
   }
 
@@ -80,14 +110,25 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!shopName.trim() || !address.trim()) {
-      toast.error('Please fill in wing spot name and address.')
+    const errs: Record<string, string> = {}
+    if (!shopName.trim()) errs.shopName = 'Add a name for the wing spot.'
+    if (!address.trim()) errs.address = 'Add an address.'
+
+    const latNum = lat ? Number(lat) : NaN
+    const lngNum = lng ? Number(lng) : NaN
+    if (!lat || !lng || Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+      errs.location = 'Add a location — pick a suggestion or tap Find.'
+    } else if (latNum < -90 || latNum > 90) {
+      errs.lat = 'Latitude must be between -90 and 90.'
+    } else if (lngNum < -180 || lngNum > 180) {
+      errs.lng = 'Longitude must be between -180 and 180.'
+    }
+
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs)
       return
     }
-    if (!lat || !lng) {
-      toast.error('Please add a location — select from suggestions or use Find.')
-      return
-    }
+    setFieldErrors({})
     setStep(2)
   }
 
@@ -123,7 +164,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
   }
 
   return (
-    <Modal title={eventContext ? `Review for ${eventContext.event_name}` : 'Add Review'} onClose={onClose} size="md">
+    <Modal title={eventContext ? `Review for ${eventContext.event_name}` : 'Add Review'} onClose={handleCloseAttempt} size="md">
       {step === 1 ? (
         <form onSubmit={handleNext} className="px-6 py-5 space-y-4">
           <p className="text-xs text-charcoal-400 font-medium uppercase tracking-widest">
@@ -136,14 +177,20 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
             <BusinessAutocomplete
               id="shop-search"
               value={shopName}
-              onChange={setShopName}
-              onSelect={handleAutocompleteSelect}
+              onChange={v => { setShopName(v); clearError('shopName') }}
+              onSelect={s => { handleAutocompleteSelect(s); setFieldErrors({}) }}
               placeholder="Buffalo Wild Wings, Wingstop…"
             />
-            {lat && lng && (
+            {fieldErrors.shopName && (
+              <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.shopName}</p>
+            )}
+            {lat && lng && !fieldErrors.location && (
               <p className="text-xs text-sauce-600 mt-1 flex items-center gap-1">
                 <span>✓</span> Location set
               </p>
+            )}
+            {fieldErrors.location && (
+              <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.location}</p>
             )}
           </div>
 
@@ -170,8 +217,9 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                     type="text"
                     className="input flex-1"
                     value={address}
-                    onChange={e => setAddress(e.target.value)}
+                    onChange={e => { setAddress(e.target.value); clearError('address') }}
                     placeholder="123 Main St, Your City"
+                    aria-invalid={!!fieldErrors.address || undefined}
                   />
                   <button
                     type="button"
@@ -182,6 +230,9 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                     {geoLoading ? '…' : 'Find'}
                   </button>
                 </div>
+                {fieldErrors.address && (
+                  <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.address}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -191,11 +242,17 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                     id="lat"
                     type="number"
                     step="any"
+                    min={-90}
+                    max={90}
                     className="input"
                     value={lat}
-                    onChange={e => setLat(e.target.value)}
+                    onChange={e => { setLat(e.target.value); clearError('lat'); clearError('location') }}
                     placeholder="-37.8136"
+                    aria-invalid={!!fieldErrors.lat || undefined}
                   />
+                  {fieldErrors.lat && (
+                    <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.lat}</p>
+                  )}
                 </div>
                 <div>
                   <label className="label" htmlFor="lng">Longitude</label>
@@ -203,11 +260,17 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                     id="lng"
                     type="number"
                     step="any"
+                    min={-180}
+                    max={180}
                     className="input"
                     value={lng}
-                    onChange={e => setLng(e.target.value)}
+                    onChange={e => { setLng(e.target.value); clearError('lng'); clearError('location') }}
                     placeholder="144.9631"
+                    aria-invalid={!!fieldErrors.lng || undefined}
                   />
+                  {fieldErrors.lng && (
+                    <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.lng}</p>
+                  )}
                 </div>
               </div>
 
@@ -360,7 +423,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           <div className="flex gap-3 pb-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseAttempt}
               className="btn-secondary flex-1"
             >
               Cancel

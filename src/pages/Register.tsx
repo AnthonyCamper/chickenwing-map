@@ -1,5 +1,16 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+
+function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
+  if (!pw) return { score: 0, label: '' }
+  let score = 0
+  if (pw.length >= 8) score++
+  if (pw.length >= 12) score++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++
+  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score++
+  const label = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][score]
+  return { score: score as 0 | 1 | 2 | 3 | 4, label }
+}
 
 interface Props {
   onSignUp: (
@@ -22,6 +33,12 @@ export default function Register({ onSignUp }: Props) {
   const [needsEmail, setNeedsEmail] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Revoke any previously-created object URL when the preview changes or unmounts.
+  useEffect(() => {
+    if (!avatarPreview) return
+    return () => URL.revokeObjectURL(avatarPreview)
+  }, [avatarPreview])
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -33,11 +50,13 @@ export default function Register({ onSignUp }: Props) {
     setAvatarPreview(URL.createObjectURL(file))
   }
 
+  const pwStrength = useMemo(() => scorePassword(password), [password])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password || !displayName) return
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
     setError(null)
@@ -98,7 +117,7 @@ export default function Register({ onSignUp }: Props) {
           <h1 className="font-display text-3xl text-charcoal-800 tracking-tight">
             Request access
           </h1>
-          <p className="mt-2 text-sm text-charcoal-400 text-center leading-relaxed">
+          <p className="mt-2 text-sm text-charcoal-600 text-center leading-relaxed">
             Fill in your details and the admin will approve your account.
           </p>
         </div>
@@ -163,18 +182,42 @@ export default function Register({ onSignUp }: Props) {
             </div>
 
             <div>
-              <label className="label">Password</label>
+              <label className="label" htmlFor="register-password">Password</label>
               <input
+                id="register-password"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 characters"
                 className="input"
                 autoComplete="new-password"
                 disabled={loading}
                 required
-                minLength={6}
+                minLength={8}
+                aria-describedby="pw-strength"
               />
+              {password && (
+                <div id="pw-strength" className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 flex gap-0.5 h-1.5">
+                    {[0, 1, 2, 3].map(i => (
+                      <span
+                        key={i}
+                        className={`flex-1 rounded-full transition-colors ${
+                          i < pwStrength.score
+                            ? pwStrength.score <= 1 ? 'bg-red-400'
+                              : pwStrength.score === 2 ? 'bg-amber-400'
+                              : pwStrength.score === 3 ? 'bg-amber-500'
+                              : 'bg-green-500'
+                            : 'bg-warmgray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-crowd text-charcoal-500 min-w-[60px] text-right">
+                    {pwStrength.label}
+                  </span>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -193,7 +236,7 @@ export default function Register({ onSignUp }: Props) {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-xs text-charcoal-400">
+          <p className="mt-5 text-center text-xs text-charcoal-600">
             Already have an account?{' '}
             <Link to="/" className="text-amber-500 font-semibold hover:underline">
               Sign in

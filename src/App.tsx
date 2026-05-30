@@ -29,6 +29,8 @@ function LazyFallback() {
   )
 }
 
+const ADMIN_EMAIL = 'anthonycap949@gmail.com'
+
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
     <div className="relative min-h-dvh bg-paper flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
@@ -42,8 +44,18 @@ function StatusScreen({ title, message, onSignOut }: { title: string; message: s
         </div>
         <p className="eyebrow mb-3">House rules</p>
         <h2 className="font-display uppercase text-4xl text-night-900 mb-3 tracking-tightest leading-none">{title}</h2>
-        <p className="text-sm text-charcoal-500 leading-relaxed mb-8">{message}</p>
-        <button onClick={onSignOut} className="btn-secondary">Sign out</button>
+        <p className="text-sm text-charcoal-600 leading-relaxed mb-6">{message}</p>
+        <div className="flex flex-col items-center gap-2">
+          <a
+            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`WingMap — ${title}`)}`}
+            className="btn-primary"
+          >
+            Contact admin
+          </a>
+          <button onClick={onSignOut} className="btn-ghost text-xs text-charcoal-500 hover:text-charcoal-700">
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -20,20 +20,24 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const [reviewText, setReviewText] = useState(review.review_text ?? '')
   const [visitedAt, setVisitedAt] = useState(review.visited_at.split('T')[0])
 
-  // Photo editing state
-  const [existingPhotos, setExistingPhotos] = useState<ReviewPhoto[]>(review.photos ?? [])
+  // Photo editing state — `deletedPhotoIds` is the ground truth for what will
+  // be removed on save; UI marks photos with `pendingRemoval` so the user can
+  // undo before committing.
+  const initialPhotos = review.photos ?? []
+  const [existingPhotos] = useState<ReviewPhoto[]>(initialPhotos)
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<string[]>([])
   const [newPhotos, setNewPhotos] = useState<File[]>([])
 
   const [submitting, setSubmitting] = useState(false)
 
-  const totalPhotos = existingPhotos.length + newPhotos.length
+  const remainingExisting = existingPhotos.filter(p => !deletedPhotoIds.includes(p.id))
+  const totalPhotos = remainingExisting.length + newPhotos.length
   const remainingSlots = Math.max(0, 5 - totalPhotos)
 
-  const removeExisting = (photoId: string) => {
-    setExistingPhotos(prev => prev.filter(p => p.id !== photoId))
-    setDeletedPhotoIds(prev => [...prev, photoId])
-  }
+  const markForRemoval = (photoId: string) =>
+    setDeletedPhotoIds(prev => prev.includes(photoId) ? prev : [...prev, photoId])
+  const undoRemoval = (photoId: string) =>
+    setDeletedPhotoIds(prev => prev.filter(id => id !== photoId))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -153,23 +157,37 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
           {/* Existing photos */}
           {existingPhotos.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-3">
-              {existingPhotos.map(photo => (
-                <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-warmgray-100 group">
-                  <img
-                    src={photo.url}
-                    alt="Review photo"
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeExisting(photo.id)}
-                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors"
-                    aria-label="Remove photo"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              {existingPhotos.map(photo => {
+                const removed = deletedPhotoIds.includes(photo.id)
+                return (
+                  <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-warmgray-100 group">
+                    <img
+                      src={photo.url}
+                      alt="Review photo"
+                      className={`w-full h-full object-cover transition-all ${removed ? 'opacity-30 grayscale' : ''}`}
+                    />
+                    {removed ? (
+                      <button
+                        type="button"
+                        onClick={() => undoRemoval(photo.id)}
+                        className="absolute inset-0 flex items-center justify-center bg-night-900/55 text-cream-50 text-[11px] font-extrabold uppercase tracking-crowd hover:bg-night-900/65 transition-colors"
+                        aria-label="Undo remove photo"
+                      >
+                        Undo
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => markForRemoval(photo.id)}
+                        className="absolute top-1 right-1 w-10 h-10 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors"
+                        aria-label="Remove photo"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 

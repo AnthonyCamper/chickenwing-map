@@ -200,7 +200,25 @@ export default function SpotPage() {
         )}
 
         {reviews.length === 0 ? (
-          <p className="text-charcoal-500 text-sm italic">No reviews yet.</p>
+          <div className="relative flex flex-col items-center justify-center py-12 px-6 text-center bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker overflow-hidden">
+            <div className="absolute inset-0 bg-splatter opacity-10 pointer-events-none" aria-hidden="true" />
+            <div className="relative">
+              <div className="text-4xl mb-3">🍗</div>
+              <p className="eyebrow mb-2">Empty plate</p>
+              <h3 className="font-display uppercase tracking-wide text-2xl text-night-900 leading-tight mb-2">
+                No reviews here yet
+              </h3>
+              <p className="text-sm text-charcoal-600 max-w-xs mx-auto leading-relaxed mb-4">
+                Be the first to log a wing at <span className="font-bold text-night-800">{spot.name}</span>.
+              </p>
+              <button
+                onClick={() => { if (requireAuth()) setShowLogModal(true) }}
+                className="btn-primary"
+              >
+                Log a wing here
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker divide-y-2 divide-night-900/10">
             {reviews.map(r => (

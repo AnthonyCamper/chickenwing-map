@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 
 const MAX_MB = 50
 
@@ -26,8 +27,11 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
       if (err) { errors.push(err); continue }
       valid.push(f)
     }
-    if (errors.length) alert(errors.join('\n'))
+    if (errors.length) toast.error(errors.join(' · '))
     const merged = [...files, ...valid].slice(0, max)
+    if (merged.length < files.length + valid.length) {
+      toast.error(`Up to ${max} photos.`)
+    }
     onChange(merged)
   }
 
@@ -35,7 +39,12 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
     onChange(files.filter((_, i) => i !== index))
   }
 
-  const previews = files.map(f => URL.createObjectURL(f))
+  const [previews, setPreviews] = useState<string[]>([])
+  useEffect(() => {
+    const urls = files.map(f => URL.createObjectURL(f))
+    setPreviews(urls)
+    return () => { urls.forEach(URL.revokeObjectURL) }
+  }, [files])
 
   return (
     <div className="space-y-3">

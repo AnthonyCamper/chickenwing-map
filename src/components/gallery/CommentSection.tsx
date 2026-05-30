@@ -33,6 +33,8 @@ interface Props {
   /** External reply state — used by PhotoModal to control the anchored input */
   replyingTo?: { id: string; name: string } | null
   onSetReplyingTo?: (target: { id: string; name: string } | null) => void
+  /** Focus the input textarea on mount (non-embedded mode only). */
+  autoFocus?: boolean
 }
 
 export default function CommentSection({
@@ -51,6 +53,7 @@ export default function CommentSection({
   embedded = false,
   replyingTo: externalReplyingTo,
   onSetReplyingTo,
+  autoFocus = false,
 }: Props) {
   const getLikers = likersFetcher ?? fetchReviewCommentLikers
   const getReactors = reactorsFetcher ?? fetchReviewCommentReactors
@@ -63,6 +66,13 @@ export default function CommentSection({
 
   // Internal reply state (standalone mode)
   const [internalReplyingTo, setInternalReplyingTo] = useState<{ id: string; name: string } | null>(null)
+
+  // Auto-focus when requested (after mount, only in standalone mode).
+  useEffect(() => {
+    if (autoFocus && !embedded) {
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
+  }, [autoFocus, embedded])
   const replyingTo = externalReplyingTo !== undefined ? externalReplyingTo : internalReplyingTo
   const setReplyingTo = onSetReplyingTo ?? setInternalReplyingTo
 

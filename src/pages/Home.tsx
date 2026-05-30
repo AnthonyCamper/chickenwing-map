@@ -38,9 +38,27 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
     })
   }, [setSearchParams])
 
-  // ── Lifted list-view state (persists across view switches) ───────────
-  const [listSort, setListSort] = useState<SortKey>('name')
-  const [listFilter, setListFilter] = useState<string>('all')
+  // ── Lifted list-view state (persists across view switches & in URL) ──
+  const listSort = (searchParams.get('sort') as SortKey) || 'name'
+  const listFilter = searchParams.get('reviewer') || 'all'
+
+  const setListSort = useCallback((next: SortKey) => {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      if (next === 'name') p.delete('sort')
+      else p.set('sort', next)
+      return p
+    })
+  }, [setSearchParams])
+
+  const setListFilter = useCallback((next: string) => {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      if (next === 'all') p.delete('reviewer')
+      else p.set('reviewer', next)
+      return p
+    })
+  }, [setSearchParams])
 
   // ── Scroll position tracking per view ────────────────────────────────
   const scrollPositions = useRef<Record<string, number>>({})
@@ -73,7 +91,19 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
 
     if (reviewId) {
       deepLinkHandled.current = true
-      navigate(`/reviews/${reviewId}`, { replace: true })
+      ;(async () => {
+        const { data } = await supabase
+          .from('reviews')
+          .select('id')
+          .eq('id', reviewId)
+          .maybeSingle()
+        if (data) {
+          navigate(`/reviews/${reviewId}`, { replace: true })
+        } else {
+          window.history.replaceState({}, '', window.location.pathname)
+          toast.error('That review is no longer available.')
+        }
+      })()
     } else if (photoId) {
       deepLinkHandled.current = true
       ;(async () => {
@@ -86,6 +116,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
           navigate(`/reviews/${data.review_id}`, { replace: true })
         } else {
           window.history.replaceState({}, '', window.location.pathname)
+          toast.error('That photo is no longer available.')
         }
       })()
     }

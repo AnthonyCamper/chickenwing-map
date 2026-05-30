@@ -9,6 +9,7 @@ interface Props {
   currentUserId: string
   isAdmin: boolean
   onCommentCountChange?: (count: number) => void
+  autoFocus?: boolean
 }
 
 export default function ReviewCommentThread({
@@ -16,6 +17,7 @@ export default function ReviewCommentThread({
   currentUserId,
   isAdmin,
   onCommentCountChange,
+  autoFocus = false,
 }: Props) {
   const { requireAuth } = useAuthGate()
   const {
@@ -50,6 +52,7 @@ export default function ReviewCommentThread({
       onFetchReplies={fetchReplies}
       likersFetcher={fetchReviewCommentLikers}
       reactorsFetcher={fetchReviewCommentReactors}
+      autoFocus={autoFocus}
     />
   )
 }

@@ -1,10 +1,13 @@
 import type { AuthState } from '../hooks/useAuth'
 
+const ADMIN_EMAIL = 'anthonycap949@gmail.com'
+
 interface Props {
   auth: AuthState
 }
 
 export default function PendingApproval({ auth }: Props) {
+  const reload = () => window.location.reload()
   const name = auth.profile?.display_name ?? auth.profile?.full_name ?? auth.user?.email ?? ''
   const email = auth.user?.email ?? ''
   const avatar = auth.profile?.avatar_url
@@ -35,8 +38,8 @@ export default function PendingApproval({ auth }: Props) {
         <p className="text-sm text-charcoal-500 leading-relaxed mb-1">
           Hi <strong>{name || email}</strong>, your request has been received.
         </p>
-        <p className="text-sm text-charcoal-400 leading-relaxed mb-8">
-          the admin will review your account soon. You'll be able to sign in once it's approved.
+        <p className="text-sm text-charcoal-600 leading-relaxed mb-8">
+          The admin will review your account soon. You'll be able to sign in once it's approved.
         </p>
 
         <div className="card px-6 py-5 text-left mb-6">
@@ -52,7 +55,7 @@ export default function PendingApproval({ auth }: Props) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-charcoal-700 truncate">{name || email}</p>
-              <p className="text-xs text-charcoal-400 truncate">{email}</p>
+              <p className="text-xs text-charcoal-600 truncate">{email}</p>
             </div>
             <span className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 flex-shrink-0">
               Pending
@@ -60,12 +63,26 @@ export default function PendingApproval({ auth }: Props) {
           </div>
         </div>
 
-        <button
-          onClick={auth.signOut}
-          className="btn-ghost text-charcoal-400 hover:text-charcoal-600"
-        >
-          Sign out
-        </button>
+        <div className="flex flex-col gap-2 items-center">
+          <button
+            onClick={reload}
+            className="btn-secondary text-xs"
+          >
+            Check status
+          </button>
+          <a
+            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent('WingMap access request')}&body=${encodeURIComponent(`Hi — I requested access as ${email}. Just checking in.`)}`}
+            className="text-xs text-amber-500 font-semibold hover:underline"
+          >
+            Contact admin
+          </a>
+          <button
+            onClick={auth.signOut}
+            className="btn-ghost text-xs text-charcoal-500 hover:text-charcoal-700"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   )

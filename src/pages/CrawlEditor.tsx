@@ -117,6 +117,17 @@ export default function CrawlEditor() {
     || isPublic !== crawl.is_public
   )
 
+  // Warn before unloading the tab while there are unsaved meta changes.
+  useEffect(() => {
+    if (!metaDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [metaDirty])
+
   function handleDiscardMeta() {
     if (!crawl) return
     setTitle(crawl.title)
@@ -203,15 +214,42 @@ export default function CrawlEditor() {
     setItems(items.map(i => i.id === itemId ? { ...i, note: note.trim() || null } : i))
   }
 
+  async function applyReorder(prev: ItemWithSpot[], next: ItemWithSpot[]) {
+    setItems(next)
+    const { error } = await reorderCrawlItems(next.map(i => i.id))
+    if (error) {
+      toast.error(error)
+      await load()
+      return
+    }
+    toast(
+      t => (
+        <span className="flex items-center gap-3">
+          <span>Reordered</span>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id)
+              setItems(prev)
+              const { error: undoErr } = await reorderCrawlItems(prev.map(i => i.id))
+              if (undoErr) { toast.error(undoErr); await load() }
+            }}
+            className="font-extrabold uppercase tracking-crowd text-sauce-300 hover:text-sauce-200"
+          >
+            Undo
+          </button>
+        </span>
+      ),
+      { duration: 5000 }
+    )
+  }
+
   async function handleMove(itemId: string, direction: -1 | 1) {
     const idx = items.findIndex(i => i.id === itemId)
     const newIdx = idx + direction
     if (idx < 0 || newIdx < 0 || newIdx >= items.length) return
     const next = [...items]
     ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
-    setItems(next)
-    const { error } = await reorderCrawlItems(next.map(i => i.id))
-    if (error) { toast.error(error); await load() }
+    await applyReorder(items, next)
   }
 
   const sensors = useSensors(
@@ -226,9 +264,7 @@ export default function CrawlEditor() {
     const newIdx = items.findIndex(i => i.id === over.id)
     if (oldIdx < 0 || newIdx < 0) return
     const next = arrayMove(items, oldIdx, newIdx)
-    setItems(next)
-    const { error } = await reorderCrawlItems(next.map(i => i.id))
-    if (error) { toast.error(error); await load() }
+    await applyReorder(items, next)
   }
 
   if (!authChecked || loading) {
@@ -258,11 +294,19 @@ export default function CrawlEditor() {
       )}
 
       <header className="border-b-2 border-night-900 bg-cream-100">
-        <div className="max-w-3xl mx-auto px-5 py-6">
-          <p className="eyebrow mb-1">{isNew ? 'New list' : 'Editing'}</p>
-          <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-            {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
-          </h1>
+        <div className="max-w-3xl mx-auto px-5 py-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="eyebrow mb-1">{isNew ? 'New list' : 'Editing'}</p>
+            <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
+              {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
+            </h1>
+          </div>
+          {metaDirty && (
+            <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-night-900 animate-pulse" />
+              Unsaved
+            </span>
+          )}
         </div>
       </header>
 
