@@ -87,7 +87,7 @@ export default function CrawlPage() {
       const reviewToSpot: Record<string, string> = {}
       for (const r of (reviews ?? []) as { id: string; wing_spot_id: string; overall_rating: number; visited_at: string }[]) {
         if (!groups[r.wing_spot_id]) groups[r.wing_spot_id] = []
-        groups[r.wing_spot_id].push(Number(r.overall_rating))
+        groups[r.wing_spot_id].push(r.overall_rating)
         if (!reviewIdsBySpot[r.wing_spot_id]) reviewIdsBySpot[r.wing_spot_id] = []
         reviewIdsBySpot[r.wing_spot_id].push(r.id)
         reviewToSpot[r.id] = r.wing_spot_id
@@ -219,7 +219,7 @@ export default function CrawlPage() {
         <meta property="og:description" content={description} />
         {coverPhoto && <meta property="og:image" content={coverPhoto} />}
         <meta property="og:type" content="article" />
-        <link rel="canonical" href={`https://wingkingtony.com/lists/${crawl.slug}`} />
+        <link rel="canonical" href={`${typeof window !== 'undefined' ? window.location.origin : 'https://wingkingtony.com'}/lists/${crawl.slug}`} />
       </Helmet>
 
       <AppHeader />

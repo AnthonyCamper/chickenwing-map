@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { compressImage } from './reviewActions'
-import type { CrawlFormData, WingCrawl } from './types'
+import type { CrawlFormData, WingCrawl, WingCrawlItem } from './types'
 
 export async function createCrawl(
   data: CrawlFormData,
@@ -49,25 +49,23 @@ export async function addCrawlItem(
   crawlId: string,
   wingSpotId: string,
   options: { note?: string | null; position?: number } = {}
-): Promise<{ error: string | null }> {
-  let position = options.position
-  if (position == null) {
-    const { data: existing } = await supabase
-      .from('wing_crawl_items')
-      .select('position')
-      .eq('crawl_id', crawlId)
-      .order('position', { ascending: false })
-      .limit(1)
-    position = existing?.[0]?.position != null ? existing[0].position + 1 : 0
-  }
-
-  const { error } = await supabase.from('wing_crawl_items').insert({
+): Promise<{ error: string | null; item?: WingCrawlItem }> {
+  // Position is assigned by the set_crawl_item_position() trigger when we
+  // pass 0 (the default), avoiding the read-max-then-insert race.
+  const insertRow: Record<string, unknown> = {
     crawl_id: crawlId,
     wing_spot_id: wingSpotId,
-    position,
     note: options.note ?? null,
-  })
-  return { error: error?.message ?? null }
+  }
+  if (options.position != null) insertRow.position = options.position
+
+  const { data, error } = await supabase
+    .from('wing_crawl_items')
+    .insert(insertRow)
+    .select('*')
+    .single()
+  if (error || !data) return { error: error?.message ?? 'Could not add item' }
+  return { error: null, item: data as WingCrawlItem }
 }
 
 export async function removeCrawlItem(itemId: string): Promise<{ error: string | null }> {
@@ -93,8 +91,9 @@ export async function uploadCrawlCover(
 ): Promise<{ error: string | null; url?: string }> {
   try {
     const compressed = await compressImage(file)
-    const filename = `cover-${Date.now()}.jpg`
-    const path = `${userId}/${crawlId}/${filename}`
+    // Stable filename + upsert=true so re-uploads replace the prior cover
+    // in place instead of orphaning it in storage.
+    const path = `${userId}/${crawlId}/cover.jpg`
 
     const { error: uploadErr } = await supabase.storage
       .from('crawl-covers')
@@ -105,16 +104,36 @@ export async function uploadCrawlCover(
       .from('crawl-covers')
       .getPublicUrl(path)
 
+    // Cache-bust query so the CDN serves the new bytes.
+    const bustedUrl = `${publicUrl}?v=${Date.now()}`
+
     const { error: updateErr } = await supabase
       .from('wing_crawls')
-      .update({ cover_image_url: publicUrl })
+      .update({ cover_image_url: bustedUrl })
       .eq('id', crawlId)
     if (updateErr) return { error: updateErr.message }
 
-    return { error: null, url: publicUrl }
+    return { error: null, url: bustedUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed' }
   }
+}
+
+export async function deleteCrawlCover(
+  crawlId: string,
+  userId: string
+): Promise<{ error: string | null }> {
+  // Best-effort storage cleanup. Failure here is non-fatal — the DB row
+  // is the source of truth for what the page shows.
+  await supabase.storage
+    .from('crawl-covers')
+    .remove([`${userId}/${crawlId}/cover.jpg`])
+
+  const { error } = await supabase
+    .from('wing_crawls')
+    .update({ cover_image_url: null })
+    .eq('id', crawlId)
+  return { error: error?.message ?? null }
 }
 
 export async function toggleCrawlLike(
@@ -136,16 +155,11 @@ export async function toggleCrawlLike(
   }
 }
 
-/** Persist a reordering: caller passes the item IDs in their new visual order. */
+/** Persist a reordering atomically via the reorder_crawl_items RPC. */
 export async function reorderCrawlItems(
   itemIds: string[]
 ): Promise<{ error: string | null }> {
-  for (let i = 0; i < itemIds.length; i++) {
-    const { error } = await supabase
-      .from('wing_crawl_items')
-      .update({ position: i })
-      .eq('id', itemIds[i])
-    if (error) return { error: error.message }
-  }
-  return { error: null }
+  if (itemIds.length === 0) return { error: null }
+  const { error } = await supabase.rpc('reorder_crawl_items', { p_ids: itemIds })
+  return { error: error?.message ?? null }
 }

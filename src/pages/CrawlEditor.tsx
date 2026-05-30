@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
@@ -12,6 +12,7 @@ import {
   updateCrawlItemNote,
   reorderCrawlItems,
   uploadCrawlCover,
+  deleteCrawlCover,
 } from '../lib/crawlActions'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
@@ -45,12 +46,17 @@ export default function CrawlEditor() {
   const [crawl, setCrawl] = useState<WingCrawl | null>(null)
   const [items, setItems] = useState<ItemWithSpot[]>([])
   const [loading, setLoading] = useState(!isNew)
+  const [reordering, setReordering] = useState(false)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [isRanked, setIsRanked] = useState(false)
   const [savingMeta, setSavingMeta] = useState(false)
+
+  // Active undo toast id — cleared whenever items change so a stale undo
+  // can't clobber subsequent edits.
+  const undoToastIdRef = useRef<string | null>(null)
 
   // Auth gate
   useEffect(() => {
@@ -66,9 +72,12 @@ export default function CrawlEditor() {
     return () => { cancelled = true }
   }, [navigate])
 
-  // Load existing crawl when editing
+  // Load existing crawl when editing. Defers until auth is known so we can
+  // check ownership in the same pass (RLS would block writes anyway, but a
+  // non-owner shouldn't see the editor UI).
   const load = useCallback(async () => {
     if (isNew || !id) return
+    if (!authChecked || !authed) return
     setLoading(true)
 
     const { data: c, error } = await supabase
@@ -84,6 +93,12 @@ export default function CrawlEditor() {
     }
 
     const crawlRow = c as WingCrawl
+    if (crawlRow.user_id !== userId) {
+      // Bounce non-owners to the public view of the list.
+      navigate(`/lists/${crawlRow.slug}`, { replace: true })
+      return
+    }
+
     setCrawl(crawlRow)
     setTitle(crawlRow.title)
     setDescription(crawlRow.description ?? '')
@@ -106,7 +121,7 @@ export default function CrawlEditor() {
 
     setItems(itemList.map(it => ({ ...it, spot: spotsById[it.wing_spot_id] ?? null })))
     setLoading(false)
-  }, [id, isNew, navigate])
+  }, [id, isNew, navigate, authChecked, authed, userId])
 
   useEffect(() => { load() }, [load])
 
@@ -185,10 +200,17 @@ export default function CrawlEditor() {
 
   async function handleClearCover() {
     if (!crawl) return
-    const { error } = await updateCrawl(crawl.id, { cover_image_url: null })
+    const { error } = await deleteCrawlCover(crawl.id, userId)
     if (error) { toast.error(error); return }
     setCrawl({ ...crawl, cover_image_url: null })
     toast.success('Cover removed')
+  }
+
+  function dismissUndoToast() {
+    if (undoToastIdRef.current) {
+      toast.dismiss(undoToastIdRef.current)
+      undoToastIdRef.current = null
+    }
   }
 
   async function handleAddSpot(spotId: string) {
@@ -196,16 +218,26 @@ export default function CrawlEditor() {
     if (items.some(i => i.wing_spot_id === spotId)) {
       toast('Already in this list', { icon: '👀' }); return
     }
-    const { error } = await addCrawlItem(crawl.id, spotId)
-    if (error) { toast.error(error); return }
-    await load()
+    dismissUndoToast()
+    const { error, item } = await addCrawlItem(crawl.id, spotId)
+    if (error || !item) { toast.error(error ?? 'Could not add'); return }
+
+    // Hydrate the new row's spot data without a full reload.
+    const { data: spotRow } = await supabase
+      .from('wing_spots')
+      .select('*')
+      .eq('id', spotId)
+      .maybeSingle()
+    setItems(prev => [...prev, { ...item, spot: (spotRow as WingSpot | null) ?? null }])
     toast.success('Spot added')
   }
 
   async function handleRemoveItem(itemId: string) {
-    const { error } = await removeCrawlItem(itemId)
-    if (error) { toast.error(error); return }
+    dismissUndoToast()
+    const snapshot = items
     setItems(items.filter(i => i.id !== itemId))
+    const { error } = await removeCrawlItem(itemId)
+    if (error) { toast.error(error); setItems(snapshot) }
   }
 
   async function handleSaveNote(itemId: string, note: string) {
@@ -215,22 +247,29 @@ export default function CrawlEditor() {
   }
 
   async function applyReorder(prev: ItemWithSpot[], next: ItemWithSpot[]) {
+    if (reordering) return
+    dismissUndoToast()
+    setReordering(true)
     setItems(next)
     const { error } = await reorderCrawlItems(next.map(i => i.id))
+    setReordering(false)
     if (error) {
       toast.error(error)
       await load()
       return
     }
-    toast(
+    const id = toast(
       t => (
         <span className="flex items-center gap-3">
           <span>Reordered</span>
           <button
             onClick={async () => {
               toast.dismiss(t.id)
+              undoToastIdRef.current = null
+              setReordering(true)
               setItems(prev)
               const { error: undoErr } = await reorderCrawlItems(prev.map(i => i.id))
+              setReordering(false)
               if (undoErr) { toast.error(undoErr); await load() }
             }}
             className="font-extrabold uppercase tracking-crowd text-sauce-300 hover:text-sauce-200"
@@ -241,9 +280,11 @@ export default function CrawlEditor() {
       ),
       { duration: 5000 }
     )
+    undoToastIdRef.current = id
   }
 
   async function handleMove(itemId: string, direction: -1 | 1) {
+    if (reordering) return
     const idx = items.findIndex(i => i.id === itemId)
     const newIdx = idx + direction
     if (idx < 0 || newIdx < 0 || newIdx >= items.length) return
@@ -258,6 +299,7 @@ export default function CrawlEditor() {
   )
 
   async function handleDragEnd(event: DragEndEvent) {
+    if (reordering) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIdx = items.findIndex(i => i.id === active.id)
@@ -417,8 +459,8 @@ export default function CrawlEditor() {
                         key={item.id}
                         item={item}
                         rank={isRanked ? idx + 1 : null}
-                        canMoveUp={idx > 0}
-                        canMoveDown={idx < items.length - 1}
+                        canMoveUp={idx > 0 && !reordering}
+                        canMoveDown={idx < items.length - 1 && !reordering}
                         onMoveUp={() => handleMove(item.id, -1)}
                         onMoveDown={() => handleMove(item.id, 1)}
                         onRemove={() => handleRemoveItem(item.id)}
@@ -514,11 +556,19 @@ function AddSpotForm({
     if (!newName.trim() || !newAddr.trim() || !newLat || !newLng) {
       toast.error('Pick from the autocomplete or fill in all fields'); return
     }
+    const lat = parseFloat(newLat)
+    const lng = parseFloat(newLng)
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      toast.error('Latitude must be between -90 and 90'); return
+    }
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+      toast.error('Longitude must be between -180 and 180'); return
+    }
     setCreating(true)
     const { data: spot, error } = await supabase
       .from('wing_spots')
       .upsert(
-        { name: newName.trim(), address: newAddr.trim(), lat: parseFloat(newLat), lng: parseFloat(newLng) },
+        { name: newName.trim(), address: newAddr.trim(), lat, lng },
         { onConflict: 'name,address', ignoreDuplicates: false }
       )
       .select('id')

@@ -145,7 +145,10 @@ export function useCrawlComments(
 
       if (!trimmedText && !mediaUrl) return
 
-      const tempId = `temp-${Date.now()}`
+      const tempId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? `temp-${crypto.randomUUID()}`
+          : `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`
       const temp: CrawlComment = {
         id: tempId,
         crawl_id: crawlId,
@@ -188,16 +191,20 @@ export function useCrawlComments(
       if (mediaUrl) insertData.media_url = mediaUrl
       if (parentCommentId) insertData.parent_comment_id = parentCommentId
 
-      const { error } = await supabase.from('crawl_comments').insert(insertData)
+      const { data: inserted, error } = await supabase
+        .from('crawl_comments')
+        .insert(insertData)
+        .select('id')
+        .single()
 
-      if (error) {
+      if (error || !inserted) {
         if (parentCommentId) {
           setComments(prev =>
             prev.map(c => {
               if (c.id !== parentCommentId) return c
               return {
                 ...c,
-                reply_count: c.reply_count - 1,
+                reply_count: Math.max(0, c.reply_count - 1),
                 replies: (c.replies ?? []).filter(r => r.id !== tempId),
               }
             })
@@ -205,21 +212,35 @@ export function useCrawlComments(
         } else {
           setComments(prev => prev.filter(c => c.id !== tempId))
         }
-      } else {
-        if (parentCommentId) {
-          await fetchReplies(parentCommentId)
-        } else {
-          await fetchComments()
-        }
-        triggerPushDelivery()
+        return
       }
+
+      // Swap the temp row's id for the real one in place — no full refetch.
+      const realId = (inserted as { id: string }).id
+      if (parentCommentId) {
+        setComments(prev =>
+          prev.map(c => {
+            if (c.id !== parentCommentId) return c
+            return {
+              ...c,
+              replies: (c.replies ?? []).map(r => (r.id === tempId ? { ...r, id: realId } : r)),
+            }
+          })
+        )
+      } else {
+        setComments(prev => prev.map(c => (c.id === tempId ? { ...c, id: realId } : c)))
+      }
+      triggerPushDelivery()
     },
-    [crawlId, currentUserId, fetchComments, fetchReplies]
+    [crawlId, currentUserId]
   )
 
   const deleteComment = useCallback(
     async (commentId: string) => {
+      // Snapshot for rollback in case the DB rejects (RLS, network).
+      let snapshot: CrawlComment[] = []
       setComments(prev => {
+        snapshot = prev
         const isTopLevel = prev.some(c => c.id === commentId)
         if (isTopLevel) {
           return prev.filter(c => c.id !== commentId)
@@ -233,7 +254,10 @@ export function useCrawlComments(
           }
         })
       })
-      await supabase.from('crawl_comments').delete().eq('id', commentId)
+      const { error } = await supabase.from('crawl_comments').delete().eq('id', commentId)
+      if (error) {
+        setComments(snapshot)
+      }
     },
     []
   )
@@ -262,14 +286,16 @@ export function useCrawlComments(
 
       setComments(prev => prev.map(updateLike))
 
-      try {
-        if (wasLiked) {
-          await supabase.from('crawl_comment_likes').delete().match({ comment_id: commentId, user_id: currentUserId })
-        } else {
-          await supabase.from('crawl_comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
-          triggerPushDelivery()
-        }
-      } catch {
+      const { error } = wasLiked
+        ? await supabase
+            .from('crawl_comment_likes')
+            .delete()
+            .match({ comment_id: commentId, user_id: currentUserId })
+        : await supabase
+            .from('crawl_comment_likes')
+            .insert({ comment_id: commentId, user_id: currentUserId })
+
+      if (error) {
         const revertLike = (c: CrawlComment): CrawlComment =>
           c.id === commentId
             ? { ...c, is_liked_by_me: wasLiked, like_count: comment.like_count }
@@ -277,6 +303,8 @@ export function useCrawlComments(
               ? { ...c, replies: c.replies.map(revertLike) }
               : c
         setComments(prev => prev.map(revertLike))
+      } else if (!wasLiked) {
+        triggerPushDelivery()
       }
     },
     [comments, currentUserId]
@@ -314,19 +342,16 @@ export function useCrawlComments(
 
       setComments(prev => prev.map(updateReactions))
 
-      try {
-        if (isMine) {
-          await supabase
+      const { error } = isMine
+        ? await supabase
             .from('crawl_comment_reactions')
             .delete()
             .match({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
-        } else {
-          await supabase
+        : await supabase
             .from('crawl_comment_reactions')
             .insert({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
-          triggerPushDelivery()
-        }
-      } catch {
+
+      if (error) {
         const revertReactions = (c: CrawlComment): CrawlComment =>
           c.id === commentId
             ? { ...c, reactions: comment.reactions }
@@ -334,6 +359,8 @@ export function useCrawlComments(
               ? { ...c, replies: c.replies.map(revertReactions) }
               : c
         setComments(prev => prev.map(revertReactions))
+      } else if (!isMine) {
+        triggerPushDelivery()
       }
     },
     [comments, currentUserId]
