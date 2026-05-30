@@ -17,11 +17,15 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* Defensive net against stray horizontal scroll. `clip` over `hidden`:
+       it does not create a scroll container, so position:sticky keeps working. */
+    overflow-x: clip;
   }
 
   body {
     @apply bg-cream-50 text-charcoal-700 antialiased;
     min-height: 100dvh;
+    overflow-x: clip;
     overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
     /* Paper texture under everything */

@@ -458,7 +458,7 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
 
         {/* GIF content */}
         {comment.media_url && (
-          <div className="mt-1.5 rounded-xl overflow-hidden bg-cream-100 inline-block max-w-[240px]">
+          <div className="mt-1.5 rounded-xl overflow-hidden bg-cream-100 inline-block max-w-[min(240px,100%)]">
             <img
               src={comment.media_url}
               alt="GIF"

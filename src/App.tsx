@@ -34,9 +34,11 @@ const ADMIN_EMAIL = 'anthonycap949@gmail.com'
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
     <div className="relative min-h-dvh bg-paper flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
-      {/* Decorative splatter */}
-      <div className="pointer-events-none fixed -top-12 -right-8 w-[420px] h-[280px] bg-splatter opacity-25" />
-      <div className="pointer-events-none fixed -bottom-12 -left-12 w-[420px] h-[280px] bg-splatter opacity-20 rotate-180" />
+      {/* Decorative splatter — absolute (not fixed) so the overflow-hidden
+          wrapper clips it; fixed elements escape that clip and the 420px
+          width spills past narrow viewports. */}
+      <div className="pointer-events-none absolute -top-12 -right-8 w-[420px] h-[280px] bg-splatter opacity-25" />
+      <div className="pointer-events-none absolute -bottom-12 -left-12 w-[420px] h-[280px] bg-splatter opacity-20 rotate-180" />
 
       <div className="relative w-full max-w-sm text-center animate-fade-in">
         <div className="inline-flex items-center justify-center mb-6">
