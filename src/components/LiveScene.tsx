@@ -81,7 +81,7 @@ export default function LiveScene({ spots, loading }: Props) {
     ]).then(([redditItems, aiItems]) => {
       const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...dailyOnion, ...redditItems, ...aiItems])
       setPool(all)
-      setDuration(Math.max(32, all.length * 3.2))
+      setDuration(Math.max(32, all.length * 6.4))
     })
   }, [spots, loading])
 
