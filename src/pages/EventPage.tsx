@@ -7,11 +7,12 @@ import { useEvent } from '../hooks/useEvent'
 import { useReviews } from '../hooks/useReviews'
 import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
+import ReviewEditModal from '../components/ReviewEditModal'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import { supabase } from '../lib/supabase'
-import type { EventStop, ReviewFormData, RsvpStatus } from '../lib/types'
+import type { EventStop, Review, ReviewPhoto, ReviewFormData, RsvpStatus } from '../lib/types'
 
 interface CheckinAttendee {
   user_id: string
@@ -100,6 +101,8 @@ export default function EventPage({ auth }: Props) {
   const badges = useBadges(userId)
 
   const [reviewingStop, setReviewingStop] = useState<EventStop | null>(null)
+  const [editingReview, setEditingReview] = useState<Review | null>(null)
+  const [loadingReviewId, setLoadingReviewId] = useState<string | null>(null)
   const [rsvpSubmitting, setRsvpSubmitting] = useState<RsvpStatus | null>(null)
   const [checkinSubmitting, setCheckinSubmitting] = useState<string | null>(null)
   const [checkinAttendees, setCheckinAttendees] = useState<CheckinAttendee[]>([])
@@ -266,6 +269,35 @@ export default function EventPage({ auth }: Props) {
       setReviewingStop(null)
     }
     return { error: result.error }
+  }
+
+  // Open the EDIT modal for an existing review: fetch the full row + photos so
+  // the form populates (the create form would otherwise open blank).
+  const handleEditReview = async (reviewId: string) => {
+    setLoadingReviewId(reviewId)
+    const [{ data: row, error }, { data: photos }] = await Promise.all([
+      supabase.from('reviews_with_profiles').select('*').eq('id', reviewId).maybeSingle(),
+      supabase.from('review_photos').select('*').eq('review_id', reviewId).order('display_order'),
+    ])
+    setLoadingReviewId(null)
+    if (error || !row) {
+      toast.error('Could not load your review')
+      return
+    }
+    setEditingReview({ ...(row as Review), photos: (photos ?? []) as ReviewPhoto[] })
+  }
+
+  const handleUpdateReview = async (data: Parameters<typeof reviews.updateReview>[1]) => {
+    if (!editingReview) return
+    const result = await reviews.updateReview(editingReview.id, data)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      badges.refresh()
+      await evt.refresh()
+      setEditingReview(null)
+      toast.success('Review updated')
+    }
   }
 
   return (
@@ -516,11 +548,18 @@ export default function EventPage({ auth }: Props) {
                             <button
                               onClick={() => {
                                 if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
-                                setReviewingStop(stop)
+                                if (hasReview && myCheckin?.review_id) {
+                                  handleEditReview(myCheckin.review_id)
+                                } else {
+                                  setReviewingStop(stop)
+                                }
                               }}
-                              className="btn-secondary px-4 py-2 text-xs"
+                              disabled={loadingReviewId === myCheckin?.review_id}
+                              className="btn-secondary px-4 py-2 text-xs disabled:opacity-50"
                             >
-                              ✏️ {isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
+                              ✏️ {loadingReviewId === myCheckin?.review_id
+                                ? 'Loading…'
+                                : isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
                             </button>
                           </div>
                         )}
@@ -683,6 +722,14 @@ export default function EventPage({ auth }: Props) {
             event_stop_id: reviewingStop.id,
             event_name: e.name,
           }}
+        />
+      )}
+
+      {editingReview && (
+        <ReviewEditModal
+          review={editingReview}
+          onClose={() => setEditingReview(null)}
+          onSubmit={handleUpdateReview}
         />
       )}
     </div>
