@@ -86,17 +86,17 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px]">
             <input
               type="checkbox"
               checked={isTakeout}
               onChange={e => { setIsTakeout(e.target.checked); if (!e.target.checked) setTakeoutContainer('') }}
               className="sr-only"
             />
-            <div className={`relative w-9 h-5 rounded-full transition-colors duration-150 ${isTakeout ? 'bg-amber-400' : 'bg-warmgray-300'}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-150 ${isTakeout ? 'translate-x-4' : 'translate-x-0'}`} />
+            <div className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${isTakeout ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-150 ${isTakeout ? 'translate-x-[22px]' : 'translate-x-0'}`} />
             </div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-charcoal-400">Takeout</span>
+            <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-600">Takeout</span>
           </label>
         </div>
 
@@ -163,7 +163,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
                   <button
                     type="button"
                     onClick={() => removeExisting(photo.id)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors"
                     aria-label="Remove photo"
                   >
                     ×

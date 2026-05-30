@@ -40,13 +40,13 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-charcoal-900/30 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-night-900/40 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
 
       {/* Sheet — slides up from bottom on mobile, centered on desktop */}
       <div
-        className={`relative w-full ${maxWidths[size]} bg-white rounded-t-3xl sm:rounded-3xl shadow-elevated animate-slide-up flex flex-col`}
+        className={`relative w-full ${maxWidths[size]} bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up flex flex-col`}
         style={sheetStyle}
       >
         {/* Drag handle (mobile only) — swipe up to expand, down to collapse */}
@@ -60,24 +60,24 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
           tabIndex={0}
           {...handleProps}
         >
-          <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-warmgray-300' : 'bg-warmgray-200'}`} />
+          <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-night-900/40' : 'bg-night-900/25'}`} />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-warmgray-100 flex-shrink-0">
-          <h2 className="font-display text-lg text-charcoal-800">{title}</h2>
+        <div className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-night-900/10 flex-shrink-0">
+          <h2 className="font-display uppercase tracking-wide text-lg text-night-900 truncate pr-3">{title}</h2>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 hover:text-charcoal-600 active:bg-warmgray-200 transition-colors text-2xl leading-none"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 active:bg-cream-200 transition-colors text-2xl leading-none flex-shrink-0"
             aria-label="Close"
           >
             ×
           </button>
         </div>
 
-        {/* Scrollable content */}
+        {/* Scrollable content — safe-area bottom inset */}
         <div
-          className="overflow-y-auto flex-1"
+          className="overflow-y-auto flex-1 overscroll-contain"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {children}

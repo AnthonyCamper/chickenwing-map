@@ -69,27 +69,27 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
   }
 
   return (
-    <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-elevated border border-warmgray-100 overflow-hidden z-50 animate-slide-up">
+    <div
+      className="absolute right-0 top-full mt-2 w-[min(22rem,calc(100vw-1rem))] bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 animate-slide-up"
+    >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-warmgray-100 flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold text-charcoal-800">
+      <div className="px-4 py-3 border-b border-night-900/10 flex items-center justify-between gap-2">
+        <h3 className="font-display uppercase tracking-wide text-sm text-night-900">
           Notifications
           {unreadCount > 0 && (
-            <span className="ml-1.5 text-xs font-normal text-charcoal-400">
+            <span className="ml-1.5 text-xs font-bold normal-case text-charcoal-500">
               ({unreadCount} new)
             </span>
           )}
         </h3>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className="text-xs text-amber-500 hover:text-amber-600 font-medium"
-            >
-              Mark all read
-            </button>
-          )}
-        </div>
+        {unreadCount > 0 && (
+          <button
+            onClick={markAllRead}
+            className="text-[11px] font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors flex-shrink-0"
+          >
+            Mark all read
+          </button>
+        )}
       </div>
 
       {/* Push opt-in banner */}
@@ -98,37 +98,36 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
           onClick={async () => {
             const result = await enablePush()
             if (result.error) {
-              // Show inline — toast would be behind the dropdown
               alert(result.error)
             }
           }}
-          className="w-full px-4 py-3 bg-amber-50 border-b border-warmgray-100 flex items-center gap-3 hover:bg-amber-100 transition-colors text-left"
+          className="w-full px-4 py-3 bg-sauce-50 border-b border-night-900/10 flex items-center gap-3 hover:bg-sauce-100 transition-colors text-left"
         >
-          <span className="text-lg">🔔</span>
+          <span className="text-lg flex-shrink-0">🔔</span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-charcoal-700">
+            <p className="text-xs font-bold text-night-800">
               Enable push notifications
             </p>
-            <p className="text-xs text-charcoal-400 mt-0.5">
+            <p className="text-xs text-charcoal-500 mt-0.5">
               Get notified when someone interacts with your content
             </p>
           </div>
         </button>
       )}
 
-      {/* Notification list */}
-      <div className="max-h-[400px] overflow-y-auto">
+      {/* Notification list — cap at 60vh so it never exceeds the viewport on mobile */}
+      <div className="max-h-[60vh] overflow-y-auto">
         {loading && items.length === 0 && (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
           </div>
         )}
 
         {!loading && items.length === 0 && (
           <div className="py-10 text-center">
             <p className="text-2xl mb-2">🍗</p>
-            <p className="text-sm text-charcoal-400">No notifications yet</p>
-            <p className="text-xs text-charcoal-300 mt-1">
+            <p className="text-sm text-charcoal-500">No notifications yet</p>
+            <p className="text-xs text-charcoal-400 mt-1">
               You'll see activity here when people interact with your content
             </p>
           </div>
@@ -138,10 +137,10 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
           <button
             key={notif.id}
             onClick={() => handleNotificationClick(notif)}
-            className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-colors border-b border-warmgray-50 last:border-0 ${
+            className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-colors border-b border-night-900/10 last:border-0 min-h-[64px] ${
               notif.read
-                ? 'hover:bg-warmgray-50'
-                : 'bg-amber-50/40 hover:bg-amber-50/70'
+                ? 'hover:bg-cream-100'
+                : 'bg-sauce-50/60 hover:bg-sauce-50'
             }`}
           >
             {/* Icon */}
@@ -152,16 +151,16 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
             {/* Content */}
             <div className="flex-1 min-w-0">
               <p className={`text-sm leading-snug ${
-                notif.read ? 'text-charcoal-500' : 'text-charcoal-700 font-medium'
+                notif.read ? 'text-charcoal-500' : 'text-night-800 font-medium'
               }`}>
                 {notif.preview_text || getDefaultText(notif)}
               </p>
               {notif.shop_name && notif.type === 'new_review' && (
-                <p className="text-xs text-charcoal-400 mt-0.5 truncate">
+                <p className="text-xs text-charcoal-500 mt-0.5 truncate">
                   at {notif.shop_name}
                 </p>
               )}
-              <p className="text-xs text-charcoal-300 mt-1">
+              <p className="text-xs text-charcoal-400 mt-1">
                 {formatTime(notif.created_at)}
               </p>
             </div>
@@ -169,7 +168,7 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
             {/* Unread dot */}
             {!notif.read && (
               <div className="flex-shrink-0 mt-2">
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                <div className="w-2 h-2 rounded-full bg-sauce-400" />
               </div>
             )}
           </button>
@@ -179,7 +178,7 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
         {hasMore && items.length > 0 && (
           <button
             onClick={loadMore}
-            className="w-full py-3 text-xs text-amber-500 hover:text-amber-600 font-medium hover:bg-warmgray-50 transition-colors"
+            className="w-full py-3 text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 hover:bg-cream-100 transition-colors"
           >
             Load more
           </button>
@@ -194,22 +193,22 @@ function NotificationIcon({ type }: { type: string }) {
 
   switch (type) {
     case 'new_review':
-      return <div className={`${iconClass} bg-amber-100`}>☕</div>
+      return <div className={`${iconClass} bg-sauce-100`}>🍗</div>
     case 'photo_comment':
     case 'comment_reply':
-      return <div className={`${iconClass} bg-blue-100`}>💬</div>
+      return <div className={`${iconClass} bg-neon-100`}>💬</div>
     case 'photo_like':
-      return <div className={`${iconClass} bg-amber-100`}>❤️</div>
+      return <div className={`${iconClass} bg-sauce-100`}>❤️</div>
     case 'comment_like':
-      return <div className={`${iconClass} bg-amber-100`}>👍</div>
+      return <div className={`${iconClass} bg-sauce-100`}>👍</div>
     case 'comment_reaction':
-      return <div className={`${iconClass} bg-purple-100`}>😄</div>
+      return <div className={`${iconClass} bg-gold-100`}>😄</div>
     case 'crawl_like':
       return <div className={`${iconClass} bg-sauce-100`}>❤️</div>
     case 'new_crawl_from_followed_user':
       return <div className={`${iconClass} bg-sauce-100`}>📋</div>
     default:
-      return <div className={`${iconClass} bg-warmgray-100`}>🔔</div>
+      return <div className={`${iconClass} bg-cream-100`}>🔔</div>
   }
 }
 

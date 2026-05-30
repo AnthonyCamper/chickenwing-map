@@ -208,21 +208,27 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   }, [focusShopId, mapReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="relative h-[calc(100dvh-64px)]">
+    // The header height varies with safe-area + optional event broadcast strip,
+    // so we leave a 96px envelope below 100dvh to keep the map fully visible
+    // without forcing the user to scroll past it.
+    <div
+      className="relative w-full"
+      style={{ height: 'calc(100dvh - 96px - env(safe-area-inset-top))' }}
+    >
       <div ref={mapRef} className="w-full h-full" />
 
       {loading && (
-        <div className="absolute inset-0 bg-warmgray-50/60 flex items-center justify-center z-10">
-          <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+        <div className="absolute inset-0 bg-cream-50/60 flex items-center justify-center z-10">
+          <div className="w-10 h-10 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
         </div>
       )}
 
       {!loading && shopsWithReviews.length === 0 && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-sm rounded-3xl px-6 py-5 shadow-card text-center">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none px-4 w-full max-w-xs">
+          <div className="bg-cream-50/95 backdrop-blur-sm rounded-2xl px-6 py-5 shadow-card border-2 border-night-900 text-center">
             <div className="text-3xl mb-2">📍</div>
-            <p className="text-sm font-semibold text-charcoal-700">No shops on the map yet</p>
-            <p className="text-xs text-charcoal-400 mt-1">Add a review to see it here</p>
+            <p className="font-display uppercase tracking-wide text-lg text-night-900">No spots yet</p>
+            <p className="text-xs text-charcoal-500 mt-1">Add a review to see it here</p>
           </div>
         </div>
       )}
@@ -272,8 +278,8 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
       height: 40px;
       border-radius: 50%;
       overflow: hidden;
-      border: 2px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border: 2px solid #fdfaf2;
+      box-shadow: 0 2px 8px rgba(4,5,14,0.20);
       margin-bottom: 3px;
       flex-shrink: 0;
     ">
@@ -295,17 +301,17 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
         flex-direction:column;
         align-items:center;
         justify-content:flex-end;
-        filter: drop-shadow(0 4px 8px rgba(154,122,92,0.3));
+        filter: drop-shadow(0 4px 8px rgba(4,5,14,0.32));
       ">
         ${thumbHtml}
         <div style="
-          background: white;
-          border: 2px solid #fbbf24;
-          border-radius: 12px;
+          background: #fdfaf2;
+          border: 2px solid #04050e;
+          border-radius: 10px;
           padding: 4px 6px;
           font-size: 11px;
-          font-weight: 700;
-          color: #5c4029;
+          font-weight: 800;
+          color: #04050e;
           white-space: nowrap;
           line-height: 1;
           font-family: Inter, system-ui, sans-serif;
@@ -313,7 +319,7 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
         <div style="
           width: 10px;
           height: 10px;
-          background: #fbbf24;
+          background: #04050e;
           clip-path: polygon(0 0, 100% 0, 50% 100%);
           margin-top: -1px;
         "></div>
@@ -336,19 +342,19 @@ function createClusterIcon(L: any, count: number) {
       <div style="
         width: ${size}px;
         height: ${size}px;
-        background: white;
-        border: 2.5px solid #fbbf24;
+        background: #fa5a2e;
+        border: 2.5px solid #04050e;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        filter: drop-shadow(0 4px 10px rgba(154,122,92,0.32));
+        filter: drop-shadow(0 4px 10px rgba(4,5,14,0.32));
       ">
         <span style="
           font-family: Inter, system-ui, sans-serif;
-          font-weight: 700;
+          font-weight: 800;
           font-size: ${fontSize}px;
-          color: #5c4029;
+          color: #fdfaf2;
           line-height: 1;
           white-space: nowrap;
         ">🍗 ${count}</span>
@@ -379,22 +385,22 @@ function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDele
       />
 
       {/* Panel */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-white rounded-t-3xl sm:rounded-3xl shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col">
+      <div className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col">
         {/* Handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div className="w-8 h-1 rounded-full bg-warmgray-300" />
+          <div className="w-10 h-1 rounded-full bg-night-900/25" />
         </div>
 
         {/* Header */}
-        <div className="px-5 pt-3 pb-3 border-b border-warmgray-100 flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-display text-base font-semibold text-charcoal-800 leading-snug">
+        <div className="px-5 pt-3 pb-3 border-b border-night-900/10 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-display uppercase tracking-wide text-base text-night-900 leading-snug truncate">
               {spot.name}
             </h3>
-            <p className="text-xs text-charcoal-400 mt-0.5">{spot.address}</p>
+            <p className="text-xs text-charcoal-500 mt-0.5 truncate">{spot.address}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {reviews.length > 1 && (
-                <span className="text-xs text-charcoal-300">avg of {reviews.length}</span>
+                <span className="text-xs text-charcoal-400">avg of {reviews.length}</span>
               )}
               <span className="rating-wing">
                 🍗 <StarRating value={avg_rating} size="sm" />
@@ -404,7 +410,7 @@ function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDele
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 transition-colors text-lg leading-none flex-shrink-0 mt-0.5"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-900 transition-colors text-2xl leading-none flex-shrink-0"
             aria-label="Close"
           >
             ×
@@ -412,7 +418,10 @@ function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDele
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1">
+        <div
+          className="overflow-y-auto flex-1 overscroll-contain"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
           {/* Photo strip */}
           {photos.length > 0 && (
             <div className="px-5 pt-4 pb-2">
@@ -421,7 +430,7 @@ function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDele
           )}
 
           {/* Reviews */}
-          <div className="px-5 pb-5 divide-y divide-warmgray-100">
+          <div className="px-5 pb-5 divide-y divide-night-900/10">
             {reviews.map((review: Review) => (
               <ReviewCard
                 key={review.id}
@@ -450,12 +459,12 @@ function PhotoStrip({ photos, onPhotoOpen }: PhotoStripProps) {
 
   return (
     <>
-      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {photos.map((photo) => (
             <button
               key={photo.id}
               onClick={() => onPhotoOpen(photo.id)}
-              className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-warmgray-100 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-amber-300"
+              className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-cream-200 border-2 border-night-900 hover:border-sauce-400 transition-colors focus:outline-none focus:ring-2 focus:ring-sauce-300"
             >
               <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
             </button>

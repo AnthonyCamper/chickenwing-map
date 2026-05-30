@@ -105,29 +105,31 @@ export default function ReviewFeedCard({ review, onOpen, onLike }: Props) {
             className="w-full h-full object-cover"
           />
 
-          {/* Multi-photo dots */}
+          {/* Multi-photo dots — tap targets expanded to 24px while keeping visible dot tiny */}
           {review.photos.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">
               {review.photos.map((_, i) => (
                 <button
                   key={i}
                   onClick={e => { e.stopPropagation(); setCarouselIndex(i) }}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
-                    i === carouselIndex
-                      ? 'bg-white scale-110 shadow-sm'
-                      : 'bg-white/50 hover:bg-white/70'
-                  }`}
+                  className="w-6 h-6 flex items-center justify-center"
                   aria-label={`Photo ${i + 1}`}
-                />
+                >
+                  <span className={`block rounded-full transition-all ${
+                    i === carouselIndex
+                      ? 'bg-cream-50 w-2.5 h-2.5 shadow-sm'
+                      : 'bg-cream-50/55 w-1.5 h-1.5 hover:bg-cream-50/75'
+                  }`} />
+                </button>
               ))}
             </div>
           )}
 
           {/* Event badge */}
           {review.event_id && review.event_name && (
-            <div className="absolute top-3 left-3 flex items-center gap-1 bg-amber-400/95 text-charcoal-800 rounded-full px-2.5 py-0.5 shadow-sm pointer-events-none">
+            <div className="absolute top-3 left-3 flex items-center gap-1 bg-gold-300/95 text-night-900 border border-night-900 rounded-full px-2.5 py-0.5 shadow-sticker-sm pointer-events-none">
               <span className="text-[10px]">🏆</span>
-              <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[120px]">
+              <span className="text-[10px] font-extrabold uppercase tracking-crowd truncate max-w-[120px]">
                 {review.event_name}
               </span>
             </div>

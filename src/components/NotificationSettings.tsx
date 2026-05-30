@@ -55,14 +55,14 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-charcoal-900/40 backdrop-blur-sm"
+        className="fixed inset-0 z-50 bg-night-900/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-4">
+      <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
         <div
-          className="w-full max-w-sm bg-white rounded-3xl shadow-elevated overflow-hidden animate-slide-up flex flex-col"
+          className="w-full sm:max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated overflow-hidden animate-slide-up flex flex-col"
           style={sheetStyle}
         >
           {/* Handle */}
@@ -76,23 +76,28 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
             tabIndex={0}
             {...handleProps}
           >
-            <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-warmgray-300' : 'bg-warmgray-200'}`} />
+            <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-night-900/40' : 'bg-night-900/25'}`} />
           </div>
 
-          <div className="px-6 py-5 overflow-y-auto flex-1">
+          <div
+            className="px-5 sm:px-6 pt-3 pb-5 overflow-y-auto overscroll-contain flex-1"
+            style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+          >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display text-xl text-charcoal-800">Notifications</h2>
-              <button onClick={onClose} className="btn-ghost w-8 h-8 p-0 text-charcoal-400 text-lg">
-                ×
-              </button>
+              <h2 className="font-display uppercase tracking-wide text-xl text-night-900">Notifications</h2>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 transition-colors text-2xl leading-none"
+                aria-label="Close"
+              >×</button>
             </div>
 
             {/* Push notification toggle */}
             <div className="mb-6">
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-semibold text-charcoal-700">Push notifications</p>
-                  <p className="text-xs text-charcoal-400 mt-0.5">
+              <div className="flex items-center justify-between py-3 gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-night-800">Push notifications</p>
+                  <p className="text-xs text-charcoal-500 mt-0.5">
                     {pushSubscribed
                       ? 'Receiving push on this device'
                       : 'Get alerts even when the app is closed'}
@@ -101,10 +106,12 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
                 <button
                   onClick={handleTogglePush}
                   disabled={saving || !pushSupported}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                    pushSubscribed ? 'bg-amber-400' : 'bg-warmgray-300'
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    pushSubscribed ? 'bg-sauce-400' : 'bg-night-900/20'
                   } ${!pushSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
                   aria-label={pushSubscribed ? 'Disable push' : 'Enable push'}
+                  role="switch"
+                  aria-checked={pushSubscribed}
                 >
                   <span
                     className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
@@ -116,14 +123,14 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
 
               {/* Platform-specific messages */}
               {!pushSupported && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mt-1">
+                <p className="text-xs text-sauce-700 bg-sauce-50 border border-sauce-200 rounded-xl px-3 py-2 mt-1">
                   Push notifications are not supported in this browser.
                 </p>
               )}
 
               {pushSupported && needsHomeScreenInstall() && (
-                <div className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mt-1">
-                  <p className="font-semibold">Add to Home Screen required</p>
+                <div className="text-xs text-sauce-700 bg-sauce-50 border border-sauce-200 rounded-xl px-3 py-2 mt-1">
+                  <p className="font-bold">Add to Home Screen required</p>
                   <p className="mt-1">
                     On iPhone, push notifications only work when the app is added to your Home
                     Screen. Tap the Share button in Safari, then "Add to Home Screen."
@@ -132,7 +139,7 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
               )}
 
               {permState === 'denied' && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mt-1">
+                <p className="text-xs text-sauce-700 bg-sauce-50 border border-sauce-200 rounded-xl px-3 py-2 mt-1">
                   Notifications are blocked in your browser settings. You'll need to
                   allow notifications for this site in your browser or device settings.
                 </p>
@@ -140,11 +147,11 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
             </div>
 
             {/* Divider */}
-            <div className="border-t border-warmgray-100 mb-4" />
+            <div className="border-t border-night-900/10 mb-4" />
 
             {/* Preference toggles */}
             <div className="space-y-0.5">
-              <p className="text-xs font-semibold text-charcoal-500 uppercase tracking-wide mb-3">
+              <p className="eyebrow text-night-700 mb-3">
                 Notify me about
               </p>
 
@@ -214,7 +221,7 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
               </div>
 
               {/* Divider */}
-              <div className="border-t border-warmgray-100 my-3" />
+              <div className="border-t border-night-900/10 my-3" />
 
               <ToggleRow
                 label="Quiet mode"
@@ -226,8 +233,8 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
 
             {/* iOS-specific info */}
             {isIOS() && (
-              <div className="mt-5 text-xs text-charcoal-400 bg-warmgray-50 rounded-xl px-3 py-2.5 leading-relaxed">
-                <p className="font-semibold text-charcoal-500 mb-1">iPhone tips</p>
+              <div className="mt-5 text-xs text-charcoal-500 bg-cream-100 border border-night-900/10 rounded-xl px-3 py-2.5 leading-relaxed">
+                <p className="font-bold text-night-700 mb-1">iPhone tips</p>
                 <p>
                   Push notifications on iPhone require iOS 16.4+ and the app must be added
                   to your Home Screen. Notifications may be delayed while in Low Power Mode.
@@ -255,23 +262,23 @@ function ToggleRow({
   onChange: (value: boolean) => void
 }) {
   return (
-    <div className="flex items-center justify-between py-2.5">
-      <div className="min-w-0 pr-3">
-        <p className="text-sm text-charcoal-700">{label}</p>
-        <p className="text-xs text-charcoal-400 mt-0.5">{description}</p>
+    <div className="flex items-center justify-between gap-3 py-2.5 min-h-[52px]">
+      <div className="min-w-0 pr-1">
+        <p className="text-sm font-medium text-night-800">{label}</p>
+        <p className="text-xs text-charcoal-500 mt-0.5">{description}</p>
       </div>
       <button
         onClick={() => onChange(!checked)}
-        className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 flex-shrink-0 ${
-          checked ? 'bg-amber-400' : 'bg-warmgray-300'
+        className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+          checked ? 'bg-sauce-400' : 'bg-night-900/20'
         }`}
         role="switch"
         aria-checked={checked}
         aria-label={label}
       >
         <span
-          className={`absolute top-[2px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
-            checked ? 'translate-x-[20px]' : 'translate-x-[2px]'
+          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            checked ? 'translate-x-[22px]' : 'translate-x-0.5'
           }`}
         />
       </button>

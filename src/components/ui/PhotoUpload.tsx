@@ -49,18 +49,18 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
           addFiles(e.dataTransfer.files)
         }}
         onClick={() => inputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 cursor-pointer transition-colors ${
+        className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 min-h-[120px] cursor-pointer transition-colors ${
           dragging
-            ? 'border-amber-400 bg-amber-50'
-            : 'border-warmgray-300 bg-warmgray-50 hover:border-amber-300 hover:bg-amber-50/40'
+            ? 'border-sauce-400 bg-sauce-50'
+            : 'border-night-900/25 bg-cream-100 hover:border-sauce-300 hover:bg-sauce-50/40'
         }`}
       >
         <span className="text-2xl">📷</span>
-        <p className="text-sm font-medium text-charcoal-600">
+        <p className="text-sm font-bold text-night-800">
           {dragging ? 'Drop to add' : 'Add photos'}
         </p>
-        <p className="text-xs text-charcoal-300">
-          Drag & drop or tap · up to {max} photos · {MAX_MB}MB each
+        <p className="text-xs text-charcoal-500">
+          Drag &amp; drop or tap · up to {max} photos · {MAX_MB}MB each
         </p>
         <input
           ref={inputRef}
@@ -76,7 +76,7 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
       {files.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {files.map((_, i) => (
-            <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-warmgray-100 group">
+            <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-cream-100 border border-night-900/15">
               <img
                 src={previews[i]}
                 alt={`Photo ${i + 1}`}
@@ -85,7 +85,7 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); remove(i) }}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors"
                 aria-label="Remove photo"
               >
                 ×
@@ -96,7 +96,8 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="aspect-square rounded-xl border-2 border-dashed border-warmgray-300 hover:border-amber-300 flex items-center justify-center text-charcoal-300 hover:text-amber-400 transition-colors text-2xl"
+              className="aspect-square rounded-xl border-2 border-dashed border-night-900/25 hover:border-sauce-400 flex items-center justify-center text-charcoal-400 hover:text-sauce-500 transition-colors text-2xl"
+              aria-label="Add another photo"
             >
               +
             </button>

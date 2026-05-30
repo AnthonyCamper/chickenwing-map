@@ -110,10 +110,21 @@ export default function PhotoModal(props: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !showLightbox) onClose() }
     document.addEventListener('keydown', handler)
+
+    // iOS-safe scroll lock — pin body so closing doesn't jump to top.
+    const scrollY = window.scrollY
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+
     return () => {
       document.removeEventListener('keydown', handler)
       document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
     }
   }, [onClose, showLightbox])
 
@@ -162,31 +173,33 @@ export default function PhotoModal(props: Props) {
           {photoIndex > 0 && (
             <button
               onClick={goToPrev}
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
               aria-label="Previous photo"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
           )}
           {photoIndex < reviewData.photos.length - 1 && (
             <button
               onClick={goToNext}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
               aria-label="Next photo"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           )}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
             {reviewData.photos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setPhotoIndex(i)}
-                className={`w-1.5 h-1.5 rounded-full transition-all ${
-                  i === photoIndex ? 'bg-white scale-125 shadow' : 'bg-white/50'
-                }`}
+                className="w-6 h-6 flex items-center justify-center"
                 aria-label={`Photo ${i + 1}`}
-              />
+              >
+                <span className={`block rounded-full transition-all ${
+                  i === photoIndex ? 'bg-cream-50 w-2.5 h-2.5 shadow' : 'bg-cream-50/55 w-1.5 h-1.5'
+                }`} />
+              </button>
             ))}
           </div>
         </>
@@ -257,8 +270,9 @@ export default function PhotoModal(props: Props) {
 
       {/* MOBILE LAYOUT (< 640px) */}
       <div
-        className="sm:hidden bg-white w-full rounded-t-3xl shadow-2xl animate-slide-up
-                   h-[92dvh] flex flex-col overflow-hidden"
+        className="sm:hidden bg-cream-50 w-full rounded-t-3xl shadow-2xl animate-slide-up
+                   h-[100dvh] sm:h-[92dvh] flex flex-col overflow-hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-warmgray-100">
@@ -361,14 +375,18 @@ export default function PhotoModal(props: Props) {
           </div>
         )}
 
-        <div className="flex-shrink-0 border-t border-warmgray-100 px-4 py-3 flex items-end gap-2 bg-white">
+        <div
+          className="flex-shrink-0 border-t border-night-900/10 px-3 py-2.5 flex items-end gap-2 bg-cream-50"
+          style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}
+        >
           <button
             type="button"
             onClick={() => { if (requireAuth()) setMobileShowGif(prev => !prev) }}
-            className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-colors ${
-              mobileShowGif ? 'bg-amber-100 text-amber-600' : 'bg-warmgray-100 text-charcoal-500 hover:bg-warmgray-200'
+            className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xs font-extrabold uppercase tracking-crowd transition-colors ${
+              mobileShowGif ? 'bg-sauce-100 text-sauce-600' : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
             }`}
             title="GIF"
+            aria-label="Add a GIF"
           >
             GIF
           </button>
@@ -385,13 +403,13 @@ export default function PhotoModal(props: Props) {
             placeholder={mobileReplyingTo ? `Reply to ${mobileReplyingTo.name}…` : 'Add a comment…'}
             maxLength={500}
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-warmgray-300 bg-warmgray-50 px-3 py-2 text-base text-charcoal-700 placeholder:text-charcoal-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition-colors"
-            style={{ maxHeight: '80px', overflowY: 'auto' }}
+            className="flex-1 resize-none rounded-xl border border-night-900/15 bg-cream-100 px-3 py-2.5 text-base text-night-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900/30 transition-colors"
+            style={{ maxHeight: '96px', minHeight: '44px', overflowY: 'auto' }}
           />
           <button
             onClick={handleMobilePost}
             disabled={(!mobileText.trim() && !mobileSelectedGif) || mobilePosting}
-            className="btn-primary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-40"
+            className="btn-primary px-4 min-h-[44px] text-sm flex-shrink-0 disabled:opacity-40"
           >
             {mobilePosting ? '…' : 'Post'}
           </button>
@@ -417,31 +435,33 @@ export default function PhotoModal(props: Props) {
               {photoIndex > 0 && (
                 <button
                   onClick={goToPrev}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
                   aria-label="Previous photo"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 </button>
               )}
               {photoIndex < reviewData.photos.length - 1 && (
                 <button
                   onClick={goToNext}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
                   aria-label="Next photo"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
               )}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1">
                 {reviewData.photos.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setPhotoIndex(i)}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      i === photoIndex ? 'bg-white scale-110 shadow' : 'bg-white/50'
-                    }`}
+                    className="w-6 h-6 flex items-center justify-center"
                     aria-label={`Photo ${i + 1}`}
-                  />
+                  >
+                    <span className={`block rounded-full transition-all ${
+                      i === photoIndex ? 'bg-cream-50 w-2.5 h-2.5 shadow' : 'bg-cream-50/55 w-1.5 h-1.5'
+                    }`} />
+                  </button>
                 ))}
               </div>
             </>

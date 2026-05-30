@@ -41,12 +41,12 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
     <div className="space-y-2">
       {value && (
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-charcoal-900 text-sm font-semibold">
+          <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full bg-sauce-400 text-cream-50 text-sm font-bold border-2 border-night-900 shadow-sticker-sm">
             {value}
             <button
               type="button"
               onClick={() => onChange('')}
-              className="leading-none text-charcoal-700 hover:text-charcoal-900 text-base"
+              className="w-6 h-6 inline-flex items-center justify-center rounded-full text-cream-50 hover:bg-night-900/20 text-base leading-none"
               aria-label="Clear flavor"
             >×</button>
           </span>
@@ -56,7 +56,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
       <div className="relative">
         <input
           type="text"
-          className="input pr-8"
+          className="input pr-10"
           placeholder="Search flavors or type a custom one…"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -70,7 +70,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
         {search && (
           <button
             type="button"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-charcoal-400 hover:text-charcoal-600 text-lg leading-none"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center text-charcoal-400 hover:text-night-800 hover:bg-cream-100 rounded-full text-lg leading-none"
             onClick={() => setSearch('')}
             aria-label="Clear search"
           >×</button>
@@ -78,14 +78,14 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
       </div>
 
       {!search && (
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           <button
             type="button"
             onClick={() => setActiveCategory(null)}
-            className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+            className={`shrink-0 px-3 py-1.5 min-h-[32px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
               !activeCategory
-                ? 'bg-amber-400 border-amber-400 text-charcoal-900'
-                : 'border-warmgray-300 text-charcoal-500 hover:border-amber-300 hover:text-charcoal-700'
+                ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
+                : 'border-night-900/20 text-charcoal-500 hover:border-sauce-300 hover:text-night-800'
             }`}
           >All</button>
           {categories.map(cat => (
@@ -93,22 +93,22 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
               key={cat}
               type="button"
               onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+              className={`shrink-0 px-3 py-1.5 min-h-[32px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
                 activeCategory === cat
-                  ? 'bg-amber-400 border-amber-400 text-charcoal-900'
-                  : 'border-warmgray-300 text-charcoal-500 hover:border-amber-300 hover:text-charcoal-700'
+                  ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
+                  : 'border-night-900/20 text-charcoal-500 hover:border-sauce-300 hover:text-night-800'
               }`}
             >{cat}</button>
           ))}
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto overscroll-contain">
         {showCustomOption && (
           <button
             type="button"
             onClick={() => select(search.trim())}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 border-dashed border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors"
+            className="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-bold border-2 border-dashed border-sauce-400 text-sauce-600 hover:bg-sauce-50 transition-colors"
           >Use "{search.trim()}"</button>
         )}
         {displayFlavors.map(flavor => (
@@ -116,10 +116,10 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
             key={flavor}
             type="button"
             onClick={() => select(flavor)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            className={`px-3 py-1.5 min-h-[32px] rounded-full text-xs font-bold border-2 transition-colors ${
               value === flavor
-                ? 'bg-amber-400 border-amber-400 text-charcoal-900'
-                : 'bg-warmgray-100 border-warmgray-200 text-charcoal-600 hover:border-amber-300 hover:bg-amber-50'
+                ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
+                : 'bg-cream-100 border-night-900/15 text-night-700 hover:border-sauce-300 hover:bg-sauce-50'
             }`}
           >{flavor}</button>
         ))}

@@ -141,7 +141,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
               placeholder="Buffalo Wild Wings, Wingstop…"
             />
             {lat && lng && (
-              <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+              <p className="text-xs text-sauce-600 mt-1 flex items-center gap-1">
                 <span>✓</span> Location set
               </p>
             )}
@@ -149,13 +149,13 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
 
           {/* Manual fields — collapsed by default if autocomplete filled values */}
           {!showManual && (lat || address) ? (
-            <div className="bg-warmgray-50 rounded-2xl px-4 py-3 space-y-0.5">
-              <p className="text-sm font-semibold text-charcoal-700">{address}</p>
-              <p className="text-xs text-charcoal-400">{lat}, {lng}</p>
+            <div className="bg-cream-100 rounded-2xl px-4 py-3 space-y-0.5 border border-night-900/10">
+              <p className="text-sm font-bold text-night-800">{address}</p>
+              <p className="text-xs text-charcoal-500">{lat}, {lng}</p>
               <button
                 type="button"
                 onClick={() => setShowManual(true)}
-                className="text-xs text-amber-400 hover:text-amber-500 mt-1 transition-colors"
+                className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 mt-1 transition-colors"
               >
                 Edit manually
               </button>
@@ -247,18 +247,18 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           </div>
 
           {eventContext && (
-            <div className="rounded-2xl px-4 py-3 bg-amber-50 border border-amber-200">
-              <p className="text-xs font-semibold uppercase tracking-widest text-amber-600 mb-0.5">
+            <div className="rounded-2xl px-4 py-3 bg-sauce-50 border border-sauce-200">
+              <p className="text-xs font-extrabold uppercase tracking-crowd text-sauce-600 mb-0.5">
                 🍗 Event review
               </p>
-              <p className="text-sm font-semibold text-charcoal-700">{eventContext.event_name}</p>
-              <p className="text-xs text-charcoal-400">This review will be tagged with the event.</p>
+              <p className="text-sm font-bold text-night-800">{eventContext.event_name}</p>
+              <p className="text-xs text-charcoal-500">This review will be tagged with the event.</p>
             </div>
           )}
 
-          <div className="bg-warmgray-50 rounded-2xl px-4 py-3">
-            <p className="font-semibold text-charcoal-700 text-sm">{shopName}</p>
-            <p className="text-xs text-charcoal-400 mt-0.5">{address}</p>
+          <div className="bg-cream-100 rounded-2xl px-4 py-3 border border-night-900/10">
+            <p className="font-bold text-night-800 text-sm">{shopName}</p>
+            <p className="text-xs text-charcoal-500 mt-0.5">{address}</p>
           </div>
 
           <RatingPicker
@@ -292,17 +292,17 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
+            <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px]">
               <input
                 type="checkbox"
                 checked={isTakeout}
                 onChange={e => { setIsTakeout(e.target.checked); if (!e.target.checked) setTakeoutContainer('') }}
                 className="sr-only"
               />
-              <div className={`relative w-9 h-5 rounded-full transition-colors duration-150 ${isTakeout ? 'bg-amber-400' : 'bg-warmgray-300'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-150 ${isTakeout ? 'translate-x-4' : 'translate-x-0'}`} />
+              <div className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${isTakeout ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-150 ${isTakeout ? 'translate-x-[22px]' : 'translate-x-0'}`} />
               </div>
-              <span className="text-xs font-semibold uppercase tracking-widest text-charcoal-400">Takeout</span>
+              <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-600">Takeout</span>
             </label>
           </div>
 

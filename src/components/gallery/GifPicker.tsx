@@ -100,9 +100,9 @@ export default function GifPicker({ onSelect, onClose }: Props) {
     gif.file.md?.gif?.url ?? gif.file.sm?.gif?.url ?? gif.file.hd?.gif?.url ?? ''
 
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-warmgray-200 shadow-lg overflow-hidden max-h-[320px] sm:max-h-[360px]">
+    <div className="flex flex-col bg-cream-50 rounded-2xl border-2 border-night-900 shadow-lg overflow-hidden max-h-[40dvh] sm:max-h-[360px]">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-warmgray-100">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-night-900/10">
         <div className="flex-1 relative">
           <input
             ref={inputRef}
@@ -110,31 +110,31 @@ export default function GifPicker({ onSelect, onClose }: Props) {
             value={query}
             onChange={e => handleQueryChange(e.target.value)}
             placeholder="Search GIFs…"
-            className="w-full rounded-lg border border-warmgray-300 bg-warmgray-50 px-3 py-1.5 text-sm text-charcoal-700 placeholder:text-charcoal-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
+            className="w-full rounded-lg border border-night-900/15 bg-cream-100 px-3 py-2 text-base text-night-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900/30"
           />
         </div>
         <button
           onClick={onClose}
-          className="text-xs text-charcoal-400 hover:text-charcoal-600 px-2 py-1 transition-colors"
+          className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-night-800 px-2 min-h-[40px] transition-colors"
         >
           Cancel
         </button>
       </div>
 
       {/* Grid */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 p-2">
         {loading && (
           <div className="flex justify-center py-8">
-            <div className="w-5 h-5 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
           </div>
         )}
 
         {!loading && error && (
-          <p className="text-center text-xs text-charcoal-400 py-8">{error}</p>
+          <p className="text-center text-xs text-charcoal-500 py-8">{error}</p>
         )}
 
         {!loading && !error && gifs.length === 0 && hasSearched && (
-          <p className="text-center text-xs text-charcoal-300 py-8">
+          <p className="text-center text-xs text-charcoal-400 py-8">
             No GIFs found — try a different search
           </p>
         )}
@@ -146,7 +146,8 @@ export default function GifPicker({ onSelect, onClose }: Props) {
                 key={gif.id}
                 type="button"
                 onClick={() => onSelect(getSendUrl(gif))}
-                className="relative rounded-lg overflow-hidden bg-warmgray-100 hover:ring-2 hover:ring-amber-300 transition-all aspect-video group"
+                className="relative rounded-lg overflow-hidden bg-cream-100 border border-night-900/15 hover:border-sauce-400 hover:ring-2 hover:ring-sauce-200 transition-all aspect-video group"
+                aria-label={gif.title || 'Send GIF'}
               >
                 <img
                   src={getPreviewUrl(gif)}
@@ -154,7 +155,7 @@ export default function GifPicker({ onSelect, onClose }: Props) {
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                <div className="absolute inset-0 bg-night-900/0 group-hover:bg-night-900/10 transition-colors" />
               </button>
             ))}
           </div>
@@ -162,8 +163,8 @@ export default function GifPicker({ onSelect, onClose }: Props) {
       </div>
 
       {/* Attribution */}
-      <div className="flex-shrink-0 px-3 py-1 border-t border-warmgray-100 bg-warmgray-50">
-        <p className="text-[10px] text-charcoal-300 text-right">Powered by Klipy</p>
+      <div className="flex-shrink-0 px-3 py-1 border-t border-night-900/10 bg-cream-100">
+        <p className="text-[10px] text-charcoal-400 text-right">Powered by Klipy</p>
       </div>
     </div>
   )

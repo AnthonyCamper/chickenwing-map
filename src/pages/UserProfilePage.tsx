@@ -305,7 +305,7 @@ export default function UserProfilePage() {
                   <Link
                     key={c.id}
                     to={`/lists/${c.slug}`}
-                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker hover:shadow-stickerHover transition-shadow"
+                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker-sm hover:shadow-sticker transition-shadow"
                   >
                     <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest">{c.title}</p>
                     <p className="text-xs text-charcoal-500 mt-1">
@@ -335,7 +335,7 @@ export default function UserProfilePage() {
                   <Link
                     key={r.id}
                     to={`/reviews/${r.id}`}
-                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker hover:shadow-stickerHover transition-shadow"
+                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker-sm hover:shadow-sticker transition-shadow"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">

@@ -144,9 +144,9 @@ export default function ReviewCard({
           <button
             onClick={() => setShowComments(!showComments)}
             aria-label={`${localCommentCount} comment${localCommentCount !== 1 ? 's' : ''}`}
-            className="inline-flex items-center gap-1 text-charcoal-400 hover:text-sauce-500 transition-colors"
+            className="inline-flex items-center gap-1 min-h-[32px] px-1 -mx-1 text-charcoal-500 hover:text-sauce-500 transition-colors"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
             {localCommentCount > 0 && (
@@ -162,7 +162,8 @@ export default function ReviewCard({
                   <button
                     onClick={() => setMenuOpen(v => !v)}
                     aria-label="Review options"
-                    className="w-6 h-6 flex items-center justify-center rounded text-charcoal-300 hover:text-charcoal-600 hover:bg-cream-200 transition-colors text-base leading-none"
+                    aria-expanded={menuOpen}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-charcoal-400 hover:text-night-800 hover:bg-cream-100 active:bg-cream-200 transition-colors text-base leading-none"
                   >
                     ···
                   </button>

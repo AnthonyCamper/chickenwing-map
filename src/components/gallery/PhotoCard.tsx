@@ -62,7 +62,7 @@ export default function PhotoCard({ photo, onOpen, onLike }: Props) {
         >
           <HeartIcon
             filled={photo.is_liked_by_me}
-            className={`w-3.5 h-3.5 transition-colors ${photo.is_liked_by_me ? 'text-amber-400' : 'text-white'}`}
+            className={`w-3.5 h-3.5 transition-colors ${photo.is_liked_by_me ? 'text-sauce-400' : 'text-cream-50'}`}
           />
           {photo.like_count > 0 && (
             <span className="text-white text-xs font-medium">{photo.like_count}</span>
@@ -82,9 +82,9 @@ export default function PhotoCard({ photo, onOpen, onLike }: Props) {
 
       {/* Event badge — bottom-left corner */}
       {photo.event_id && photo.event_name && (
-        <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-amber-400/95 text-charcoal-800 rounded-full px-2 py-0.5 shadow-sm pointer-events-none">
+        <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-gold-300/95 text-night-900 border border-night-900 rounded-full px-2 py-0.5 shadow-sm pointer-events-none">
           <span className="text-[10px]">🏆</span>
-          <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[100px]">
+          <span className="text-[10px] font-extrabold uppercase tracking-crowd truncate max-w-[100px]">
             {photo.event_name}
           </span>
         </div>

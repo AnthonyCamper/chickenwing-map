@@ -185,10 +185,10 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
           aria-autocomplete="list"
         />
         {loading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-amber-300 border-t-amber-400 rounded-full animate-spin" />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-cream-200 border-t-sauce-400 rounded-full animate-spin" />
         )}
         {userLocation && !loading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-charcoal-300" title="Searching near your location">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-charcoal-400" title="Searching near your location">
             📍
           </div>
         )}
@@ -197,7 +197,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
       {open && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-elevated border border-warmgray-200 overflow-hidden z-50 max-h-72 overflow-y-auto"
+          className="absolute left-0 right-0 top-full mt-1 bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 max-h-72 overflow-y-auto overscroll-contain"
           role="listbox"
         >
           {suggestions.map((s, i) => (
@@ -208,14 +208,14 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
               aria-selected={i === activeIndex}
               onMouseDown={() => handleSelect(s)}
               onMouseEnter={() => setActiveIndex(i)}
-              className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-warmgray-50 last:border-0 ${
-                i === activeIndex ? 'bg-warmgray-50' : 'hover:bg-warmgray-50/60'
+              className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-night-900/10 last:border-0 min-h-[56px] ${
+                i === activeIndex ? 'bg-cream-100' : 'hover:bg-cream-100/60'
               }`}
             >
               <span className="text-base mt-0.5 flex-shrink-0">🍗</span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-charcoal-700 truncate">{s.name}</p>
-                <p className="text-xs text-charcoal-400 truncate mt-0.5">{s.address}</p>
+                <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
+                <p className="text-xs text-charcoal-500 truncate mt-0.5">{s.address}</p>
               </div>
             </button>
           ))}

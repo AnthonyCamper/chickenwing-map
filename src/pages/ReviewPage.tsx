@@ -172,7 +172,7 @@ export default function ReviewPage() {
                 key={p.id}
                 type="button"
                 onClick={() => setLightboxIndex(i)}
-                className="w-full overflow-hidden rounded-xl border-2 border-night-900 shadow-sticker hover:shadow-stickerHover transition-shadow"
+                className="w-full overflow-hidden rounded-xl border-2 border-night-900 shadow-sticker-sm hover:shadow-sticker transition-shadow"
               >
                 <img src={p.url} alt="" loading="lazy" className="w-full object-cover" />
               </button>

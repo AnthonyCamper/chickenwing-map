@@ -118,7 +118,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-night-900 shadow-sticker-sm flex-shrink-0 bg-night-700 group"
+                className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-night-900 shadow-sticker-sm flex-shrink-0 bg-night-700 group flex items-center justify-center"
                 aria-label="Change profile photo"
               >
                 {currentAvatar ? (
@@ -126,7 +126,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
                 ) : (
                   <span className="text-xl font-extrabold text-cream-50">{initials}</span>
                 )}
-                <div className="absolute inset-0 bg-night-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                {/* Touch users see the badge always; desktop reveals on hover. */}
+                <div className="absolute inset-0 bg-night-900/45 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <span className="text-cream-50 text-[10px] font-extrabold uppercase tracking-crowd">Edit</span>
                 </div>
               </button>
@@ -227,8 +228,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       Hide your name and photo from event attendee lists
                     </p>
                   </div>
-                  <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
-                    <div className={`w-5 h-5 rounded-full bg-white shadow-sticker-sm mt-0.5 transition-transform ${isPrivate ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                  <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
+                    <div className={`w-5 h-5 rounded-full bg-white shadow-sticker-sm mt-0.5 transition-transform ${isPrivate ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                   </div>
                 </div>
 

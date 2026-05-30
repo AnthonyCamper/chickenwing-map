@@ -41,8 +41,9 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
     if (!addBtnRef.current) return
     const rect = addBtnRef.current.getBoundingClientRect()
     // Tray is ~7 buttons * 36px + padding ≈ 280px wide, ~44px tall
-    const trayW = 290
-    const trayH = 48
+    // 7 buttons × 44px + 1.5px gaps + 12px padding ≈ 322px wide, ~56px tall
+    const trayW = 332
+    const trayH = 60
     const pad = 8
 
     // Position above the button, centered
@@ -95,10 +96,10 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
             type="button"
             disabled={disabled}
             onClick={() => onToggle(r.reaction_type)}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-150 ${
+            className={`inline-flex items-center gap-1 px-2 py-1 min-h-[28px] rounded-full text-xs font-bold transition-all duration-150 ${
               mine
-                ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                : 'bg-warmgray-100 text-charcoal-600 hover:bg-warmgray-200'
+                ? 'bg-sauce-100 text-sauce-700 ring-1 ring-sauce-300'
+                : 'bg-cream-100 text-charcoal-600 hover:bg-cream-200'
             } disabled:opacity-50 disabled:pointer-events-none active:scale-95`}
           >
             <span>{r.reaction_type}</span>
@@ -114,12 +115,13 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
             ref={addBtnRef}
             type="button"
             onClick={() => showQuickTray ? setShowQuickTray(false) : openQuickTray()}
-            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm transition-all duration-150 ${
+            className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm transition-all duration-150 ${
               showQuickTray
-                ? 'bg-amber-100 text-amber-500'
-                : 'bg-warmgray-50 text-charcoal-400 hover:bg-warmgray-100'
-            } ${!hasAny && compact ? 'opacity-0 group-hover:opacity-100' : ''}`}
+                ? 'bg-sauce-100 text-sauce-500'
+                : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
+            } ${!hasAny && compact ? 'opacity-60 group-hover:opacity-100 sm:opacity-0' : ''}`}
             title="Add reaction"
+            aria-label="Add reaction"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -141,7 +143,7 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
                   className="fixed z-[195] animate-fade-in"
                   style={{ top: trayPos.top, left: trayPos.left }}
                 >
-                  <div className="bg-white rounded-2xl shadow-lg border border-warmgray-200 px-1.5 py-1.5 flex items-center gap-0.5 whitespace-nowrap">
+                  <div className="bg-cream-50 rounded-2xl shadow-lg border-2 border-night-900 px-1.5 py-1.5 flex items-center gap-0.5 whitespace-nowrap">
                     {QUICK_EMOJIS.map(emoji => {
                       const existing = byType.get(emoji)
                       const mine = existing?.is_mine ?? false
@@ -154,8 +156,9 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
                             onToggle(emoji)
                             setShowQuickTray(false)
                           }}
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all duration-100
-                            hover:bg-warmgray-100 active:scale-125 ${mine ? 'bg-amber-50 ring-1 ring-amber-200' : ''}`}
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-all duration-100
+                            hover:bg-cream-100 active:scale-125 ${mine ? 'bg-sauce-50 ring-1 ring-sauce-200' : ''}`}
+                          aria-label={`React with ${emoji}`}
                         >
                           {emoji}
                         </button>
@@ -169,8 +172,9 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
                         setShowQuickTray(false)
                         setShowFullPicker(true)
                       }}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 transition-colors"
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-charcoal-500 hover:bg-cream-100 transition-colors"
                       title="More emoji"
+                      aria-label="More emoji"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="1" />

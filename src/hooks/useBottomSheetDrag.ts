@@ -1,4 +1,27 @@
-import { useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+
+const MOBILE_BREAKPOINT_PX = 640
+
+function detectMobile(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < MOBILE_BREAKPOINT_PX
+}
+
+/** Tracks whether we're in mobile-width territory; updates on resize/rotation. */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(detectMobile)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`)
+    const handler = () => setIsMobile(mql.matches)
+    handler()
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+  return isMobile
+}
+
+export { useIsMobile }
 
 const SNAP_THRESHOLD = 40   // px drag distance to trigger state change
 const VELOCITY_THRESHOLD = 0.3 // px/ms swipe speed to trigger state change
@@ -67,8 +90,8 @@ export function useBottomSheetDrag(options?: Options) {
     setExpanded(prev => !prev)
   }, [])
 
-  // Only apply two-state behavior on mobile (<640px)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640
+  // Only apply two-state behavior on mobile (<640px). Reactive to resize/rotation.
+  const isMobile = useIsMobile()
 
   const visualOffset = dragDelta !== 0 ? dragDelta * DAMPEN : 0
   const animating = dragDelta === 0 // apply transition only when not actively dragging

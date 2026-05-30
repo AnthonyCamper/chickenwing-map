@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   photos: { id: string; url: string }[]
@@ -6,12 +6,27 @@ interface Props {
   onClose: () => void
 }
 
+const SWIPE_THRESHOLD_PX = 50
+
 export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex)
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
 
   useEffect(() => {
+    // iOS-safe scroll lock with position preservation
+    const scrollY = window.scrollY
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
+    }
   }, [])
 
   useEffect(() => {
@@ -24,6 +39,31 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
     return () => window.removeEventListener('keydown', onKey)
   }, [photos.length, onClose])
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return
+    const endX = e.changedTouches[0].clientX
+    const endY = e.changedTouches[0].clientY
+    const dx = endX - touchStartX.current
+    const dy = endY - touchStartY.current
+    touchStartX.current = null
+    touchStartY.current = null
+
+    // Horizontal swipe (must be more horizontal than vertical to count)
+    if (Math.abs(dx) > SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && index > 0) setIndex(i => i - 1)
+      else if (dx < 0 && index < photos.length - 1) setIndex(i => i + 1)
+    }
+    // Downward swipe closes
+    else if (dy > SWIPE_THRESHOLD_PX * 1.5 && Math.abs(dy) > Math.abs(dx)) {
+      onClose()
+    }
+  }
+
   const photo = photos[index]
   if (!photo) return null
 
@@ -31,6 +71,8 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
     <div
       className="fixed inset-0 z-[150] bg-night-900/95 flex items-center justify-center p-4"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onClose() }}
@@ -60,7 +102,10 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
             ›
           </button>
 
-          <span className="absolute bottom-4 left-1/2 -translate-x-1/2 text-cream-50/70 text-xs font-bold uppercase tracking-crowd">
+          <span
+            className="absolute left-1/2 -translate-x-1/2 text-cream-50/80 text-xs font-bold uppercase tracking-crowd"
+            style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          >
             {index + 1} / {photos.length}
           </span>
         </>

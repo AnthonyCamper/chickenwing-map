@@ -111,11 +111,11 @@ export default function CommentSection({
     <div className="px-4 py-3 space-y-4">
       {loading && (
         <div className="flex justify-center py-4">
-          <div className="w-5 h-5 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+          <div className="w-5 h-5 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
         </div>
       )}
       {!loading && comments.length === 0 && (
-        <p className="text-center text-xs text-charcoal-300 py-6">
+        <p className="text-center text-xs text-charcoal-400 py-6">
           No comments yet — be the first!
         </p>
       )}
@@ -150,7 +150,7 @@ export default function CommentSection({
 
       {/* GIF picker */}
       {showGifPicker && (
-        <div className="flex-shrink-0 border-t border-warmgray-100 px-3 py-2">
+        <div className="flex-shrink-0 border-t border-night-900/10 px-3 py-2">
           <GifPicker
             onSelect={handleGifSelect}
             onClose={() => setShowGifPicker(false)}
@@ -160,11 +160,15 @@ export default function CommentSection({
 
       {/* Reply context + GIF preview */}
       {(replyingTo || selectedGif) && (
-        <div className="flex-shrink-0 border-t border-warmgray-100 px-4 py-2 bg-warmgray-50 flex items-center gap-2 flex-wrap">
+        <div className="flex-shrink-0 border-t border-night-900/10 px-4 py-2 bg-cream-100 flex items-center gap-2 flex-wrap">
           {replyingTo && (
-            <span className="text-xs text-charcoal-500">
-              Replying to <span className="font-semibold">{replyingTo.name}</span>
-              <button onClick={cancelReply} className="ml-1.5 text-charcoal-300 hover:text-charcoal-500">×</button>
+            <span className="text-xs text-charcoal-600">
+              Replying to <span className="font-bold text-night-800">{replyingTo.name}</span>
+              <button
+                onClick={cancelReply}
+                className="ml-1.5 inline-flex items-center justify-center w-6 h-6 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-night-800"
+                aria-label="Cancel reply"
+              >×</button>
             </span>
           )}
           {selectedGif && (
@@ -172,7 +176,8 @@ export default function CommentSection({
               <img src={selectedGif} alt="GIF" className="h-12 rounded-md" />
               <button
                 onClick={() => setSelectedGif(null)}
-                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-charcoal-700 text-white text-[10px] flex items-center justify-center"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-night-900 text-cream-50 text-[10px] flex items-center justify-center shadow"
+                aria-label="Remove GIF"
               >×</button>
             </div>
           )}
@@ -180,14 +185,15 @@ export default function CommentSection({
       )}
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-warmgray-100 px-4 py-3 flex items-end gap-2 bg-white">
+      <div className="flex-shrink-0 border-t border-night-900/10 px-3 py-2.5 flex items-end gap-2 bg-cream-50">
         <button
           type="button"
           onClick={() => { if (gate()) setShowGifPicker(prev => !prev) }}
-          className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-colors ${
-            showGifPicker ? 'bg-amber-100 text-amber-600' : 'bg-warmgray-100 text-charcoal-500 hover:bg-warmgray-200'
+          className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xs font-extrabold uppercase tracking-crowd transition-colors ${
+            showGifPicker ? 'bg-sauce-100 text-sauce-600' : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
           }`}
           title="GIF"
+          aria-label="Add a GIF"
         >
           GIF
         </button>
@@ -200,13 +206,13 @@ export default function CommentSection({
           placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
           maxLength={500}
           rows={1}
-          className="flex-1 resize-none rounded-xl border border-warmgray-300 bg-warmgray-50 px-3 py-2 text-base text-charcoal-700 placeholder:text-charcoal-300 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition-colors"
-          style={{ maxHeight: '80px', overflowY: 'auto' }}
+          className="flex-1 resize-none rounded-xl border border-night-900/15 bg-cream-100 px-3 py-2.5 text-base text-night-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900/30 transition-colors"
+          style={{ maxHeight: '96px', minHeight: '44px', overflowY: 'auto' }}
         />
         <button
           onClick={handlePost}
           disabled={(!text.trim() && !selectedGif) || posting}
-          className="btn-primary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-40"
+          className="btn-primary px-4 min-h-[44px] text-sm flex-shrink-0 disabled:opacity-40"
         >
           {posting ? '…' : 'Post'}
         </button>
@@ -280,10 +286,10 @@ function CommentThread({
         <button
           onClick={handleToggleReplies}
           disabled={loadingReplies}
-          className="ml-9 mt-1.5 text-xs text-charcoal-400 hover:text-charcoal-600 transition-colors flex items-center gap-1"
+          className="ml-9 mt-1.5 min-h-[32px] text-xs font-bold text-charcoal-500 hover:text-night-800 transition-colors inline-flex items-center gap-1.5"
         >
           {loadingReplies ? (
-            <span className="w-3 h-3 rounded-full border border-amber-300 border-t-amber-400 animate-spin inline-block" />
+            <span className="w-3 h-3 rounded-full border border-cream-200 border-t-sauce-400 animate-spin inline-block" />
           ) : (
             <span className="w-4 border-t border-charcoal-300 inline-block" />
           )}
@@ -295,7 +301,7 @@ function CommentThread({
 
       {/* Replies — Instagram-style slight indent, no deep nesting */}
       {showReplies && comment.replies && (
-        <div className="ml-9 mt-2 space-y-3 border-l-2 border-warmgray-200 pl-3">
+        <div className="ml-9 mt-2 space-y-3 border-l-2 border-night-900/15 pl-3">
           {comment.replies.map(reply => (
             <CommentItem
               key={reply.id}
@@ -382,28 +388,29 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
   return (
     <div className={`flex gap-2.5 animate-fade-in ${isTemp ? 'opacity-60' : ''}`}>
       {/* Avatar */}
-      <div className={`flex-shrink-0 rounded-full overflow-hidden bg-warmgray-200 flex items-center justify-center ${isReply ? 'w-6 h-6' : 'w-7 h-7'}`}>
+      <div className={`flex-shrink-0 rounded-full overflow-hidden bg-night-700 border border-night-900/20 flex items-center justify-center ${isReply ? 'w-6 h-6' : 'w-8 h-8'}`}>
         {comment.commenter_avatar ? (
           <img src={comment.commenter_avatar} alt={name} className="w-full h-full object-cover" />
         ) : (
-          <span className={`font-semibold text-charcoal-500 ${isReply ? 'text-[10px]' : 'text-xs'}`}>{name.charAt(0).toUpperCase()}</span>
+          <span className={`font-extrabold text-cream-50 uppercase ${isReply ? 'text-[10px]' : 'text-xs'}`}>{name.charAt(0).toUpperCase()}</span>
         )}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-xs font-semibold text-charcoal-700">{name}</span>
-          <span className="text-xs text-charcoal-300">{timeAgo}</span>
+          <span className="text-xs font-bold text-night-800">{name}</span>
+          <span className="text-xs text-charcoal-400">{timeAgo}</span>
           {canDelete && !isTemp && (
             <div ref={menuRef} className="relative inline-flex">
               <button
                 onClick={() => setMenuOpen(v => !v)}
                 aria-label="Comment options"
-                className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors leading-none text-base ${
+                aria-expanded={menuOpen}
+                className={`w-8 h-8 -my-1 flex items-center justify-center rounded-md transition-colors leading-none ${
                   menuOpen
-                    ? 'text-charcoal-600 bg-warmgray-100'
-                    : 'text-charcoal-200 hover:text-charcoal-500 hover:bg-warmgray-100'
+                    ? 'text-night-700 bg-cream-100'
+                    : 'text-charcoal-400 hover:text-night-700 hover:bg-cream-100'
                 }`}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -413,11 +420,12 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
                 </svg>
               </button>
               {menuOpen && (
-                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 z-30 animate-fade-in">
+                // Anchor right so the popover never overflows past the viewport edge.
+                <div className="absolute right-0 top-full mt-1 z-30 animate-fade-in">
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
-                    className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 bg-white rounded-full shadow-lg border border-warmgray-200 text-xs font-semibold text-red-500 hover:bg-red-50 hover:border-red-200 transition-all whitespace-nowrap active:scale-95 disabled:opacity-60"
+                    className="flex items-center gap-1.5 pl-2.5 pr-3 py-2 bg-cream-50 rounded-full shadow-lg border-2 border-night-900 text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:bg-sauce-50 transition-all whitespace-nowrap active:scale-95 disabled:opacity-60"
                   >
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
@@ -435,12 +443,12 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
 
         {/* Text content */}
         {comment.text && (
-          <p className="text-sm text-charcoal-700 leading-snug mt-0.5 break-words">{comment.text}</p>
+          <p className="text-sm text-night-800 leading-snug mt-0.5 break-words">{comment.text}</p>
         )}
 
         {/* GIF content */}
         {comment.media_url && (
-          <div className="mt-1.5 rounded-xl overflow-hidden bg-warmgray-100 inline-block max-w-[240px]">
+          <div className="mt-1.5 rounded-xl overflow-hidden bg-cream-100 inline-block max-w-[240px]">
             <img
               src={comment.media_url}
               alt="GIF"
@@ -454,12 +462,12 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
         )}
 
         {/* Action strip: reply + like + reactions */}
-        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           {/* Reply */}
           {!isTemp && (
             <button
               onClick={() => { if (requireAuth()) onReply() }}
-              className="text-xs text-charcoal-400 hover:text-charcoal-600 font-medium transition-colors"
+              className="min-h-[28px] px-1 -mx-1 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
             >
               Reply
             </button>
@@ -470,16 +478,17 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
             <button
               onClick={() => { if (!isTemp && requireAuth()) onToggleLike(comment.id) }}
               disabled={isTemp}
-              className="flex items-center gap-1 text-xs transition-colors group"
+              aria-label={comment.is_liked_by_me ? 'Unlike comment' : 'Like comment'}
+              className="flex items-center gap-1 min-h-[28px] px-1 -mx-1 text-xs transition-colors group"
             >
               <HeartIcon
                 filled={comment.is_liked_by_me}
                 className={`w-3.5 h-3.5 transition-all group-active:scale-125 ${
-                  comment.is_liked_by_me ? 'text-amber-400' : 'text-charcoal-300 group-hover:text-amber-300'
+                  comment.is_liked_by_me ? 'text-sauce-500' : 'text-charcoal-400 group-hover:text-sauce-400'
                 }`}
               />
               {comment.like_count > 0 && (
-                <span className={`${comment.is_liked_by_me ? 'text-amber-400' : 'text-charcoal-300'}`}>
+                <span className={`font-bold ${comment.is_liked_by_me ? 'text-sauce-500' : 'text-charcoal-500'}`}>
                   {comment.like_count}
                 </span>
               )}

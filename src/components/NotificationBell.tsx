@@ -10,31 +10,36 @@ export default function NotificationBell({ notifications }: Props) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
+  // Close on outside click or touch
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
   }, [open])
 
   return (
     <div className="relative flex-shrink-0" ref={containerRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-warmgray-100 transition-colors relative"
+        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-night-700 active:bg-night-600 transition-colors relative"
         aria-label={`Notifications${notifications.unreadCount > 0 ? ` (${notifications.unreadCount} unread)` : ''}`}
+        aria-expanded={open}
       >
         {/* Bell icon */}
         <svg
-          className="w-5 h-5 text-charcoal-500"
+          className="w-5 h-5 text-cream-50"
           fill="none"
           viewBox="0 0 24 24"
-          strokeWidth={1.5}
+          strokeWidth={1.75}
           stroke="currentColor"
         >
           <path
@@ -46,7 +51,7 @@ export default function NotificationBell({ notifications }: Props) {
 
         {/* Unread badge */}
         {notifications.unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-sauce-400 text-cream-50 text-[10px] font-extrabold flex items-center justify-center leading-none border border-night-900">
             {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
           </span>
         )}

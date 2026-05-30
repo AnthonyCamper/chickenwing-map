@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
+import { useBottomSheetDrag, useIsMobile } from '../../hooks/useBottomSheetDrag'
 
 // ── Emoji data: compact curated set organized by category ──────────────────
 
@@ -128,7 +128,7 @@ export default function EmojiPicker({ onSelect, onClose, anchorRect }: EmojiPick
   const [activeCategory, setActiveCategory] = useState('recent')
   const scrollRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 640
+  const isDesktop = !useIsMobile()
 
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(55dvh - env(safe-area-inset-top))',

@@ -63,11 +63,11 @@ function AuthGateModal({
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-night-900/60 backdrop-blur-sm" />
 
       {/* Sheet */}
       <div
-        className="relative w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl
+        className="relative w-full sm:max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900
                    shadow-2xl animate-slide-up overflow-hidden flex flex-col"
         style={sheetStyle}
         onClick={e => e.stopPropagation()}
@@ -83,23 +83,23 @@ function AuthGateModal({
           tabIndex={0}
           {...handleProps}
         >
-          <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-warmgray-300' : 'bg-warmgray-200'}`} />
+          <div className={`w-10 h-1 rounded-full transition-colors duration-200 ${expanded ? 'bg-night-900/40' : 'bg-night-900/25'}`} />
         </div>
 
         {/* Decorative gradient accent */}
-        <div className="absolute top-0 left-0 right-0 h-36 bg-gradient-to-b from-amber-50/80 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-36 bg-gradient-to-b from-sauce-50/80 to-transparent pointer-events-none" />
 
-        <div className="relative px-8 pt-6 flex flex-col items-center text-center pb-safe-8 sm:pb-8 overflow-y-auto flex-1">
+        <div className="relative px-6 sm:px-8 pt-6 flex flex-col items-center text-center pb-safe-8 sm:pb-8 overflow-y-auto flex-1">
           {/* Icon */}
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-warmgray-200 flex items-center justify-center mb-5 shadow-soft">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sauce-100 to-cream-200 border-2 border-night-900 flex items-center justify-center mb-5 shadow-sticker-sm">
             <span className="text-2xl" role="img" aria-label="wings">🍗</span>
           </div>
 
           {/* Copy */}
-          <h2 className="font-display text-xl text-charcoal-800 mb-2">
+          <h2 className="font-display uppercase tracking-wide text-2xl text-night-900 mb-2">
             Join the conversation
           </h2>
-          <p className="text-sm text-charcoal-400 leading-relaxed max-w-[260px] mb-7">
+          <p className="text-sm text-charcoal-500 leading-relaxed max-w-[260px] mb-7">
             Sign up or log in to react, comment, and share your thoughts.
           </p>
 
@@ -110,17 +110,17 @@ function AuthGateModal({
               <>
                 <button
                   onClick={onSignInGoogle}
-                  className="btn w-full py-3.5 text-base bg-white border border-warmgray-300
-                             text-charcoal-700 hover:bg-warmgray-50 active:bg-warmgray-100 shadow-soft"
+                  className="btn w-full py-3.5 text-base bg-cream-50 border-2 border-night-900
+                             text-night-800 hover:bg-cream-100 active:bg-cream-200 shadow-sticker-sm"
                 >
                   <GoogleIcon />
                   Continue with Google
                 </button>
 
                 <div className="flex items-center gap-3 py-0.5">
-                  <div className="flex-1 h-px bg-warmgray-200" />
-                  <span className="text-xs text-charcoal-300 select-none">or</span>
-                  <div className="flex-1 h-px bg-warmgray-200" />
+                  <div className="flex-1 h-px bg-night-900/15" />
+                  <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 select-none">or</span>
+                  <div className="flex-1 h-px bg-night-900/15" />
                 </div>
               </>
             )}
@@ -142,7 +142,7 @@ function AuthGateModal({
           {/* Dismiss */}
           <button
             onClick={onClose}
-            className="mt-5 text-xs text-charcoal-300 hover:text-charcoal-500 transition-colors"
+            className="mt-5 min-h-[40px] text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-night-700 transition-colors"
           >
             Continue browsing
           </button>

@@ -82,10 +82,10 @@ export default function AppHeader({ view, onViewChange }: Props) {
         <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-25" aria-hidden="true" />
 
         <div className="relative max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
-          {/* Brand */}
+          {/* Brand — shrinks if the toggle + actions need more space */}
           <button
             onClick={handleBrandClick}
-            className="flex items-center gap-2 min-w-0 flex-shrink-0 group"
+            className="flex items-center gap-2 min-w-0 flex-shrink group"
             aria-label="Home"
           >
             <span className="relative inline-flex">
@@ -157,7 +157,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       className="fixed inset-0 z-40"
                       onClick={() => setProfileOpen(false)}
                     />
-                    <div className="absolute right-0 top-full mt-2 w-60 bg-cream-50 rounded-xl border-2 border-night-900 shadow-sticker overflow-hidden z-50 animate-slide-up text-night-800">
+                    <div className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-cream-50 rounded-xl border-2 border-night-900 shadow-sticker z-50 animate-slide-up text-night-800">
                       <div className="px-4 py-3 border-b-2 border-night-900 bg-cream-100">
                         <p className="text-sm font-bold text-night-900 truncate">{name}</p>
                         <p className="text-[11px] text-charcoal-500 truncate mt-0.5">{email}</p>
