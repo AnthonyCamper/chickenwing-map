@@ -9,6 +9,8 @@ interface Props {
   items: MapItem[]
   ranked: boolean
   className?: string
+  /** When provided, tapping a pin invokes this with the spot (used to navigate to the spot page). */
+  onSelectSpot?: (spot: WingSpot) => void
 }
 
 /**
@@ -16,7 +18,7 @@ interface Props {
  * connecting them when ranked=true. Updates reactively as items change so
  * it works inside the editor and on the public page.
  */
-export default function CrawlRouteMap({ items, ranked, className }: Props) {
+export default function CrawlRouteMap({ items, ranked, className, onSelectSpot }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const layerGroupRef = useRef<import('leaflet').LayerGroup | null>(null)
@@ -75,13 +77,20 @@ export default function CrawlRouteMap({ items, ranked, className }: Props) {
       }
 
       points.forEach((p, i) => {
+        const clickable = !!onSelectSpot && !!p.spot.slug
         const icon = L.divIcon({
-          html: `<div style="width:30px;height:30px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4)">${i + 1}</div>`,
+          html: `<div style="width:30px;height:30px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4)${clickable ? ';cursor:pointer' : ''}">${i + 1}</div>`,
           iconSize: [30, 30],
           iconAnchor: [15, 15],
           className: '',
         })
-        L.marker([p.spot.lat, p.spot.lng], { icon, title: p.spot.name }).addTo(group)
+        const marker = L.marker([p.spot.lat, p.spot.lng], { icon, title: p.spot.name })
+        if (clickable) {
+          // Tooltip for discoverability on desktop; click navigates to the spot.
+          marker.bindTooltip(`${p.spot.name} — view spot`, { direction: 'top', offset: [0, -16] })
+          marker.on('click', () => onSelectSpot!(p.spot))
+        }
+        marker.addTo(group)
       })
 
       if (latlngs.length === 1) {
@@ -91,7 +100,7 @@ export default function CrawlRouteMap({ items, ranked, className }: Props) {
       }
     })
     return () => { cancelled = true }
-  }, [items, ranked])
+  }, [items, ranked, onSelectSpot])
 
   return (
     <div

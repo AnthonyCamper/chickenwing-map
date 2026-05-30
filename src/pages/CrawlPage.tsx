@@ -325,7 +325,11 @@ export default function CrawlPage() {
       <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-fab">
         {items.length > 0 && (
           <div className="mb-6">
-            <CrawlRouteMap items={items} ranked={crawl.is_ranked} />
+            <CrawlRouteMap
+              items={items}
+              ranked={crawl.is_ranked}
+              onSelectSpot={(spot) => { if (spot.slug) navigate(`/spots/${spot.slug}`) }}
+            />
           </div>
         )}
 
