@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAdminEvents } from '../../hooks/useAdminEvents'
@@ -96,7 +97,15 @@ export default function AdminEventsTab() {
           <p className="text-xs text-charcoal-400">Create one to kick off your first crawl.</p>
         </div>
       ) : (
-        events.events.map(e => (
+        events.events.map(e => {
+          const isEnded = e.ends_at != null && new Date(e.ends_at) < new Date()
+          const statusLabel = !e.is_published ? 'Draft' : isEnded ? 'Ended' : 'Published'
+          const statusClass = !e.is_published
+            ? 'bg-warmgray-200 text-charcoal-500'
+            : isEnded
+              ? 'bg-warmgray-100 text-charcoal-500 border border-warmgray-200'
+              : 'bg-green-100 text-green-700'
+          return (
           <button
             key={e.id}
             onClick={() => setEditingId(e.id)}
@@ -106,12 +115,8 @@ export default function AdminEventsTab() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <p className="font-semibold text-charcoal-800 truncate">{e.name}</p>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
-                    e.is_published
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-warmgray-200 text-charcoal-500'
-                  }`}>
-                    {e.is_published ? 'Published' : 'Draft'}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${statusClass}`}>
+                    {statusLabel}
                   </span>
                 </div>
                 <p className="text-xs text-charcoal-400 truncate">/events/{e.slug}</p>
@@ -123,7 +128,8 @@ export default function AdminEventsTab() {
               <span className="text-amber-400">→</span>
             </div>
           </button>
-        ))
+          )
+        })
       )}
     </div>
   )
@@ -298,6 +304,23 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null)
   const [stopEdits, setStopEdits] = useState<Record<string, { notes: string; parking_notes: string; planned_arrival: string }>>({})
   const [savingStopId, setSavingStopId] = useState<string | null>(null)
+  const [ending, setEnding] = useState(false)
+
+  const isEnded = !!endsAt && new Date(endsAt) < new Date()
+
+  const handleEndEvent = async () => {
+    if (!confirm(`End "${name}" now? It will move to Past on /events and no further RSVPs, check-ins, or reviews can be added.`)) return
+    setEnding(true)
+    const nowIso = new Date().toISOString()
+    const { error } = await admin.updateEvent(event.id, { ends_at: nowIso })
+    setEnding(false)
+    if (error) {
+      toast.error(error)
+    } else {
+      toast.success('Crawl ended')
+      setEndsAt(nowIso.slice(0, 16))
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -367,9 +390,24 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <button onClick={onBack} className="btn-ghost text-sm text-charcoal-500">← Back to events</button>
-        <button onClick={onDelete} className="btn-danger px-3 py-1.5 text-xs">Delete event</button>
+        <div className="flex items-center gap-2">
+          {isEnded ? (
+            <span className="text-xs text-charcoal-400 italic">
+              Ended {format(new Date(endsAt), 'MMM d, yyyy')}
+            </span>
+          ) : (
+            <button
+              onClick={handleEndEvent}
+              disabled={ending}
+              className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60 transition-colors"
+            >
+              {ending ? 'Ending…' : 'End event'}
+            </button>
+          )}
+          <button onClick={onDelete} className="btn-danger px-3 py-1.5 text-xs">Delete event</button>
+        </div>
       </div>
 
       <div className="card px-5 py-5 space-y-4">

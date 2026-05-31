@@ -332,6 +332,7 @@ export interface EventStop {
   spot_address?: string
   spot_lat?: number
   spot_lng?: number
+  spot_slug?: string | null
   checkin_count?: number
 }
 

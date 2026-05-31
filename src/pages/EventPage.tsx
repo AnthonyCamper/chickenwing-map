@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { AuthState } from '../hooks/useAuth'
@@ -137,6 +137,8 @@ export default function EventPage({ auth }: Props) {
     ? 0
     : Math.round((checkedInStopIds.size / evt.stops.length) * 100)
 
+  const isEnded = evt.event?.ends_at != null && new Date(evt.event.ends_at) < new Date()
+
   // Filter badges scoped to this event (or recently earned globals)
   const eventBadges = useMemo(
     () => badges.badges.filter(b => b.event_id === evt.event?.id),
@@ -223,6 +225,7 @@ export default function EventPage({ auth }: Props) {
 
   const handleRsvp = async (status: RsvpStatus) => {
     if (!userId) { toast.error('Sign in to RSVP'); return }
+    if (isEnded) { toast.error('This crawl has ended'); return }
     setRsvpSubmitting(status)
     const { error } = await evt.setRsvp(status)
     setRsvpSubmitting(null)
@@ -241,6 +244,7 @@ export default function EventPage({ auth }: Props) {
 
   const handleCheckIn = async (stop: EventStop) => {
     if (!userId) { toast.error('Sign in first'); return }
+    if (isEnded) { toast.error('This crawl has ended'); return }
     if (evt.myRsvp?.status !== 'going') { toast.error("Join the crawl first before checking in!"); return }
     setCheckinSubmitting(stop.id)
     const { error } = await evt.checkIn(stop.id)
@@ -255,6 +259,7 @@ export default function EventPage({ auth }: Props) {
 
   const handleSubmitReview = async (data: ReviewFormData) => {
     if (!reviewingStop) return { error: 'No stop selected' }
+    if (isEnded) return { error: 'This crawl has ended' }
     if (evt.myRsvp?.status !== 'going') return { error: 'Join the crawl first before leaving a review!' }
     const result = await reviews.createReview(data, userId ?? '')
     if (!result.error) {
@@ -325,7 +330,14 @@ export default function EventPage({ auth }: Props) {
             </div>
           )}
           <div className="px-5 py-4">
-            <h2 className="font-display text-2xl text-charcoal-800 mb-1">{e.name}</h2>
+            <div className="flex items-start gap-2 mb-1">
+              <h2 className="font-display text-2xl text-charcoal-800 flex-1">{e.name}</h2>
+              {isEnded && (
+                <span className="flex-shrink-0 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-warmgray-100 text-charcoal-500 border border-warmgray-200">
+                  🏁 Ended
+                </span>
+              )}
+            </div>
             {dateRange && (
               <p className="text-sm text-charcoal-400 font-medium">{dateRange}</p>
             )}
@@ -335,17 +347,43 @@ export default function EventPage({ auth }: Props) {
               </p>
             )}
             <div className="flex items-center gap-4 mt-4 text-xs text-charcoal-400">
-              <span>👥 {e.going_count ?? 0} going</span>
+              <span>
+                👥 {isEnded
+                  ? `${checkinAttendees.length} attended`
+                  : `${e.going_count ?? 0} going`}
+              </span>
               <span>📍 {e.stop_count ?? evt.stops.length} stops</span>
               {evt.myRsvp && evt.myRsvp.status === 'going' && (
-                <span className="text-amber-600 font-semibold">✓ You're in</span>
+                <span className="text-amber-600 font-semibold">
+                  {isEnded ? '✓ You attended' : "✓ You're in"}
+                </span>
               )}
             </div>
           </div>
         </section>
 
-        {/* Join CTA / RSVP */}
-        {userId && (
+        {/* Ended banner OR Join CTA / RSVP */}
+        {isEnded ? (
+          <section className="card px-5 py-4 bg-warmgray-50 border-warmgray-200">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl flex-shrink-0">🏁</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-charcoal-700 text-sm">
+                  This crawl has ended
+                </p>
+                <p className="text-xs text-charcoal-400 mt-0.5">
+                  {evt.myRsvp?.status === 'going'
+                    ? `Thanks for coming! You hit ${checkedInStopIds.size}/${evt.stops.length} ${evt.stops.length === 1 ? 'stop' : 'stops'}.`
+                    : userId && evt.myRsvp?.status === 'maybe'
+                      ? "You said maybe — hope the next one works out!"
+                      : userId && evt.myRsvp?.status === 'not_going'
+                        ? "You sat this one out. Catch the next!"
+                        : "Catch the next crawl — they're worth it."}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : userId && (
           evt.myRsvp?.status === 'going' ? (
             <section className="card px-5 py-4">
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -432,7 +470,9 @@ export default function EventPage({ auth }: Props) {
         {evt.myRsvp?.status === 'going' && evt.stops.length > 0 && (
           <section className="card px-5 py-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display text-base text-charcoal-800">Your progress</h3>
+              <h3 className="font-display text-base text-charcoal-800">
+                {isEnded ? 'Your final score' : 'Your progress'}
+              </h3>
               <span className="text-sm font-semibold text-amber-600">
                 {checkedInStopIds.size}/{evt.stops.length}
               </span>
@@ -444,7 +484,9 @@ export default function EventPage({ auth }: Props) {
               />
             </div>
             {completionPct === 100 && (
-              <p className="text-xs text-amber-600 font-semibold mt-2">🏆 Crawl complete!</p>
+              <p className="text-xs text-amber-600 font-semibold mt-2">
+                🏆 {isEnded ? 'You completed the crawl!' : 'Crawl complete!'}
+              </p>
             )}
           </section>
         )}
@@ -479,8 +521,22 @@ export default function EventPage({ auth }: Props) {
                         {isCheckedIn ? '✓' : idx + 1}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-charcoal-800">{stop.spot_name}</p>
-                        <p className="text-xs text-charcoal-400 truncate mt-0.5">{stop.spot_address}</p>
+                        {stop.spot_slug ? (
+                          <Link
+                            to={`/spots/${stop.spot_slug}`}
+                            className="block group -mx-1 px-1 py-0.5 rounded-md hover:bg-warmgray-50 transition-colors"
+                          >
+                            <p className="font-semibold text-charcoal-800 group-hover:text-amber-700 transition-colors">
+                              {stop.spot_name} <span className="text-charcoal-300 group-hover:text-amber-500 text-xs">→</span>
+                            </p>
+                            <p className="text-xs text-charcoal-400 truncate mt-0.5">{stop.spot_address}</p>
+                          </Link>
+                        ) : (
+                          <>
+                            <p className="font-semibold text-charcoal-800">{stop.spot_name}</p>
+                            <p className="text-xs text-charcoal-400 truncate mt-0.5">{stop.spot_address}</p>
+                          </>
+                        )}
                         {stop.planned_arrival && (
                           <p className="text-xs text-charcoal-400 mt-1">
                             ⏰ {format(new Date(stop.planned_arrival), 'h:mm a')}
@@ -498,7 +554,7 @@ export default function EventPage({ auth }: Props) {
                           </p>
                         )}
 
-                        {userId && (
+                        {userId && !isEnded && (
                           <div className="flex flex-wrap gap-2 mt-3">
                             {!isCheckedIn ? (
                               <button
@@ -524,6 +580,13 @@ export default function EventPage({ auth }: Props) {
                             </button>
                           </div>
                         )}
+                        {userId && isEnded && isCheckedIn && (
+                          <div className="mt-3">
+                            <span className="inline-block px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-semibold">
+                              ✓ Checked in{hasReview ? ' · Reviewed' : ''}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </li>
@@ -545,7 +608,7 @@ export default function EventPage({ auth }: Props) {
         {checkinAttendees.length > 0 && (
           <section className="card px-5 py-4">
             <h3 className="font-display text-base text-charcoal-800 mb-3">
-              Checked in ({checkinAttendees.length})
+              {isEnded ? 'Final standings' : 'Checked in'} ({checkinAttendees.length})
             </h3>
             <ul className="space-y-3">
               {checkinAttendees.map(a => (
@@ -639,7 +702,7 @@ export default function EventPage({ auth }: Props) {
         {evt.rsvps.filter(r => r.status === 'going').length > 0 && (
           <section className="card px-5 py-4">
             <h3 className="font-display text-base text-charcoal-800 mb-3">
-              Who's coming ({evt.rsvps.filter(r => r.status === 'going').length})
+              {isEnded ? 'Who came' : "Who's coming"} ({evt.rsvps.filter(r => r.status === 'going').length})
             </h3>
             <ul className="flex flex-wrap gap-2">
               {evt.rsvps
