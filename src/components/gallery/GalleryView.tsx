@@ -224,7 +224,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
           )}
 
           {!gallery.hasMore && gallery.reviews.length > 0 && (
-            <p className="text-center text-xs text-charcoal-300 py-6 uppercase tracking-crowd font-bold">
+            <p className="text-center text-xs text-charcoal-400 py-6 uppercase tracking-crowd font-bold">
               You're all caught up 🍗
             </p>
           )}

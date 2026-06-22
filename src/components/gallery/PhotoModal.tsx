@@ -10,6 +10,7 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 import { useAuthGate } from '../AuthGateModal'
 import { useUserProfile } from '../UserProfileContext'
 import LikedByOverlay from './LikedByOverlay'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { fetchReviewLikers, fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
 
@@ -93,6 +94,8 @@ export default function PhotoModal(props: Props) {
 
   const [photoIndex, setPhotoIndex] = useState(0)
   const [showLightbox, setShowLightbox] = useState(false)
+  // Trap focus in the modal; release it while the fullscreen lightbox is open
+  const panelRef = useFocusTrap<HTMLDivElement>(!showLightbox)
 
   // Mobile input state
   const [mobileText, setMobileText] = useState('')
@@ -223,7 +226,7 @@ export default function PhotoModal(props: Props) {
       </div>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-charcoal-700 truncate group-hover:text-sauce-500 transition-colors">{reviewerName}</p>
-        <p className="text-xs text-charcoal-300">{visitedDate}</p>
+        <p className="text-xs text-charcoal-400">{visitedDate}</p>
       </div>
     </button>
   )
@@ -248,7 +251,7 @@ export default function PhotoModal(props: Props) {
           <HeartIcon
             filled={reviewData.is_liked_by_me}
             className={`w-5 h-5 transition-all duration-150 group-active:scale-125 ${
-              reviewData.is_liked_by_me ? 'text-amber-400' : 'text-charcoal-300 group-hover:text-amber-300'
+              reviewData.is_liked_by_me ? 'text-amber-400' : 'text-charcoal-400 group-hover:text-amber-300'
             }`}
           />
           <span className={`text-sm font-medium transition-colors ${
@@ -265,6 +268,10 @@ export default function PhotoModal(props: Props) {
 
   return (
     <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Review detail"
       className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
@@ -360,7 +367,7 @@ export default function PhotoModal(props: Props) {
                 Replying to <span className="font-semibold">{mobileReplyingTo.name}</span>
                 <button
                   onClick={() => setMobileReplyingTo(null)}
-                  className="ml-1.5 text-charcoal-300 hover:text-charcoal-500"
+                  className="ml-1.5 text-charcoal-400 hover:text-charcoal-500"
                 >×</button>
               </span>
             )}

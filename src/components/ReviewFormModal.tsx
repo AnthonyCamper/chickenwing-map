@@ -278,7 +278,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                 <button
                   type="button"
                   onClick={() => setShowManual(false)}
-                  className="text-xs text-charcoal-300 hover:text-charcoal-500 transition-colors"
+                  className="text-xs text-charcoal-400 hover:text-charcoal-500 transition-colors"
                 >
                   Collapse
                 </button>

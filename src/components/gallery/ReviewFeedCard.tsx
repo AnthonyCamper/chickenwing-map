@@ -102,12 +102,20 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
 
       {/* Photo carousel */}
       {primaryPhoto && (
-        <div className="relative aspect-[4/3] bg-night-800 cursor-pointer" onClick={onOpen}>
+        <div className="relative aspect-[4/3] bg-night-800">
           <img
             src={displayPhoto.photo_url}
             alt={review.spot_name}
             loading="lazy"
             className="w-full h-full object-cover"
+          />
+
+          {/* Full-bleed open target — sits under the dots so they stay clickable */}
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`Open ${review.spot_name} review`}
+            className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sauce-400"
           />
 
           {/* Multi-photo dots — tap targets expanded to 24px while keeping visible dot tiny */}

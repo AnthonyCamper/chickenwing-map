@@ -1,5 +1,6 @@
-import { useEffect, ReactNode } from 'react'
+import { useEffect, ReactNode, useId } from 'react'
 import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 interface Props {
   title: string
@@ -10,6 +11,8 @@ interface Props {
 
 export default function Modal({ title, onClose, children, size = 'md' }: Props) {
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
+  const panelRef = useFocusTrap<HTMLDivElement>()
+  const titleId = useId()
 
   // Lock body scroll while modal is open (prevents double-scroll on iOS)
   // Saves and restores scroll position to prevent the jump caused by position:fixed
@@ -46,7 +49,12 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
 
       {/* Sheet — slides up from bottom on mobile, centered on desktop */}
       <div
-        className={`relative w-full ${maxWidths[size]} bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up flex flex-col`}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`relative w-full ${maxWidths[size]} bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up flex flex-col focus:outline-none`}
         style={sheetStyle}
       >
         {/* Drag handle (mobile only) — swipe up to expand, down to collapse */}
@@ -65,7 +73,7 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 sm:py-5 border-b border-night-900/10 flex-shrink-0">
-          <h2 className="font-display uppercase tracking-wide text-lg text-night-900 truncate pr-3">{title}</h2>
+          <h2 id={titleId} className="font-display uppercase tracking-wide text-lg text-night-900 truncate pr-3">{title}</h2>
           <button
             onClick={onClose}
             className="w-10 h-10 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 active:bg-cream-200 transition-colors text-2xl leading-none flex-shrink-0"

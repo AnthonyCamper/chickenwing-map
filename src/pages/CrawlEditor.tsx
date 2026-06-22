@@ -713,7 +713,7 @@ function ItemEditor({
           {...attributes}
           {...listeners}
           aria-label="Drag to reorder"
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-charcoal-300 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-charcoal-400 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
         >
           <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
             <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
@@ -790,7 +790,7 @@ function ItemEditor({
         ) : item.note ? (
           <button onClick={() => setEditingNote(true)} className="w-full text-left text-sm text-charcoal-700 italic hover:text-night-900 transition-colors">
             "{item.note}"
-            <span className="ml-2 text-[10px] uppercase tracking-crowd not-italic text-charcoal-300">Edit</span>
+            <span className="ml-2 text-[10px] uppercase tracking-crowd not-italic text-charcoal-400">Edit</span>
           </button>
         ) : (
           <button

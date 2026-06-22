@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useBadges } from '../hooks/useBadges'
 import { useLeaderboard } from '../hooks/useLeaderboard'
 import BadgeGrid from './badges/BadgeGrid'
@@ -30,6 +31,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(92dvh - env(safe-area-inset-top))',
   })
+  const panelRef = useFocusTrap<HTMLDivElement>()
 
   const badgesHook = useBadges(user?.id)
   const { rows: leaderRows, loading: lbLoading } = useLeaderboard(user?.id)
@@ -99,7 +101,12 @@ export default function ProfileModal({ auth, onClose }: Props) {
       <div className="fixed inset-0 z-50 bg-night-900/70 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-6">
         <div
-          className="w-full sm:max-w-sm bg-cream-50 sm:rounded-2xl sm:border-2 sm:border-night-900 sm:shadow-sticker overflow-hidden flex flex-col animate-slide-up"
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit profile"
+          tabIndex={-1}
+          className="w-full sm:max-w-sm bg-cream-50 sm:rounded-2xl sm:border-2 sm:border-night-900 sm:shadow-sticker overflow-hidden flex flex-col animate-slide-up focus:outline-none"
           style={sheetStyle}
         >
           {/* Drag handle (mobile) */}
@@ -225,9 +232,12 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     {email}
                   </p>
                 </div>
-                <div
-                  className="flex items-center justify-between py-3 px-4 rounded-xl border border-night-900/15 bg-cream-100 cursor-pointer"
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPrivate}
                   onClick={() => setIsPrivate(p => !p)}
+                  className="w-full flex items-center justify-between text-left py-3 px-4 rounded-xl border border-night-900/15 bg-cream-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400"
                 >
                   <div>
                     <p className="text-sm font-extrabold text-night-900">Private profile</p>
@@ -238,7 +248,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                   <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
                     <div className={`w-5 h-5 rounded-full bg-white shadow-sticker-sm mt-0.5 transition-transform ${isPrivate ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                   </div>
-                </div>
+                </button>
 
                 <div className="flex gap-3 pt-2">
                   <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>

@@ -201,7 +201,7 @@ function LikedBySheet({
             </div>
           )}
           {!loading && (!users || users.length === 0) && (
-            <p className="text-center text-sm text-charcoal-300 py-4">No reactions yet</p>
+            <p className="text-center text-sm text-charcoal-400 py-4">No reactions yet</p>
           )}
           {!loading && users && users.length > 0 && (
             <>
@@ -211,7 +211,7 @@ function LikedBySheet({
                     <div key={type}>
                       <p className="text-xs font-medium text-charcoal-400 mb-2">
                         {type}{' '}
-                        <span className="text-charcoal-300">{typeUsers.length}</span>
+                        <span className="text-charcoal-400">{typeUsers.length}</span>
                       </p>
                       <div className="space-y-2.5">
                         {typeUsers.map((u, i) => (

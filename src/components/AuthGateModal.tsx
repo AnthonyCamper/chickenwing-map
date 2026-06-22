@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ function AuthGateModal({
 }) {
   const navigate = useNavigate()
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
+  const panelRef = useFocusTrap<HTMLDivElement>()
 
   return (
     <div
@@ -67,8 +69,13 @@ function AuthGateModal({
 
       {/* Sheet */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sign in"
+        tabIndex={-1}
         className="relative w-full sm:max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900
-                   shadow-2xl animate-slide-up overflow-hidden flex flex-col"
+                   shadow-2xl animate-slide-up overflow-hidden flex flex-col focus:outline-none"
         style={sheetStyle}
         onClick={e => e.stopPropagation()}
       >

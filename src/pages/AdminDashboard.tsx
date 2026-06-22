@@ -150,7 +150,7 @@ export default function AdminDashboard() {
                               {u.display_name ?? u.full_name ?? u.email}
                             </p>
                             <p className="text-xs text-charcoal-400 truncate">{u.email}</p>
-                            <p className="text-xs text-charcoal-300 mt-0.5">
+                            <p className="text-xs text-charcoal-400 mt-0.5">
                               Joined {new Date(u.created_at).toLocaleDateString()}
                             </p>
                           </div>
@@ -353,7 +353,7 @@ function UserCard({
             {user.display_name ?? user.full_name ?? user.email}
           </p>
           <p className="text-xs text-charcoal-400 truncate">{user.email}</p>
-          <p className="text-xs text-charcoal-300 mt-0.5">
+          <p className="text-xs text-charcoal-400 mt-0.5">
             Requested {new Date(user.created_at).toLocaleDateString()}
           </p>
         </div>

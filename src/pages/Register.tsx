@@ -129,7 +129,7 @@ export default function Register({ onSignUp }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-20 h-20 rounded-full overflow-hidden bg-warmgray-100 ring-2 ring-warmgray-200 hover:ring-amber-300 transition-all flex items-center justify-center text-charcoal-300 hover:text-charcoal-500 flex-shrink-0"
+                className="w-20 h-20 rounded-full overflow-hidden bg-warmgray-100 ring-2 ring-warmgray-200 hover:ring-amber-300 transition-all flex items-center justify-center text-charcoal-400 hover:text-charcoal-500 flex-shrink-0"
               >
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
@@ -244,7 +244,7 @@ export default function Register({ onSignUp }: Props) {
           </p>
         </div>
 
-        <p className="mt-8 text-center text-xs text-charcoal-300">
+        <p className="mt-8 text-center text-xs text-charcoal-400">
           WingMap Ratings
         </p>
       </div>

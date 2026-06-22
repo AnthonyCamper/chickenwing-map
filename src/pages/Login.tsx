@@ -82,7 +82,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           {/* Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-warmgray-200" />
-            <span className="text-xs text-charcoal-300 font-medium">or</span>
+            <span className="text-xs text-charcoal-400 font-medium">or</span>
             <div className="flex-1 h-px bg-warmgray-200" />
           </div>
 
@@ -142,7 +142,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           )}
         </div>
 
-        <p className="mt-8 text-center text-xs text-charcoal-300">
+        <p className="mt-8 text-center text-xs text-charcoal-400">
           WingMap Ratings
         </p>
       </div>

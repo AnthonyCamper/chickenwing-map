@@ -525,7 +525,7 @@ export default function EventPage({ auth }: Props) {
                           <p className="text-xs text-charcoal-500 mt-1">🅿️ {stop.parking_notes}</p>
                         )}
                         {stop.checkin_count && stop.checkin_count > 0 && (
-                          <p className="text-xs text-charcoal-300 mt-1">
+                          <p className="text-xs text-charcoal-400 mt-1">
                             {stop.checkin_count} {stop.checkin_count === 1 ? 'check-in' : 'check-ins'}
                           </p>
                         )}
@@ -638,7 +638,7 @@ export default function EventPage({ auth }: Props) {
                     {auth.isAdmin && (
                       <button
                         onClick={() => setResetConfirmUserId(resetConfirmUserId === a.user_id ? null : a.user_id)}
-                        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-charcoal-300 hover:text-sauce-500 hover:bg-sauce-50 transition-colors"
+                        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-charcoal-400 hover:text-sauce-500 hover:bg-sauce-50 transition-colors"
                         title="Reset progress"
                         disabled={resetingUserId === a.user_id}
                       >

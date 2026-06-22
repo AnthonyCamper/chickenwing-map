@@ -187,10 +187,10 @@ export default function ReviewCard({
               <span className="inline-flex items-center gap-2">{chip}</span>
             )
           })()}
-          <span className="text-charcoal-300">·</span>
+          <span className="text-charcoal-400">·</span>
           <span className="text-charcoal-500 font-medium">{visitedDate}</span>
 
-          <span className="text-charcoal-300">·</span>
+          <span className="text-charcoal-400">·</span>
 
           {/* Comment toggle — icon + count only, no text label */}
           <button
