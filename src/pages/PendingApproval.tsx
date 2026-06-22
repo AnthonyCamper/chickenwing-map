@@ -11,74 +11,63 @@ export default function PendingApproval({ auth }: Props) {
   const name = auth.profile?.display_name ?? auth.profile?.full_name ?? auth.user?.email ?? ''
   const email = auth.user?.email ?? ''
   const avatar = auth.profile?.avatar_url
+  const initial = name.charAt(0).toUpperCase() || '?'
 
   return (
-    <div className="min-h-dvh bg-warmgray-50 flex flex-col items-center justify-center px-6 py-12">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-100 opacity-40 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-warmgray-300 opacity-50 blur-3xl" />
-      </div>
+    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+      {/* Splatter accent, kept faint */}
+      <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07]" />
 
       <div className="relative w-full max-w-sm text-center animate-fade-in">
-        {/* Avatar */}
-        <div className="mx-auto w-20 h-20 rounded-full overflow-hidden ring-4 ring-warmgray-200 mb-6 flex items-center justify-center bg-warmgray-100">
+        {/* Avatar as a sticker */}
+        <div className="mx-auto w-20 h-20 -rotate-2 rounded-full overflow-hidden border-2 border-night-900 shadow-sticker mb-5 flex items-center justify-center bg-night-700">
           {avatar ? (
             <img src={avatar} alt={name} className="w-full h-full object-cover" />
           ) : (
-            <span className="text-3xl font-semibold text-charcoal-400">
-              {name.charAt(0).toUpperCase() || '?'}
-            </span>
+            <span className="text-3xl font-extrabold text-cream-50">{initial}</span>
           )}
         </div>
 
-        <h2 className="font-display text-2xl text-charcoal-800 mb-2">
-          You're on the list ✓
-        </h2>
+        <span className="eyebrow">Status — in review</span>
+        <h1 className="h-poster-sm mt-2">You’re in line</h1>
+        <p className="h-hand text-xl -rotate-2 mt-1">hang tight, almost in</p>
 
-        <p className="text-sm text-charcoal-500 leading-relaxed mb-1">
-          Hi <strong>{name || email}</strong>, your request has been received.
-        </p>
-        <p className="text-sm text-charcoal-600 leading-relaxed mb-8">
-          The admin will review your account soon. You'll be able to sign in once it's approved.
+        <p className="text-sm text-charcoal-600 leading-relaxed mt-5 mb-7">
+          Hi <strong className="text-night-900">{name || email}</strong> — your request landed.
+          The admin’s reviewing it now; you’ll be able to sign in the second you’re approved.
         </p>
 
-        <div className="card px-6 py-5 text-left mb-6">
+        {/* Identity card */}
+        <div className="card px-5 py-4 text-left mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-warmgray-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-night-700 border border-night-900 flex items-center justify-center flex-shrink-0">
               {avatar ? (
                 <img src={avatar} alt={name} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-sm font-semibold text-charcoal-500">
-                  {name.charAt(0).toUpperCase() || '?'}
-                </span>
+                <span className="text-sm font-extrabold text-cream-50">{initial}</span>
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-charcoal-700 truncate">{name || email}</p>
+              <p className="text-sm font-bold text-night-900 truncate">{name || email}</p>
               <p className="text-xs text-charcoal-600 truncate">{email}</p>
             </div>
-            <span className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 flex-shrink-0">
-              Pending
-            </span>
+            <span className="sticker-gold ml-auto flex-shrink-0">Pending</span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 items-center">
-          <button
-            onClick={reload}
-            className="btn-secondary text-xs"
-          >
+        <div className="flex flex-col gap-3 items-center">
+          <button onClick={reload} className="btn-secondary text-xs">
             Check status
           </button>
           <a
             href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent('WingMap access request')}&body=${encodeURIComponent(`Hi — I requested access as ${email}. Just checking in.`)}`}
-            className="text-xs text-amber-500 font-semibold hover:underline"
+            className="text-xs text-sauce-500 font-bold uppercase tracking-crowd hover:underline"
           >
-            Contact admin
+            Nudge the admin
           </a>
           <button
             onClick={auth.signOut}
-            className="btn-ghost text-xs text-charcoal-500 hover:text-charcoal-700"
+            className="btn-ghost text-xs text-charcoal-500 hover:text-night-800"
           >
             Sign out
           </button>

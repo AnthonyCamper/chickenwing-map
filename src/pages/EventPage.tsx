@@ -50,12 +50,12 @@ function RouteMap({ stops }: RouteMapProps) {
       }).addTo(map)
 
       if (latlngs.length > 1) {
-        L.polyline(latlngs, { color: '#f59e0b', weight: 3, opacity: 0.75 }).addTo(map)
+        L.polyline(latlngs, { color: '#fa5a2e', weight: 3, opacity: 0.75 }).addTo(map)
       }
 
       latlngs.forEach((ll, idx) => {
         const icon = L.divIcon({
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
+          html: `<div style="width:28px;height:28px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14],
           className: '',
