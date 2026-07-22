@@ -139,3 +139,24 @@ describe('ReviewCard undo-delete', () => {
     expect(onDelete).not.toHaveBeenCalled()
   })
 })
+
+describe('ReviewCard layout', () => {
+  it('leads with reviewer identity, date, and rating above the review text', () => {
+    const { container } = renderCard(vi.fn(async () => ({ error: null as string | null })))
+    const html = container.innerHTML
+    const name = html.indexOf('WingKingTony')
+    const rating = html.indexOf('6.5')
+    const date = html.indexOf('May 1, 2026')
+    const text = html.indexOf('Hot and crispy')
+    expect(name).toBeGreaterThan(-1)
+    expect(name).toBeLessThan(text)
+    expect(rating).toBeLessThan(text)
+    expect(date).toBeLessThan(text)
+  })
+
+  it('keeps the comment toggle and options menu in the footer (after the text)', () => {
+    renderCard(vi.fn(async () => ({ error: null as string | null })))
+    expect(screen.getByLabelText(/comment/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Review options')).toBeInTheDocument()
+  })
+})

@@ -140,9 +140,41 @@ export default function ReviewCard({
   return (
     <>
       <div id={`review-${review.id}`} className={`${compact ? 'py-3' : 'py-4'} animate-fade-in transition-shadow duration-300`}>
-        {/* Ratings row */}
+        {/* Identity + rating header */}
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className="rating-wing">
+          {(() => {
+            const isPrivate = review.reviewer_is_private === true
+            const displayName = isPrivate ? 'Private' : (review.reviewer_name ?? review.reviewer_email ?? 'Unknown')
+            const avatar = isPrivate ? null : review.reviewer_avatar
+            const linkable = !isPrivate && review.reviewer_username
+            const chip = (
+              <>
+                {avatar ? (
+                  <img
+                    src={avatar}
+                    alt={displayName}
+                    className="w-6 h-6 rounded-full object-cover border border-night-900"
+                  />
+                ) : (
+                  <span className="w-6 h-6 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
+                    {displayName.charAt(0)}
+                  </span>
+                )}
+                <span className="text-[11px] font-extrabold uppercase tracking-crowd text-night-800">
+                  {displayName}
+                </span>
+              </>
+            )
+            return linkable ? (
+              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 hover:text-sauce-500 transition-colors">
+                {chip}
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-2">{chip}</span>
+            )
+          })()}
+          <span className="text-[11px] text-charcoal-500 font-medium">{visitedDate}</span>
+          <span className="rating-wing ml-auto">
             🍗 <StarRating value={review.overall_rating} size="sm" /> {review.overall_rating.toFixed(1)}
           </span>
           {review.event_id && review.event_name && (
@@ -165,44 +197,8 @@ export default function ReviewCard({
           <ExpandableText text={review.review_text} className="mb-2 text-charcoal-700 leading-relaxed" />
         )}
 
-        {/* Meta */}
+        {/* Footer: comments + options */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
-          {(() => {
-            const isPrivate = review.reviewer_is_private === true
-            const displayName = isPrivate ? 'Private' : (review.reviewer_name ?? review.reviewer_email ?? 'Unknown')
-            const avatar = isPrivate ? null : review.reviewer_avatar
-            const linkable = !isPrivate && review.reviewer_username
-            const chip = (
-              <>
-                {avatar ? (
-                  <img
-                    src={avatar}
-                    alt={displayName}
-                    className="w-5 h-5 rounded-full object-cover border border-night-900"
-                  />
-                ) : (
-                  <span className="w-5 h-5 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
-                    {displayName.charAt(0)}
-                  </span>
-                )}
-                <span className="font-extrabold uppercase tracking-crowd text-night-800">
-                  {displayName}
-                </span>
-              </>
-            )
-            return linkable ? (
-              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 hover:text-sauce-500 transition-colors">
-                {chip}
-              </Link>
-            ) : (
-              <span className="inline-flex items-center gap-2">{chip}</span>
-            )
-          })()}
-          <span className="text-charcoal-400">·</span>
-          <span className="text-charcoal-500 font-medium">{visitedDate}</span>
-
-          <span className="text-charcoal-400">·</span>
-
           {/* Comment toggle — icon + count only, no text label */}
           <button
             onClick={() => setShowComments(!showComments)}
