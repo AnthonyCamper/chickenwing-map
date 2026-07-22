@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { triggerPushDelivery } from '../lib/pushManager'
 import type { GalleryPhoto } from '../lib/types'
@@ -14,12 +15,17 @@ export function usePhotoDetail(currentUserId: string) {
 
   const open = useCallback(async (photoId: string) => {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('gallery_feed')
       .select('*')
       .eq('photo_id', photoId)
       .single()
-    setPhoto(data as GalleryPhoto | null)
+    if (error) {
+      toast.error('Could not load photo')
+      setPhoto(null)
+    } else {
+      setPhoto(data as GalleryPhoto | null)
+    }
     setLoading(false)
   }, [])
 
@@ -31,15 +37,15 @@ export function usePhotoDetail(currentUserId: string) {
     setPhoto(p =>
       p ? { ...p, is_liked_by_me: !wasLiked, like_count: wasLiked ? p.like_count - 1 : p.like_count + 1 } : p
     )
-    try {
-      if (wasLiked) {
-        await supabase.from('review_likes').delete().match({ review_id: photo.review_id, user_id: currentUserId })
-      } else {
-        await supabase.from('review_likes').insert({ review_id: photo.review_id, user_id: currentUserId })
-        triggerPushDelivery()
-      }
-    } catch {
+    const { error } = wasLiked
+      ? await supabase.from('review_likes').delete().match({ review_id: photo.review_id, user_id: currentUserId })
+      : await supabase.from('review_likes').insert({ review_id: photo.review_id, user_id: currentUserId })
+
+    if (error) {
       setPhoto(p => p ? { ...p, is_liked_by_me: wasLiked, like_count: photo.like_count } : p)
+      toast.error('Could not update like')
+    } else if (!wasLiked) {
+      triggerPushDelivery()
     }
   }, [photo, currentUserId])
 

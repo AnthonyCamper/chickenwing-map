@@ -94,10 +94,12 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); remove(i) }}
-                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors"
+                className="absolute top-0 right-0 w-9 h-9 flex items-center justify-center"
                 aria-label="Remove photo"
               >
-                ×
+                <span className="w-7 h-7 rounded-full bg-night-900/75 hover:bg-night-900 text-cream-50 text-base flex items-center justify-center shadow-sm transition-colors">
+                  ×
+                </span>
               </button>
             </div>
           ))}

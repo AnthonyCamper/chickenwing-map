@@ -36,7 +36,7 @@ export default function AdminEventsTab() {
   if (events.loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
       </div>
     )
   }
@@ -83,7 +83,7 @@ export default function AdminEventsTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg text-charcoal-800">Events</h2>
+        <h2 className="font-display uppercase text-lg text-night-900 tracking-tightest">Events</h2>
         <button onClick={() => setCreating(true)} className="btn-primary px-3 py-1.5 text-xs">
           + New event
         </button>
@@ -105,11 +105,11 @@ export default function AdminEventsTab() {
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <p className="font-semibold text-charcoal-800 truncate">{e.name}</p>
+                  <p className="font-bold text-night-900 truncate">{e.name}</p>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
                     e.is_published
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-warmgray-200 text-charcoal-500'
+                      ? 'bg-neon-100 text-neon-700'
+                      : 'bg-cream-200 text-charcoal-500'
                   }`}>
                     {e.is_published ? 'Published' : 'Draft'}
                   </span>
@@ -120,7 +120,7 @@ export default function AdminEventsTab() {
                   <span>👥 {e.going_count ?? 0} going</span>
                 </div>
               </div>
-              <span className="text-amber-400">→</span>
+              <span className="text-sauce-400">→</span>
             </div>
           </button>
         ))
@@ -180,7 +180,7 @@ function NewEventForm({ onCreate, onCancel }: NewEventFormProps) {
   return (
     <form onSubmit={handleSubmit} className="card px-5 py-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg text-charcoal-800">New event</h2>
+        <h2 className="font-display uppercase text-lg text-night-900 tracking-tightest">New event</h2>
         <button type="button" onClick={onCancel} className="btn-ghost text-xs text-charcoal-400">Cancel</button>
       </div>
 
@@ -253,7 +253,7 @@ function NewEventForm({ onCreate, onCancel }: NewEventFormProps) {
           type="checkbox"
           checked={isPublished}
           onChange={e => setIsPublished(e.target.checked)}
-          className="w-4 h-4 rounded accent-amber-400"
+          className="w-4 h-4 rounded accent-sauce-400"
         />
         <span className="text-sm text-charcoal-600 font-medium">
           Publish (visible to all approved users)
@@ -373,7 +373,7 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
       </div>
 
       <div className="card px-5 py-5 space-y-4">
-        <h2 className="font-display text-lg text-charcoal-800">Event details</h2>
+        <h2 className="font-display uppercase text-lg text-night-900 tracking-tightest">Event details</h2>
 
         <div>
           <label className="label">Name</label>
@@ -416,7 +416,7 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
             type="checkbox"
             checked={isPublished}
             onChange={e => setIsPublished(e.target.checked)}
-            className="w-4 h-4 rounded accent-amber-400"
+            className="w-4 h-4 rounded accent-sauce-400"
           />
           <span className="text-sm text-charcoal-600 font-medium">Published</span>
         </label>
@@ -428,13 +428,13 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
 
       <div className="card px-5 py-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg text-charcoal-800">The route</h2>
+          <h2 className="font-display uppercase text-lg text-night-900 tracking-tightest">The route</h2>
           <span className="text-xs text-charcoal-400">{stops.length} stops</span>
         </div>
 
         {stopsLoading ? (
           <div className="flex justify-center py-6">
-            <div className="w-6 h-6 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
           </div>
         ) : stops.length === 0 ? (
           <p className="text-sm text-charcoal-400 italic text-center py-3">No stops yet.</p>
@@ -451,26 +451,26 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
                 setStopEdits(prev => ({ ...prev, [s.id]: { ...edit, ...patch } }))
 
               return (
-                <li key={s.id} className="rounded-2xl bg-warmgray-50 border border-warmgray-200 overflow-hidden">
+                <li key={s.id} className="rounded-2xl bg-cream-100 border border-night-900/15 overflow-hidden">
                   <div className="flex items-center gap-3 p-3">
-                    <div className="w-7 h-7 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-sauce-400 text-cream-50 text-xs font-bold flex items-center justify-center flex-shrink-0">
                       {idx + 1}
                     </div>
                     <button
                       onClick={() => setExpandedStopId(isExpanded ? null : s.id)}
                       className="min-w-0 flex-1 text-left"
                     >
-                      <p className="font-semibold text-sm text-charcoal-700 truncate">{s.spot_name}</p>
+                      <p className="font-bold text-sm text-night-900 truncate">{s.spot_name}</p>
                       <p className="text-xs text-charcoal-400 truncate">{s.spot_address}</p>
                       {s.parking_notes && (
-                        <p className="text-xs text-amber-600 truncate mt-0.5">🅿️ {s.parking_notes}</p>
+                        <p className="text-xs text-sauce-600 truncate mt-0.5">🅿️ {s.parking_notes}</p>
                       )}
                     </button>
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                       <button
                         onClick={() => moveStop(idx, -1)}
                         disabled={idx === 0}
-                        className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
+                        className="w-7 h-7 rounded-lg hover:bg-cream-200 disabled:opacity-30 flex items-center justify-center"
                         aria-label="Move up"
                       >
                         ↑
@@ -478,14 +478,14 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
                       <button
                         onClick={() => moveStop(idx, 1)}
                         disabled={idx === stops.length - 1}
-                        className="w-7 h-7 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center"
+                        className="w-7 h-7 rounded-lg hover:bg-cream-200 disabled:opacity-30 flex items-center justify-center"
                         aria-label="Move down"
                       >
                         ↓
                       </button>
                       <button
                         onClick={() => removeStop(s.id)}
-                        className="w-7 h-7 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center"
+                        className="w-7 h-7 rounded-lg hover:bg-sauce-50 text-sauce-500 flex items-center justify-center"
                         aria-label="Remove"
                       >
                         ×
@@ -494,7 +494,7 @@ function EventEditor({ event, onBack, onDelete, admin }: EventEditorProps) {
                   </div>
 
                   {isExpanded && (
-                    <div className="border-t border-warmgray-200 px-3 pb-3 pt-2 space-y-2">
+                    <div className="border-t border-night-900/15 px-3 pb-3 pt-2 space-y-2">
                       <div>
                         <label className="label text-xs">Parking instructions</label>
                         <textarea
@@ -647,12 +647,12 @@ function AddStopForm({ eventId, existingSpotIds, onAdded, admin }: AddStopFormPr
   }
 
   return (
-    <div className="border-t border-warmgray-100 pt-4 space-y-3">
-      <div className="flex gap-1 p-1 bg-warmgray-100 rounded-xl">
+    <div className="border-t border-night-900/10 pt-4 space-y-3">
+      <div className="flex gap-1 p-1 bg-cream-100 rounded-xl">
         <button
           onClick={() => setMode('existing')}
           className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-            mode === 'existing' ? 'bg-white shadow-soft text-charcoal-700' : 'text-charcoal-400'
+            mode === 'existing' ? 'bg-cream-50 shadow-sticker-sm text-night-900' : 'text-charcoal-500'
           }`}
         >
           Existing spot
@@ -660,7 +660,7 @@ function AddStopForm({ eventId, existingSpotIds, onAdded, admin }: AddStopFormPr
         <button
           onClick={() => setMode('new')}
           className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-            mode === 'new' ? 'bg-white shadow-soft text-charcoal-700' : 'text-charcoal-400'
+            mode === 'new' ? 'bg-cream-50 shadow-sticker-sm text-night-900' : 'text-charcoal-500'
           }`}
         >
           New spot

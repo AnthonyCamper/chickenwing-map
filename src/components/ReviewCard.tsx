@@ -52,7 +52,18 @@ export default function ReviewCard({
       deleteTimerRef.current = null
     }
   }
-  useEffect(() => cleanupTimer, [])
+  const onDeleteRef = useRef(onDelete)
+  onDeleteRef.current = onDelete
+  // Unmounting mid-countdown must flush the promised delete, not drop it —
+  // otherwise "Review deleted" was a lie and the review silently survives.
+  useEffect(() => () => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+      deleteTimerRef.current = null
+      onDeleteRef.current(review.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Close kebab menu when clicking outside
   useEffect(() => {

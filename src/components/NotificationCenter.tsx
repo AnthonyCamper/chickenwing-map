@@ -198,7 +198,10 @@ function NotificationIcon({ type }: { type: string }) {
     case 'comment_reply':
       return <div className={`${iconClass} bg-neon-100`}>💬</div>
     case 'photo_like':
+    case 'review_like':
       return <div className={`${iconClass} bg-sauce-100`}>❤️</div>
+    case 'review_reaction':
+      return <div className={`${iconClass} bg-gold-100`}>😄</div>
     case 'comment_like':
       return <div className={`${iconClass} bg-sauce-100`}>👍</div>
     case 'comment_reaction':
@@ -218,6 +221,8 @@ function getDefaultText(notif: Notification): string {
     case 'photo_comment': return 'Someone commented on your photo'
     case 'comment_reply': return 'Someone replied in a thread'
     case 'photo_like': return 'Someone liked your photo'
+    case 'review_like': return notif.shop_name ? `Someone liked your ${notif.shop_name} review` : 'Someone liked your review'
+    case 'review_reaction': return notif.shop_name ? `New reaction on your ${notif.shop_name} review` : 'New reaction on your review'
     case 'comment_like': return 'Someone liked your comment'
     case 'comment_reaction': return 'New reaction on your comment'
     case 'crawl_like': return 'Someone liked your list'

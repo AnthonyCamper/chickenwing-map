@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useAdminUsers } from '../hooks/useAdminUsers'
 import AdminEventsTab from '../components/admin/AdminEventsTab'
 import AppHeader from '../components/AppHeader'
@@ -33,13 +34,20 @@ export default function AdminDashboard() {
   })
 
   return (
-    <div className="min-h-dvh bg-warmgray-50">
+    <div className="min-h-dvh bg-paper">
+      <Helmet>
+        <title>Admin — WingKingTony</title>
+      </Helmet>
+
       <AppHeader />
 
-      <header className="border-b border-warmgray-200 bg-warmgray-50">
-        <div className="max-w-3xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          <h1 className="font-display text-lg text-charcoal-800 flex-1">Admin Dashboard</h1>
-          <button onClick={admin.refresh} className="btn-ghost px-2 py-1.5 text-charcoal-400 text-xs">
+      <header className="border-b-2 border-night-900 bg-cream-100">
+        <div className="max-w-3xl mx-auto px-4 pt-4 pb-1 flex items-center gap-3">
+          <div className="flex-1">
+            <p className="eyebrow">Back of house</p>
+            <h1 className="font-display uppercase text-2xl text-night-900 tracking-tightest leading-none">Admin Dashboard</h1>
+          </div>
+          <button onClick={admin.refresh} className="btn-ghost px-2 py-1.5 text-charcoal-500 text-xs">
             Refresh
           </button>
         </div>
@@ -50,17 +58,17 @@ export default function AdminDashboard() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-extrabold uppercase tracking-crowd capitalize border-b-2 transition-colors ${
                 tab === t
-                  ? 'border-amber-400 text-amber-500'
-                  : 'border-transparent text-charcoal-400 hover:text-charcoal-600'
+                  ? 'border-sauce-500 text-sauce-500'
+                  : 'border-transparent text-charcoal-500 hover:text-night-900'
               }`}
             >
               {t === 'pending' ? (
                 <>
                   Pending
                   {pendingUsers.length > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-white text-xs font-bold">
+                    <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sauce-400 text-cream-50 text-xs font-bold">
                       {pendingUsers.length}
                     </span>
                   )}
@@ -76,7 +84,7 @@ export default function AdminDashboard() {
       <main className="max-w-3xl mx-auto px-4 py-6">
         {admin.loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+            <div className="w-10 h-10 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
           </div>
         ) : (
           <>
@@ -84,9 +92,9 @@ export default function AdminDashboard() {
             {tab === 'pending' && (
               <div className="space-y-3">
                 {pendingUsers.length === 0 ? (
-                  <div className="text-center py-16 text-charcoal-400">
+                  <div className="text-center py-16 text-charcoal-500">
                     <p className="text-4xl mb-3">✓</p>
-                    <p className="font-medium">No pending requests</p>
+                    <p className="font-bold uppercase tracking-crowd text-xs">No pending requests</p>
                   </div>
                 ) : (
                   pendingUsers.map(u => (
@@ -136,8 +144,8 @@ export default function AdminDashboard() {
                 </div>
 
                 {filteredUsers.length === 0 ? (
-                  <div className="text-center py-16 text-charcoal-400">
-                    <p className="font-medium">No users match</p>
+                  <div className="text-center py-16 text-charcoal-500">
+                    <p className="font-bold uppercase tracking-crowd text-xs">No users match</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -146,11 +154,11 @@ export default function AdminDashboard() {
                         <div className="flex items-start gap-3 mb-4">
                           <Avatar user={u} />
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-charcoal-700 truncate text-sm">
+                            <p className="font-bold text-night-900 truncate text-sm">
                               {u.display_name ?? u.full_name ?? u.email}
                             </p>
-                            <p className="text-xs text-charcoal-400 truncate">{u.email}</p>
-                            <p className="text-xs text-charcoal-400 mt-0.5">
+                            <p className="text-xs text-charcoal-500 truncate">{u.email}</p>
+                            <p className="text-xs text-charcoal-500 mt-0.5">
                               Joined {new Date(u.created_at).toLocaleDateString()}
                             </p>
                           </div>
@@ -158,7 +166,7 @@ export default function AdminDashboard() {
                         </div>
 
                         {/* Toggles row */}
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-warmgray-100">
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-night-900/10">
                           {/* Admin toggle */}
                           <Toggle
                             label="Admin"
@@ -218,19 +226,19 @@ export default function AdminDashboard() {
             {tab === 'settings' && (
               <div className="space-y-4">
                 <div className="card px-6 py-6">
-                  <h2 className="font-display text-lg text-charcoal-800 mb-1">Site access</h2>
-                  <p className="text-sm text-charcoal-400 mb-5 leading-relaxed">
+                  <h2 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-1">Site access</h2>
+                  <p className="text-sm text-charcoal-600 mb-5 leading-relaxed">
                     When the site is <strong>public</strong>, anyone can browse the wing spot list
                     and reviews without an account. When <strong>private</strong>, a login is required
                     to see anything.
                   </p>
 
-                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-warmgray-50 border border-warmgray-200">
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-cream-100 border-2 border-night-900/20">
                     <div>
-                      <p className="font-semibold text-charcoal-700 text-sm">
+                      <p className="font-bold text-night-900 text-sm">
                         {admin.siteSettings?.is_public ? 'Public site' : 'Private site'}
                       </p>
-                      <p className="text-xs text-charcoal-400 mt-0.5">
+                      <p className="text-xs text-charcoal-500 mt-0.5">
                         {admin.siteSettings?.is_public
                           ? 'Visible to anyone, no login required'
                           : 'Login required to view any content'}
@@ -238,8 +246,8 @@ export default function AdminDashboard() {
                     </div>
                     <button
                       onClick={() => admin.setSitePublic(!admin.siteSettings?.is_public)}
-                      className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                        admin.siteSettings?.is_public ? 'bg-amber-400' : 'bg-warmgray-300'
+                      className={`relative w-12 h-6 rounded-full border border-night-900/30 transition-colors duration-200 flex-shrink-0 ${
+                        admin.siteSettings?.is_public ? 'bg-sauce-400' : 'bg-cream-300'
                       }`}
                       role="switch"
                       aria-checked={admin.siteSettings?.is_public}
@@ -266,11 +274,11 @@ export default function AdminDashboard() {
 function Avatar({ user }: { user: UserProfile }) {
   const name = user.display_name ?? user.full_name ?? user.email
   return (
-    <div className="w-10 h-10 rounded-full overflow-hidden bg-warmgray-100 flex items-center justify-center flex-shrink-0">
+    <div className="w-10 h-10 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 flex items-center justify-center flex-shrink-0">
       {user.avatar_url ? (
         <img src={user.avatar_url} alt={name} className="w-full h-full object-cover" />
       ) : (
-        <span className="text-sm font-semibold text-charcoal-500">
+        <span className="text-sm font-extrabold text-cream-50">
           {name.charAt(0).toUpperCase()}
         </span>
       )}
@@ -280,13 +288,13 @@ function Avatar({ user }: { user: UserProfile }) {
 
 function StatusBadge({ status }: { status: UserStatus }) {
   const styles: Record<UserStatus, string> = {
-    approved: 'bg-green-100 text-green-700',
-    pending:  'bg-amber-100 text-amber-700',
-    rejected: 'bg-red-100 text-red-600',
-    disabled: 'bg-warmgray-200 text-charcoal-500',
+    approved: 'bg-neon-100 text-neon-700 border-neon-300',
+    pending:  'bg-gold-100 text-gold-700 border-gold-300',
+    rejected: 'bg-sauce-50 text-sauce-600 border-sauce-300',
+    disabled: 'bg-cream-200 text-charcoal-500 border-night-900/20',
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${styles[status]}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-extrabold uppercase tracking-crowd ${styles[status]}`}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   )
@@ -308,8 +316,8 @@ function Toggle({
   return (
     <label className="flex items-center gap-2 cursor-pointer select-none">
       <div
-        className={`relative w-9 h-5 rounded-full transition-colors duration-150 ${
-          checked ? 'bg-amber-400' : 'bg-warmgray-300'
+        className={`relative w-9 h-5 rounded-full border border-night-900/30 transition-colors duration-150 ${
+          checked ? 'bg-sauce-400' : 'bg-cream-300'
         }`}
       >
         <input
@@ -330,7 +338,7 @@ function Toggle({
           </span>
         )}
       </div>
-      <span className="text-xs font-medium text-charcoal-600">{label}</span>
+      <span className="text-xs font-bold text-charcoal-600">{label}</span>
     </label>
   )
 }
@@ -349,11 +357,11 @@ function UserCard({
       <div className="flex items-center gap-3">
         <Avatar user={user} />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-charcoal-700 truncate text-sm">
+          <p className="font-bold text-night-900 truncate text-sm">
             {user.display_name ?? user.full_name ?? user.email}
           </p>
-          <p className="text-xs text-charcoal-400 truncate">{user.email}</p>
-          <p className="text-xs text-charcoal-400 mt-0.5">
+          <p className="text-xs text-charcoal-500 truncate">{user.email}</p>
+          <p className="text-xs text-charcoal-500 mt-0.5">
             Requested {new Date(user.created_at).toLocaleDateString()}
           </p>
         </div>

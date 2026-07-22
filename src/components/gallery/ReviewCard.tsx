@@ -5,6 +5,7 @@ import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
 import { fetchReviewLikers } from '../../lib/reactionDetails'
 import { useUserProfile } from '../UserProfileContext'
+import { useCarouselSwipe } from './useCarouselSwipe'
 
 interface Props {
   review: GalleryReviewItem
@@ -18,13 +19,20 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
   const primaryPhoto = review.photos[0]
   const extraCount = review.photos.length - 1
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const swipeHandlers = useCarouselSwipe(
+    () => setCarouselIndex(i => Math.max(0, i - 1)),
+    () => setCarouselIndex(i => Math.min(review.photos.length - 1, i + 1)),
+  )
 
   if (!primaryPhoto) return null
 
   const displayPhoto = review.photos[carouselIndex] ?? primaryPhoto
 
   return (
-    <div className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer">
+    <div
+      className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer"
+      {...(review.photos.length > 1 ? swipeHandlers : {})}
+    >
       <img
         src={displayPhoto.photo_url}
         alt={review.spot_name}
@@ -34,18 +42,20 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
       />
 
       {review.photos.length > 1 && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">
           {review.photos.map((_, i) => (
             <button
               key={i}
               onClick={e => { e.stopPropagation(); setCarouselIndex(i) }}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${
+              className="w-6 h-6 flex items-center justify-center"
+              aria-label={`Photo ${i + 1}`}
+            >
+              <span className={`block w-1.5 h-1.5 rounded-full transition-all ${
                 i === carouselIndex
                   ? 'bg-white scale-110 shadow-sm'
                   : 'bg-white/50 hover:bg-white/70'
-              }`}
-              aria-label={`Photo ${i + 1}`}
-            />
+              }`} />
+            </button>
           ))}
         </div>
       )}

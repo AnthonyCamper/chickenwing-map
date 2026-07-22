@@ -1,4 +1,4 @@
-import { useEffect, ReactNode, useId } from 'react'
+import { useEffect, useState, ReactNode, useId } from 'react'
 import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 
@@ -9,10 +9,15 @@ interface Props {
   size?: 'sm' | 'md' | 'lg'
 }
 
+// Module-level stack of open modals so Escape only dismisses the topmost one
+// when modals are nested (e.g. edit modal above a detail sheet).
+const modalStack: symbol[] = []
+
 export default function Modal({ title, onClose, children, size = 'md' }: Props) {
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
   const panelRef = useFocusTrap<HTMLDivElement>()
   const titleId = useId()
+  const [stackId] = useState(() => Symbol('modal'))
 
   // Lock body scroll while modal is open (prevents double-scroll on iOS)
   // Saves and restores scroll position to prevent the jump caused by position:fixed
@@ -32,10 +37,20 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
   }, [])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    modalStack.push(stackId)
+    return () => {
+      const idx = modalStack.indexOf(stackId)
+      if (idx !== -1) modalStack.splice(idx, 1)
+    }
+  }, [stackId])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === stackId) onClose()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [onClose, stackId])
 
   const maxWidths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
 

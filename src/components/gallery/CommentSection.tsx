@@ -176,7 +176,7 @@ export default function CommentSection({
               Replying to <span className="font-bold text-night-800">{replyingTo.name}</span>
               <button
                 onClick={cancelReply}
-                className="ml-1.5 inline-flex items-center justify-center w-6 h-6 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-night-800"
+                className="ml-1.5 inline-flex items-center justify-center w-7 h-7 -my-2 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-night-800"
                 aria-label="Cancel reply"
               >×</button>
             </span>
@@ -186,9 +186,11 @@ export default function CommentSection({
               <img src={selectedGif} alt="GIF" className="h-12 rounded-md" />
               <button
                 onClick={() => setSelectedGif(null)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-night-900 text-cream-50 text-[10px] flex items-center justify-center shadow"
+                className="absolute -top-2.5 -right-2.5 w-7 h-7 flex items-center justify-center"
                 aria-label="Remove GIF"
-              >×</button>
+              >
+                <span className="w-5 h-5 rounded-full bg-night-900 text-cream-50 text-[10px] flex items-center justify-center shadow">×</span>
+              </button>
             </div>
           )}
         </div>

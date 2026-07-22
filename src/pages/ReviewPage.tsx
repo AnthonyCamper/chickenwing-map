@@ -9,6 +9,8 @@ import ReviewCard from '../components/ReviewCard'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
+import ShareButton from '../components/ui/ShareButton'
+import { useAuthContext } from '../components/AuthProvider'
 import type { Review, ReviewPhoto, WingSpot, ReviewUpdateData } from '../lib/types'
 
 interface OtherReview {
@@ -32,6 +34,7 @@ export default function ReviewPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const auth = useAuthContext()
 
   const load = useCallback(async () => {
     if (!id) return
@@ -147,6 +150,13 @@ export default function ReviewPage() {
             </Link>
           )}
           {spot?.address && <p className="text-xs text-charcoal-500 mt-1">{spot.address}</p>}
+          <div className="mt-3">
+            <ShareButton
+              title={title}
+              text={spot ? `A ${rating}/10 wing take at ${spot.name}` : 'A wing take on WingKingTony'}
+              url={window.location.href}
+            />
+          </div>
         </div>
       </header>
 
@@ -155,7 +165,7 @@ export default function ReviewPage() {
           <ReviewCard
             review={review}
             currentUserId={currentUserId}
-            isAdmin={false}
+            isAdmin={auth?.isAdmin ?? false}
             onUpdate={handleUpdate}
             onDelete={async (rid) => {
               const res = await handleDelete(rid)

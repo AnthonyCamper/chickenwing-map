@@ -10,6 +10,7 @@ import PageStateShell from '../components/ui/PageStateShell'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
+import ShareButton from '../components/ui/ShareButton'
 import HeartIcon from '../components/gallery/HeartIcon'
 import CrawlCommentThread from '../components/CrawlCommentThread'
 import { useAuthGate } from '../components/AuthGateModal'
@@ -318,6 +319,12 @@ export default function CrawlPage() {
                 <span className="text-xs font-bold">{crawl.like_count}</span>
               )}
             </button>
+            <ShareButton
+              title={crawl.title}
+              text={description}
+              url={`${window.location.origin}/lists/${crawl.slug}`}
+              className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
+            />
           </div>
         </div>
       </header>

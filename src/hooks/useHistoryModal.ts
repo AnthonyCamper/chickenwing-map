@@ -28,6 +28,16 @@ export function useHistoryModal(isOpen: boolean, onClose: () => void) {
     }
   }, [isOpen])
 
+  // If the host component unmounts while the modal is still open, pop the
+  // pushed entry too — otherwise the next back press is a silent no-op.
+  useEffect(() => () => {
+    if (pushedRef.current) {
+      pushedRef.current = false
+      closingViaAppRef.current = true
+      window.history.back()
+    }
+  }, [])
+
   // Listen for browser-initiated back navigation
   useEffect(() => {
     const handler = () => {

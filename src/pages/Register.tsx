@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 
 function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
   if (!pw) return { score: 0, label: '' }
@@ -76,19 +77,21 @@ export default function Register({ onSignUp }: Props) {
 
   if (needsEmail) {
     return (
-      <div className="min-h-dvh bg-warmgray-50 flex flex-col items-center justify-center px-6 py-12">
-        <div className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-100 opacity-40 blur-3xl" />
-          <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-warmgray-300 opacity-50 blur-3xl" />
-        </div>
+      <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+        <Helmet>
+          <title>Check your email — WingKingTony</title>
+        </Helmet>
+        <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07]" />
         <div className="relative w-full max-w-sm text-center animate-fade-in">
-          <div className="w-16 h-16 rounded-3xl bg-amber-400 flex items-center justify-center shadow-elevated mb-5 text-3xl mx-auto">
+          <div className="mx-auto w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5 flex items-center justify-center bg-cream-100 text-3xl">
             ✉️
           </div>
-          <h2 className="font-display text-2xl text-charcoal-800 mb-3">Check your email</h2>
-          <p className="text-sm text-charcoal-500 leading-relaxed mb-6">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to verify your address,
-            then come back here — your request will be reviewed by the admin.
+          <span className="eyebrow">One more step</span>
+          <h2 className="h-poster-sm mt-2 mb-4">Check your email</h2>
+          <p className="text-sm text-charcoal-600 leading-relaxed mb-6">
+            We sent a confirmation link to <strong className="text-night-900">{email}</strong>.
+            Click it to verify your address, then come back here — the admin will
+            review your request.
           </p>
           <Link to="/" className="btn-secondary inline-flex">
             Back to sign in
@@ -103,33 +106,34 @@ export default function Register({ onSignUp }: Props) {
   }
 
   return (
-    <div className="min-h-dvh bg-warmgray-50 flex flex-col items-center justify-center px-6 py-12">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-amber-100 opacity-40 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full bg-warmgray-300 opacity-50 blur-3xl" />
-      </div>
+    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+      <Helmet>
+        <title>Request access — WingKingTony</title>
+      </Helmet>
+
+      <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.08]" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07] rotate-180" />
 
       <div className="relative w-full max-w-sm animate-fade-in">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-3xl bg-amber-400 flex items-center justify-center shadow-elevated mb-5 text-3xl">
-            🍗
-          </div>
-          <h1 className="font-display text-3xl text-charcoal-800 tracking-tight">
-            Request access
-          </h1>
-          <p className="mt-2 text-sm text-charcoal-600 text-center leading-relaxed">
-            Fill in your details and the admin will approve your account.
-          </p>
+        <div className="flex flex-col items-center text-center mb-8">
+          <img
+            src="/favicon.svg"
+            alt=""
+            className="w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5"
+          />
+          <span className="eyebrow">Join the wing council</span>
+          <h1 className="h-poster-sm mt-1">Request access</h1>
+          <p className="h-hand text-xl -rotate-2 mt-1">get in on the sauce</p>
         </div>
 
-        <div className="card px-8 py-8">
+        <div className="card px-6 py-7">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Avatar picker */}
             <div className="flex flex-col items-center gap-3 pb-2">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-20 h-20 rounded-full overflow-hidden bg-warmgray-100 ring-2 ring-warmgray-200 hover:ring-amber-300 transition-all flex items-center justify-center text-charcoal-400 hover:text-charcoal-500 flex-shrink-0"
+                className="w-20 h-20 -rotate-2 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 shadow-sticker hover:border-sauce-400 transition-colors flex items-center justify-center text-cream-100 flex-shrink-0"
               >
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
@@ -140,7 +144,7 @@ export default function Register({ onSignUp }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="text-xs text-amber-500 hover:underline"
+                className="text-xs text-sauce-500 font-bold hover:underline"
               >
                 {avatarPreview ? 'Change photo' : 'Add profile photo (optional)'}
               </button>
@@ -204,11 +208,11 @@ export default function Register({ onSignUp }: Props) {
                         key={i}
                         className={`flex-1 rounded-full transition-colors ${
                           i < pwStrength.score
-                            ? pwStrength.score <= 1 ? 'bg-red-400'
-                              : pwStrength.score === 2 ? 'bg-amber-400'
-                              : pwStrength.score === 3 ? 'bg-amber-500'
-                              : 'bg-green-500'
-                            : 'bg-warmgray-200'
+                            ? pwStrength.score <= 1 ? 'bg-sauce-500'
+                              : pwStrength.score === 2 ? 'bg-ember-300'
+                              : pwStrength.score === 3 ? 'bg-gold-300'
+                              : 'bg-neon-400'
+                            : 'bg-cream-200'
                         }`}
                       />
                     ))}
@@ -221,7 +225,7 @@ export default function Register({ onSignUp }: Props) {
             </div>
 
             {error && (
-              <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+              <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
             )}
 
             <button
@@ -230,7 +234,7 @@ export default function Register({ onSignUp }: Props) {
               className="btn-primary w-full py-3.5"
             >
               {loading ? (
-                <span className="w-5 h-5 rounded-full border-2 border-white border-t-amber-200 animate-spin" />
+                <span className="w-5 h-5 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />
               ) : null}
               {loading ? 'Submitting…' : 'Request access'}
             </button>
@@ -238,14 +242,14 @@ export default function Register({ onSignUp }: Props) {
 
           <p className="mt-5 text-center text-xs text-charcoal-600">
             Already have an account?{' '}
-            <Link to="/" className="text-amber-500 font-semibold hover:underline">
+            <Link to="/" className="text-sauce-500 font-bold hover:underline">
               Sign in
             </Link>
           </p>
         </div>
 
-        <p className="mt-8 text-center text-xs text-charcoal-400">
-          WingMap Ratings
+        <p className="mt-8 text-center text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-400">
+          WingKingTony — official wing business
         </p>
       </div>
     </div>

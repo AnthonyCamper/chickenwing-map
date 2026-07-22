@@ -1,6 +1,32 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import type { AuthState } from '../hooks/useAuth'
 import AppHeader from './AppHeader'
+
+/**
+ * True while a text field has focus. The FAB hides during typing so it can't
+ * sit on top of inline comment composers (its fixed bottom-right position
+ * collides with a card's Post button) or the iOS keyboard's viewport.
+ */
+function useTypingFocus(): boolean {
+  const [typing, setTyping] = useState(false)
+  useEffect(() => {
+    const isTextField = (el: EventTarget | null) =>
+      el instanceof HTMLElement &&
+      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+    const onFocusIn = (e: FocusEvent) => { if (isTextField(e.target)) setTyping(true) }
+    const onFocusOut = () => {
+      // wait a tick: focus may be moving between fields
+      setTimeout(() => setTyping(isTextField(document.activeElement)), 0)
+    }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+    }
+  }, [])
+  return typing
+}
 
 type View = 'list' | 'map' | 'gallery'
 
@@ -18,6 +44,7 @@ export default function Layout({
   auth, view, onViewChange, onAddReview, readOnly = false, liveScene, children,
 }: Props) {
   const user = auth.user
+  const typing = useTypingFocus()
 
   return (
     <div className="min-h-dvh flex flex-col bg-cream-50">
@@ -64,7 +91,7 @@ export default function Layout({
       </footer>
 
       {/* Floating add button */}
-      {!readOnly && user && (
+      {!readOnly && user && !typing && (
         <button
           onClick={onAddReview}
           className="fixed right-4 z-30 group flex items-center gap-2

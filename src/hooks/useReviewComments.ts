@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { triggerPushDelivery } from '../lib/pushManager'
 import type { ReviewComment, CommentReaction, CommentContentType, AddCommentOptions } from '../lib/types'
@@ -29,6 +30,7 @@ interface RawReaction {
 interface UseReviewCommentsReturn {
   comments: ReviewComment[]
   loading: boolean
+  error: string | null
   addComment: (opts: string | AddCommentOptions) => Promise<void>
   deleteComment: (commentId: string) => Promise<void>
   toggleCommentLike: (commentId: string) => Promise<void>
@@ -42,6 +44,7 @@ export function useReviewComments(
 ): UseReviewCommentsReturn {
   const [comments, setComments] = useState<ReviewComment[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const attachReactions = useCallback(
     (rawComments: RawComment[], reactions: RawReaction[]): ReviewComment[] => {
@@ -73,12 +76,18 @@ export function useReviewComments(
   const fetchComments = useCallback(async () => {
     setLoading(true)
     try {
-      const { data: commentData } = await supabase
+      const { data: commentData, error: fetchErr } = await supabase
         .from('review_comments_detailed')
         .select('*')
         .eq('review_id', reviewId)
         .is('parent_comment_id', null)
         .order('created_at', { ascending: true })
+
+      if (fetchErr) {
+        setError(fetchErr.message)
+        return
+      }
+      setError(null)
 
       const rawComments = (commentData ?? []) as RawComment[]
 
@@ -204,6 +213,7 @@ export function useReviewComments(
         } else {
           setComments(prev => prev.filter(c => c.id !== tempId))
         }
+        toast.error('Could not post comment')
       } else {
         if (parentCommentId) {
           await fetchReplies(parentCommentId)
@@ -218,7 +228,9 @@ export function useReviewComments(
 
   const deleteComment = useCallback(
     async (commentId: string) => {
+      let snapshot: ReviewComment[] = []
       setComments(prev => {
+        snapshot = prev
         const isTopLevel = prev.some(c => c.id === commentId)
         if (isTopLevel) {
           return prev.filter(c => c.id !== commentId)
@@ -232,7 +244,11 @@ export function useReviewComments(
           }
         })
       })
-      await supabase.from('review_comments').delete().eq('id', commentId)
+      const { error } = await supabase.from('review_comments').delete().eq('id', commentId)
+      if (error) {
+        setComments(snapshot)
+        toast.error('Could not delete comment')
+      }
     },
     []
   )
@@ -261,14 +277,11 @@ export function useReviewComments(
 
       setComments(prev => prev.map(updateLike))
 
-      try {
-        if (wasLiked) {
-          await supabase.from('review_comment_likes').delete().match({ comment_id: commentId, user_id: currentUserId })
-        } else {
-          await supabase.from('review_comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
-          triggerPushDelivery()
-        }
-      } catch {
+      const { error } = wasLiked
+        ? await supabase.from('review_comment_likes').delete().match({ comment_id: commentId, user_id: currentUserId })
+        : await supabase.from('review_comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
+
+      if (error) {
         const revertLike = (c: ReviewComment): ReviewComment =>
           c.id === commentId
             ? { ...c, is_liked_by_me: wasLiked, like_count: comment.like_count }
@@ -276,6 +289,9 @@ export function useReviewComments(
               ? { ...c, replies: c.replies.map(revertLike) }
               : c
         setComments(prev => prev.map(revertLike))
+        toast.error('Could not update like')
+      } else if (!wasLiked) {
+        triggerPushDelivery()
       }
     },
     [comments, currentUserId]
@@ -313,19 +329,16 @@ export function useReviewComments(
 
       setComments(prev => prev.map(updateReactions))
 
-      try {
-        if (isMine) {
-          await supabase
+      const { error } = isMine
+        ? await supabase
             .from('review_comment_reactions')
             .delete()
             .match({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
-        } else {
-          await supabase
+        : await supabase
             .from('review_comment_reactions')
             .insert({ comment_id: commentId, user_id: currentUserId, reaction_type: reactionType })
-          triggerPushDelivery()
-        }
-      } catch {
+
+      if (error) {
         const revertReactions = (c: ReviewComment): ReviewComment =>
           c.id === commentId
             ? { ...c, reactions: comment.reactions }
@@ -333,12 +346,15 @@ export function useReviewComments(
               ? { ...c, replies: c.replies.map(revertReactions) }
               : c
         setComments(prev => prev.map(revertReactions))
+        toast.error('Could not update reaction')
+      } else if (!isMine) {
+        triggerPushDelivery()
       }
     },
     [comments, currentUserId]
   )
 
-  return { comments, loading, addComment, deleteComment, toggleCommentLike, toggleReaction, fetchReplies }
+  return { comments, loading, error, addComment, deleteComment, toggleCommentLike, toggleReaction, fetchReplies }
 }
 
 /**

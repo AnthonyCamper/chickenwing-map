@@ -109,14 +109,21 @@ export default function AppHeader({ view, onViewChange }: Props) {
     let cancelled = false
     const fetchActive = async () => {
       const now = new Date().toISOString()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('events_with_counts')
         .select('*')
         .eq('is_published', true)
         .or(`ends_at.gte.${now},ends_at.is.null`)
         .order('starts_at', { ascending: true, nullsFirst: false })
         .limit(1)
-      if (!cancelled) setActiveEvent((data?.[0] as WingEvent | undefined) ?? null)
+      if (cancelled) return
+      if (error) {
+        // Fail quietly: the broadcast strip is optional chrome — just don't
+        // render it rather than showing a bogus "no event" state elsewhere.
+        setActiveEvent(null)
+        return
+      }
+      setActiveEvent((data?.[0] as WingEvent | undefined) ?? null)
     }
     fetchActive()
     return () => { cancelled = true }

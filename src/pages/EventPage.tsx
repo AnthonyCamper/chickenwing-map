@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { AuthState } from '../hooks/useAuth'
@@ -11,6 +12,7 @@ import ReviewEditModal from '../components/ReviewEditModal'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
+import ShareButton from '../components/ui/ShareButton'
 import { supabase } from '../lib/supabase'
 import type { EventStop, Review, ReviewPhoto, ReviewFormData, RsvpStatus } from '../lib/types'
 
@@ -83,7 +85,7 @@ function RouteMap({ stops }: RouteMapProps) {
   return (
     <div
       ref={mapRef}
-      className="w-full h-56 rounded-2xl overflow-hidden border border-warmgray-200 shadow-soft"
+      className="w-full h-56 rounded-xl overflow-hidden border-2 border-night-900 shadow-sticker"
     />
   )
 }
@@ -197,7 +199,7 @@ export default function EventPage({ auth }: Props) {
   if (evt.loading) {
     return (
       <PageStateShell>
-        <div className="w-10 h-10 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+        <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
       </PageStateShell>
     )
   }
@@ -206,8 +208,9 @@ export default function EventPage({ auth }: Props) {
     return (
       <PageStateShell>
         <p className="text-5xl">🍗</p>
-        <h2 className="font-display text-xl text-charcoal-800">No active crawl</h2>
-        <p className="text-sm text-charcoal-400">There's no published crawl right now. Check back soon.</p>
+        <p className="eyebrow">Quiet night</p>
+        <h2 className="font-display uppercase text-3xl text-night-900">No active crawl</h2>
+        <p className="text-sm text-charcoal-600">There's no published crawl right now. Check back soon.</p>
         <button onClick={() => navigate('/')} className="btn-secondary">Back home</button>
       </PageStateShell>
     )
@@ -301,48 +304,22 @@ export default function EventPage({ auth }: Props) {
   }
 
   return (
-    <div className="min-h-dvh bg-warmgray-50">
+    <div className="min-h-dvh bg-paper">
+      <Helmet>
+        <title>{e.name} — WingKingTony</title>
+      </Helmet>
+
       <AppHeader />
 
       {/* Sub-bar with event title + share */}
-      <div className="border-b border-warmgray-200 bg-warmgray-50">
+      <div className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          <h1 className="font-display text-base text-charcoal-800 flex-1 truncate">{e.name}</h1>
-          <button
-            onClick={async () => {
-              const url = `${window.location.origin}/events/${e.slug}`
-              const shareData = {
-                title: e.name,
-                text: `Join me at ${e.name}! 🍗`,
-                url,
-              }
-              if (typeof navigator !== 'undefined' && navigator.share) {
-                try {
-                  await navigator.share(shareData)
-                  return
-                } catch (err) {
-                  if (err instanceof Error && err.name === 'AbortError') return
-                }
-              }
-              try {
-                await navigator.clipboard.writeText(url)
-                toast.success('Link copied!')
-              } catch {
-                toast.error('Could not copy link')
-              }
-            }}
-            className="btn-ghost px-2 py-1.5 text-charcoal-500 text-sm flex items-center gap-1"
-            aria-label="Share crawl"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-            </svg>
-            <span className="hidden sm:inline">Share</span>
-          </button>
+          <h1 className="font-display uppercase text-lg text-night-900 tracking-tightest flex-1 truncate">{e.name}</h1>
+          <ShareButton
+            title={e.name}
+            text={`Join me at ${e.name}! 🍗`}
+            url={`${window.location.origin}/events/${e.slug}`}
+          />
         </div>
       </div>
 
@@ -350,27 +327,27 @@ export default function EventPage({ auth }: Props) {
         {/* Hero */}
         <section className="card overflow-hidden">
           {e.cover_image_url ? (
-            <img src={e.cover_image_url} alt="" className="w-full h-44 object-cover" />
+            <img src={e.cover_image_url} alt="" className="w-full h-44 object-cover border-b-2 border-night-900" />
           ) : (
-            <div className="w-full h-32 bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center">
+            <div className="w-full h-32 bg-night-800 bg-halftone-dark border-b-2 border-night-900 flex items-center justify-center">
               <span className="text-6xl">🍗</span>
             </div>
           )}
           <div className="px-5 py-4">
-            <h2 className="font-display text-2xl text-charcoal-800 mb-1">{e.name}</h2>
+            <h2 className="font-display uppercase text-2xl text-night-900 tracking-tightest mb-1">{e.name}</h2>
             {dateRange && (
-              <p className="text-sm text-charcoal-400 font-medium">{dateRange}</p>
+              <p className="text-sm text-charcoal-600 font-bold">{dateRange}</p>
             )}
             {e.description && (
-              <p className="text-sm text-charcoal-500 mt-3 leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-charcoal-600 mt-3 leading-relaxed whitespace-pre-wrap">
                 {e.description}
               </p>
             )}
-            <div className="flex items-center gap-4 mt-4 text-xs text-charcoal-400">
+            <div className="flex items-center gap-4 mt-4 text-xs font-bold text-charcoal-500 uppercase tracking-crowd">
               <span>👥 {e.going_count ?? 0} going</span>
               <span>📍 {e.stop_count ?? evt.stops.length} stops</span>
               {evt.myRsvp && evt.myRsvp.status === 'going' && (
-                <span className="text-amber-600 font-semibold">✓ You're in</span>
+                <span className="text-sauce-500 font-extrabold">✓ You're in</span>
               )}
             </div>
           </div>
@@ -384,8 +361,8 @@ export default function EventPage({ auth }: Props) {
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">✋</span>
                   <div>
-                    <p className="font-semibold text-charcoal-800 text-sm">You're in!</p>
-                    <p className="text-xs text-charcoal-400">See you at the crawl</p>
+                    <p className="font-extrabold text-night-900 text-sm uppercase tracking-crowd">You're in!</p>
+                    <p className="text-xs text-charcoal-500">See you at the crawl</p>
                   </div>
                 </div>
                 <button
@@ -395,7 +372,7 @@ export default function EventPage({ auth }: Props) {
                     if (error) toast.error(error)
                     else toast.success('RSVP removed')
                   }}
-                  className="text-xs text-charcoal-400 hover:text-red-500 transition-colors"
+                  className="text-xs font-bold text-charcoal-500 hover:text-sauce-500 transition-colors"
                 >
                   Drop out
                 </button>
@@ -408,7 +385,7 @@ export default function EventPage({ auth }: Props) {
                       key={s}
                       onClick={() => handleRsvp(s)}
                       disabled={rsvpSubmitting !== null}
-                      className="px-3 py-2 rounded-xl text-xs font-medium border bg-white text-charcoal-500 border-warmgray-200 hover:border-amber-300 disabled:opacity-60 transition-all"
+                      className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
                     >
                       {rsvpSubmitting === s ? '…' : label}
                     </button>
@@ -418,8 +395,8 @@ export default function EventPage({ auth }: Props) {
             </section>
           ) : evt.myRsvp ? (
             <section className="card px-5 py-4">
-              <p className="text-sm text-charcoal-500 mb-3">
-                You said: <strong className="text-charcoal-700">
+              <p className="text-sm text-charcoal-600 mb-3">
+                You said: <strong className="text-night-900">
                   {evt.myRsvp.status === 'maybe' ? 'Maybe' : "Can't make it"}
                 </strong>
               </p>
@@ -444,14 +421,14 @@ export default function EventPage({ auth }: Props) {
                 <button
                   onClick={() => handleRsvp('maybe')}
                   disabled={rsvpSubmitting !== null}
-                  className="px-3 py-2 rounded-xl text-xs font-medium border bg-white text-charcoal-500 border-warmgray-200 hover:border-amber-300 disabled:opacity-60 transition-all"
+                  className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
                 >
                   🤔 Maybe
                 </button>
                 <button
                   onClick={() => handleRsvp('not_going')}
                   disabled={rsvpSubmitting !== null}
-                  className="px-3 py-2 rounded-xl text-xs font-medium border bg-white text-charcoal-500 border-warmgray-200 hover:border-amber-300 disabled:opacity-60 transition-all"
+                  className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
                 >
                   🙅 Can't make it
                 </button>
@@ -464,33 +441,33 @@ export default function EventPage({ auth }: Props) {
         {evt.myRsvp?.status === 'going' && evt.stops.length > 0 && (
           <section className="card px-5 py-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display text-base text-charcoal-800">Your progress</h3>
-              <span className="text-sm font-semibold text-amber-600">
+              <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">Your progress</h3>
+              <span className="text-sm font-extrabold text-sauce-500">
                 {checkedInStopIds.size}/{evt.stops.length}
               </span>
             </div>
-            <div className="h-2 bg-warmgray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-cream-200 rounded-full overflow-hidden border border-night-900/20">
               <div
-                className="h-full bg-amber-400 transition-all duration-500"
+                className="h-full bg-sauce-400 transition-all duration-500"
                 style={{ width: `${completionPct}%` }}
               />
             </div>
             {completionPct === 100 && (
-              <p className="text-xs text-amber-600 font-semibold mt-2">🏆 Crawl complete!</p>
+              <p className="text-xs text-gold-500 font-extrabold uppercase tracking-crowd mt-2">🏆 Crawl complete!</p>
             )}
           </section>
         )}
 
         {/* Route */}
         <section>
-          <h3 className="font-display text-lg text-charcoal-800 mb-3 px-1">The Route</h3>
+          <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-3 px-1">The Route</h3>
           {evt.stops.length > 0 && (
             <div className="mb-4">
               <RouteMap stops={evt.stops} />
             </div>
           )}
           {evt.stops.length === 0 ? (
-            <div className="card px-5 py-8 text-center text-charcoal-400">
+            <div className="card px-5 py-8 text-center text-charcoal-500">
               <p className="text-sm">No stops have been added yet.</p>
             </div>
           ) : (
@@ -501,31 +478,31 @@ export default function EventPage({ auth }: Props) {
                 const myCheckin = evt.myCheckins.find(c => c.event_stop_id === stop.id)
                 const hasReview = !!myCheckin?.review_id
                 return (
-                  <li key={stop.id} className={`card px-4 py-4 ${isCheckedIn ? 'bg-amber-50/50 border-amber-200' : ''}`}>
+                  <li key={stop.id} className={`card px-4 py-4 ${isCheckedIn ? 'bg-gold-50 shadow-sticker-gold' : ''}`}>
                     <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                      <div className={`w-9 h-9 rounded-full border-2 border-night-900 flex items-center justify-center font-bold text-sm flex-shrink-0 ${
                         isCheckedIn
-                          ? 'bg-amber-400 text-white'
-                          : 'bg-warmgray-100 text-charcoal-500'
+                          ? 'bg-sauce-400 text-cream-50'
+                          : 'bg-cream-200 text-night-800'
                       }`}>
                         {isCheckedIn ? '✓' : idx + 1}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-charcoal-800">{stop.spot_name}</p>
-                        <p className="text-xs text-charcoal-400 truncate mt-0.5">{stop.spot_address}</p>
+                        <p className="font-extrabold text-night-900">{stop.spot_name}</p>
+                        <p className="text-xs text-charcoal-500 truncate mt-0.5">{stop.spot_address}</p>
                         {stop.planned_arrival && (
-                          <p className="text-xs text-charcoal-400 mt-1">
+                          <p className="text-xs text-charcoal-500 mt-1">
                             ⏰ {format(new Date(stop.planned_arrival), 'h:mm a')}
                           </p>
                         )}
                         {stop.notes && (
-                          <p className="text-xs text-charcoal-500 mt-1 italic">{stop.notes}</p>
+                          <p className="text-xs text-charcoal-600 mt-1 italic">{stop.notes}</p>
                         )}
                         {stop.parking_notes && (
-                          <p className="text-xs text-charcoal-500 mt-1">🅿️ {stop.parking_notes}</p>
+                          <p className="text-xs text-charcoal-600 mt-1">🅿️ {stop.parking_notes}</p>
                         )}
                         {stop.checkin_count && stop.checkin_count > 0 && (
-                          <p className="text-xs text-charcoal-400 mt-1">
+                          <p className="text-xs text-charcoal-500 mt-1">
                             {stop.checkin_count} {stop.checkin_count === 1 ? 'check-in' : 'check-ins'}
                           </p>
                         )}
@@ -541,7 +518,7 @@ export default function EventPage({ auth }: Props) {
                                 {isLoading ? '…' : '📍 Check in'}
                               </button>
                             ) : (
-                              <span className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-semibold">
+                              <span className="px-3 py-2 rounded-xl bg-gold-100 text-gold-700 border-2 border-gold-300 text-xs font-extrabold uppercase tracking-crowd">
                                 ✓ Checked in
                               </span>
                             )}
@@ -580,7 +557,7 @@ export default function EventPage({ auth }: Props) {
         {/* Event badges */}
         {eventBadges.length > 0 && (
           <section>
-            <h3 className="font-display text-lg text-charcoal-800 mb-3 px-1">Event Badges</h3>
+            <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-3 px-1">Event Badges</h3>
             <BadgeGrid badges={eventBadges} />
           </section>
         )}
@@ -588,7 +565,7 @@ export default function EventPage({ auth }: Props) {
         {/* Checked-in attendees with badges */}
         {checkinAttendees.length > 0 && (
           <section className="card px-5 py-4">
-            <h3 className="font-display text-base text-charcoal-800 mb-3">
+            <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">
               Checked in ({checkinAttendees.length})
             </h3>
             <ul className="space-y-3">
@@ -596,15 +573,15 @@ export default function EventPage({ auth }: Props) {
                 <li key={a.user_id} className="flex flex-col gap-1">
                   <div className="flex items-center gap-3">
                     {a.avatar_url ? (
-                      <img src={a.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      <img src={a.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-night-900 flex-shrink-0" />
                     ) : (
-                      <span className="w-9 h-9 rounded-full bg-amber-200 flex items-center justify-center text-sm font-bold text-amber-700 flex-shrink-0">
+                      <span className="w-9 h-9 rounded-full bg-night-700 border-2 border-night-900 flex items-center justify-center text-sm font-extrabold text-cream-50 flex-shrink-0">
                         {a.display_name.charAt(0).toUpperCase()}
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-charcoal-700 truncate">{a.display_name}</p>
-                      <p className="text-xs text-charcoal-400">
+                      <p className="text-sm font-bold text-night-900 truncate">{a.display_name}</p>
+                      <p className="text-xs text-charcoal-500">
                         {a.stop_count}/{evt.stops.length} {a.stop_count === 1 ? 'stop' : 'stops'}
                       </p>
                     </div>
@@ -627,7 +604,7 @@ export default function EventPage({ auth }: Props) {
                         ))}
                         {a.badges.length > 6 && (
                           <span
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-warmgray-200 text-charcoal-500 border-2 border-white shadow-sm"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-cream-200 text-charcoal-500 border-2 border-white shadow-sm"
                             style={{ marginLeft: '-8px', position: 'relative', zIndex: 0 }}
                           >
                             +{a.badges.length - 6}
@@ -654,13 +631,13 @@ export default function EventPage({ auth }: Props) {
                     )}
                   </div>
                   {auth.isAdmin && resetConfirmUserId === a.user_id && (
-                    <div className="ml-12 flex items-center gap-2 py-2 px-3 bg-sauce-50 border border-sauce-200 rounded-xl">
+                    <div className="ml-12 flex items-center gap-2 py-2 px-3 bg-sauce-50 border-2 border-sauce-300 rounded-xl">
                       <p className="text-xs font-semibold text-sauce-700 flex-1">
                         Reset {a.display_name}'s check-ins, reviews & badges?
                       </p>
                       <button
                         onClick={() => setResetConfirmUserId(null)}
-                        className="text-xs font-bold text-charcoal-500 hover:text-charcoal-700 px-2 py-1 rounded-lg hover:bg-warmgray-100 transition-colors"
+                        className="text-xs font-bold text-charcoal-500 hover:text-charcoal-700 px-2 py-1 rounded-lg hover:bg-cream-100 transition-colors"
                       >
                         Cancel
                       </button>
@@ -682,7 +659,7 @@ export default function EventPage({ auth }: Props) {
         {/* Going list */}
         {evt.rsvps.filter(r => r.status === 'going').length > 0 && (
           <section className="card px-5 py-4">
-            <h3 className="font-display text-base text-charcoal-800 mb-3">
+            <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">
               Who's coming ({evt.rsvps.filter(r => r.status === 'going').length})
             </h3>
             <ul className="flex flex-wrap gap-2">
@@ -691,18 +668,18 @@ export default function EventPage({ auth }: Props) {
                 .map(r => (
                   <li
                     key={r.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-warmgray-50 border border-warmgray-200"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-100 border-2 border-night-900/20"
                   >
                     {r.is_private ? (
-                      <span className="w-5 h-5 rounded-full bg-warmgray-200 flex items-center justify-center text-xs">🔒</span>
+                      <span className="w-5 h-5 rounded-full bg-cream-200 flex items-center justify-center text-xs">🔒</span>
                     ) : r.user_avatar ? (
                       <img src={r.user_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
                     ) : (
-                      <span className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center text-xs font-bold text-amber-700">
+                      <span className="w-5 h-5 rounded-full bg-night-700 flex items-center justify-center text-xs font-bold text-cream-50">
                         {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
                       </span>
                     )}
-                    <span className="text-xs font-medium text-charcoal-600">
+                    <span className="text-xs font-bold text-charcoal-600">
                       {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
                     </span>
                   </li>

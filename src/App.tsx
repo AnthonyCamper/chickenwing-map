@@ -10,6 +10,8 @@ import SpotPage from './pages/SpotPage'
 import UserProfilePage from './pages/UserProfilePage'
 import ReviewPage from './pages/ReviewPage'
 import CrawlPage from './pages/CrawlPage'
+import NotFound from './pages/NotFound'
+import ErrorBoundary from './components/ErrorBoundary'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
 
@@ -20,6 +22,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const EventPage = lazy(() => import('./pages/EventPage'))
 const EventsIndex = lazy(() => import('./pages/EventsIndex'))
 const CrawlEditor = lazy(() => import('./pages/CrawlEditor'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
 function LazyFallback() {
   return (
@@ -49,7 +52,7 @@ function StatusScreen({ title, message, onSignOut }: { title: string; message: s
         <p className="text-sm text-charcoal-600 leading-relaxed mb-6">{message}</p>
         <div className="flex flex-col items-center gap-2">
           <a
-            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`WingMap — ${title}`)}`}
+            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`WingKingTony — ${title}`)}`}
             className="btn-primary"
           >
             Contact admin
@@ -88,7 +91,7 @@ export default function App() {
       <Toaster
         position="top-center"
         gutter={8}
-        containerStyle={{ top: 20 }}
+        containerStyle={{ top: 'calc(20px + env(safe-area-inset-top))' }}
         toastOptions={{
           duration: 3000,
           style: {
@@ -122,6 +125,7 @@ export default function App() {
         }}
       />
 
+      <ErrorBoundary>
       <Suspense fallback={<LazyFallback />}>
       <Routes>
         <Route path="/login" element={
@@ -208,6 +212,10 @@ export default function App() {
           }
         />
 
+        {/* Reachable in any auth state: the recovery link signs the user in
+            with a temporary session as it lands, so no auth gating here. */}
+        <Route path="/reset-password" element={<ResetPassword />} />
+
         <Route path="/spots/:slug" element={<SpotPage />} />
         <Route path="/u/:username" element={<UserProfilePage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
@@ -215,9 +223,10 @@ export default function App() {
         <Route path="/lists/new" element={<CrawlEditor />} />
         <Route path="/lists/:id/edit" element={<CrawlEditor />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </AuthGateProvider>
     </AuthProvider>
   )

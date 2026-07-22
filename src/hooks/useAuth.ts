@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Session, User } from '@supabase/supabase-js'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import type { AuthStatus, UserProfile, SiteSettings } from '../lib/types'
 
@@ -76,8 +77,19 @@ export function useAuth(): AuthState {
     const isPublic = settingsData?.is_public ?? false
     if (settingsData) setSiteSettings({ is_public: settingsData.is_public })
 
-    if (error || !data) {
-      // Profile not yet created — in public mode let them in read-only, otherwise pending gate
+    if (error) {
+      // Transient fetch failure (network, RLS hiccup) — keep whatever
+      // status/profile we already resolved rather than demoting an approved
+      // user to the pending gate mid-session. Only a cold load (still
+      // 'loading') falls back to the old default gates.
+      setStatus(prev =>
+        prev === 'loading' ? (isPublic ? 'authorized' : 'pending') : prev
+      )
+      return
+    }
+
+    if (!data) {
+      // Profile genuinely not yet created — in public mode let them in read-only, otherwise pending gate
       if (isPublic) {
         setStatus('authorized')
         setIsAdmin(false)
@@ -251,16 +263,18 @@ export function useAuth(): AuthState {
     const userId = session?.user?.id
     if (!userId) return
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', userId)
       .select('status, is_admin, can_leave_reviews, display_name, full_name, username, avatar_url, bio, email, is_private, created_at')
       .maybeSingle()
 
-    if (data) {
-      setProfile(prev => prev ? { ...prev, ...updates } : prev)
+    if (error || !data) {
+      toast.error(error?.message ?? 'Could not update profile')
+      return
     }
+    setProfile(prev => prev ? { ...prev, ...updates } : prev)
   }
 
   return {

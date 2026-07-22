@@ -28,11 +28,19 @@
     overflow-x: clip;
     overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
-    /* Paper texture under everything */
+  }
+
+  /* Paper texture under everything. A fixed pseudo-element instead of
+     `background-attachment: fixed`, which is broken/janky on iOS Safari. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
     background-image: url('/textures/grain.svg');
     background-size: 220px 220px;
-    background-attachment: fixed;
-    background-blend-mode: multiply;
+    mix-blend-mode: multiply;
   }
 
   /* Athletic condensed display for all headings */

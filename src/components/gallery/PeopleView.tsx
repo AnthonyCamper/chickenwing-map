@@ -19,11 +19,16 @@ export default function PeopleView({ currentUserId }: Props) {
   const { openProfile } = useUserProfile()
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
+      setLoading(true)
+      setError(null)
       const [usersRes, followsRes] = await Promise.all([
         supabase
           .from('leaderboard_stats')
@@ -34,12 +39,20 @@ export default function PeopleView({ currentUserId }: Props) {
           .select('following_id')
           .eq('follower_id', currentUserId),
       ])
+      if (cancelled) return
+      if (usersRes.error) {
+        setError("Couldn't load the wing heads. Give it another shot.")
+        setUsers([])
+        setLoading(false)
+        return
+      }
       setUsers((usersRes.data ?? []) as UserRow[])
       setFollowingIds(new Set((followsRes.data ?? []).map((r: any) => r.following_id)))
       setLoading(false)
     }
     load()
-  }, [currentUserId])
+    return () => { cancelled = true }
+  }, [currentUserId, reloadKey])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -78,6 +91,19 @@ export default function PeopleView({ currentUserId }: Props) {
     return (
       <div className="flex justify-center py-20">
         <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+        <div className="text-5xl mb-4">🧯</div>
+        <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load people</h3>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{error}</p>
+        <button onClick={() => setReloadKey(k => k + 1)} className="btn-secondary px-5">
+          Retry
+        </button>
       </div>
     )
   }

@@ -78,23 +78,40 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   // Crawls feed — fetched independently when the tab is active
   const [crawls, setCrawls] = useState<WingCrawlDetailed[]>([])
   const [crawlsLoading, setCrawlsLoading] = useState(false)
+  const [crawlsError, setCrawlsError] = useState<string | null>(null)
+  const [crawlsReloadKey, setCrawlsReloadKey] = useState(0)
 
   useEffect(() => {
     if (feed !== 'crawls') return
     let cancelled = false
     setCrawlsLoading(true)
+    setCrawlsError(null)
     supabase
       .from('wing_crawls_detailed')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return
-        setCrawls((data ?? []) as WingCrawlDetailed[])
+        if (error) {
+          setCrawlsError("Couldn't load the lists. Give it another shot.")
+          setCrawls([])
+        } else {
+          setCrawls((data ?? []) as WingCrawlDetailed[])
+        }
         setCrawlsLoading(false)
       })
     return () => { cancelled = true }
-  }, [feed])
+  }, [feed, crawlsReloadKey])
+
+  // Retry for the review feeds. useGallery is gaining a refresh() (owned by
+  // another change); until it lands, loadMore refetches from the current
+  // offset — after a failed first page that's offset 0, i.e. a retry.
+  const retryFeed = () => {
+    const g = gallery as typeof gallery & { refresh?: () => void }
+    if (typeof g.refresh === 'function') g.refresh()
+    else g.loadMore()
+  }
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -138,6 +155,15 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
             </div>
+          ) : crawlsError ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+              <div className="text-5xl mb-4">🧯</div>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load lists</h3>
+              <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{crawlsError}</p>
+              <button onClick={() => setCrawlsReloadKey(k => k + 1)} className="btn-secondary px-5">
+                Retry
+              </button>
+            </div>
           ) : crawls.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center px-6">
               <div className="text-5xl mb-4">📋</div>
@@ -162,9 +188,16 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
         </div>
-      ) : gallery.error ? (
+      ) : gallery.error && gallery.reviews.length === 0 ? (
+        // Full-screen error only when there's nothing to show — if we already
+        // have items, keep rendering them (paging failures surface via toast).
         <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-          <p className="text-charcoal-600 text-sm">{gallery.error}</p>
+          <div className="text-5xl mb-4">🧯</div>
+          <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load the feed</h3>
+          <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{gallery.error}</p>
+          <button onClick={retryFeed} className="btn-secondary px-5">
+            Retry
+          </button>
         </div>
       ) : gallery.reviews.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center px-6">

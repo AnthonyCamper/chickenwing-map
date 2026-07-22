@@ -11,9 +11,11 @@ import {
 import ReviewCard from '../components/ReviewCard'
 import ReviewFormModal from '../components/ReviewFormModal'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
+import ShareButton from '../components/ui/ShareButton'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import { useAuthGate } from '../components/AuthGateModal'
+import { useAuthContext } from '../components/AuthProvider'
 import type { WingSpot, Review, ReviewPhoto, ReviewUpdateData, ReviewFormData } from '../lib/types'
 
 interface SpotDetail {
@@ -57,6 +59,18 @@ export default function SpotPage() {
   const [lightbox, setLightbox] = useState<{ photos: ReviewPhoto[]; index: number } | null>(null)
   const [showLogModal, setShowLogModal] = useState(false)
   const { requireAuth } = useAuthGate()
+  const auth = useAuthContext()
+
+  // Same gate Home uses for its FAB — signed-in users still need the
+  // can_leave_reviews flag before the form opens.
+  const handleLogWing = () => {
+    if (!requireAuth()) return
+    if (!auth?.canLeaveReviews) {
+      toast.error("the admin hasn't enabled reviews for your account yet.")
+      return
+    }
+    setShowLogModal(true)
+  }
 
   const load = useCallback(async () => {
     if (!slug) return
@@ -185,11 +199,16 @@ export default function SpotPage() {
               </div>
             )}
             <button
-              onClick={() => { if (requireAuth()) setShowLogModal(true) }}
+              onClick={handleLogWing}
               className="btn-primary px-4 py-1.5 text-xs"
             >
               Log a wing here
             </button>
+            <ShareButton
+              title={`${spot.name} — WingKingTony`}
+              text={`Check out the wings at ${spot.name}`}
+              url={window.location.href}
+            />
           </div>
         </div>
       </header>
@@ -212,7 +231,7 @@ export default function SpotPage() {
                 Be the first to log a wing at <span className="font-bold text-night-800">{spot.name}</span>.
               </p>
               <button
-                onClick={() => { if (requireAuth()) setShowLogModal(true) }}
+                onClick={handleLogWing}
                 className="btn-primary"
               >
                 Log a wing here
@@ -226,7 +245,7 @@ export default function SpotPage() {
                 <ReviewCard
                   review={r}
                   currentUserId={currentUserId}
-                  isAdmin={false}
+                  isAdmin={auth?.isAdmin ?? false}
                   onUpdate={handleUpdate}
                   onDelete={async (id) => {
                     const res = await handleDelete(id)
@@ -286,7 +305,6 @@ export default function SpotPage() {
             const result = await createReviewAction(formData, currentUserId)
             if (!result.error) {
               setShowLogModal(false)
-              toast.success('Wing logged')
               await load()
             }
             return result

@@ -27,9 +27,10 @@ interface Props {
   eventContext?: EventContext
 }
 
-const today = new Date().toISOString().split('T')[0]
-
 export default function ReviewFormModal({ onClose, onSubmit, prefill, eventContext }: Props) {
+  // Computed at open time, not module load — a module-level constant goes
+  // stale when the app stays open across midnight.
+  const [today] = useState(() => new Date().toISOString().split('T')[0])
   const [shopName, setShopName] = useState(prefill?.shop_name ?? '')
   const [address, setAddress] = useState(prefill?.address ?? '')
   const [lat, setLat] = useState(prefill ? String(prefill.lat) : '')

@@ -220,6 +220,8 @@ export type NotificationType =
   | 'photo_comment'
   | 'comment_reply'
   | 'photo_like'
+  | 'review_like'
+  | 'review_reaction'
   | 'comment_like'
   | 'comment_reaction'
   | 'crawl_like'

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import type { CommentReaction } from '../lib/types'
 
@@ -58,7 +59,8 @@ export function useReviewReactions(
 
   const toggleReaction = useCallback(
     async (reactionType: string) => {
-      const existing = state.reactions.find(r => r.reaction_type === reactionType)
+      const snapshot = state.reactions
+      const existing = snapshot.find(r => r.reaction_type === reactionType)
       const isMine = existing?.is_mine ?? false
 
       // Optimistic update
@@ -80,20 +82,18 @@ export function useReviewReactions(
         return { ...prev, reactions: updated }
       })
 
-      try {
-        if (isMine) {
-          await supabase
+      const { error } = isMine
+        ? await supabase
             .from('review_reactions')
             .delete()
             .match({ review_id: reviewId, user_id: currentUserId, reaction_type: reactionType })
-        } else {
-          await supabase
+        : await supabase
             .from('review_reactions')
             .insert({ review_id: reviewId, user_id: currentUserId, reaction_type: reactionType })
-        }
-      } catch {
-        // Revert on error
-        setState(prev => ({ ...prev, reactions: state.reactions }))
+
+      if (error) {
+        setState(prev => ({ ...prev, reactions: snapshot }))
+        toast.error('Could not update reaction')
       }
     },
     [reviewId, currentUserId, state.reactions]

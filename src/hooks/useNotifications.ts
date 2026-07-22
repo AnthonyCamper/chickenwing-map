@@ -167,9 +167,11 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
           const photoId = parsed.searchParams.get('photo')
           const reviewId = parsed.searchParams.get('review')
           const commentId = parsed.searchParams.get('comment')
-          if (photoId || reviewId) {
+          // Crawl pushes deep-link by path (/lists/<slug>) rather than query param
+          const crawlSlug = parsed.pathname.match(/^\/lists\/([^/]+)/)?.[1] ?? null
+          if (photoId || reviewId || crawlSlug) {
             window.dispatchEvent(new CustomEvent('push-deep-link', {
-              detail: { photoId, reviewId, commentId },
+              detail: { photoId, reviewId, commentId, crawlSlug },
             }))
           } else if (url !== window.location.pathname + window.location.search) {
             window.location.href = url

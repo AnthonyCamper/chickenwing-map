@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { triggerPushDelivery } from '../lib/pushManager'
 import type { GalleryPhoto, GalleryReviewItem } from '../lib/types'
@@ -22,13 +23,27 @@ const feedCacheKey = (userId: string, followingOnly: boolean) =>
   `${userId}|${followingOnly ? 'following' : 'all'}`
 
 /**
+ * Drop all cached feed pages. Called after a review is created, updated or
+ * deleted so the next gallery mount refetches fresh data instead of restoring
+ * a stale list.
+ */
+export function invalidateGalleryFeedCache() {
+  feedCache.clear()
+}
+
+/**
  * Group flat gallery_feed rows (one per photo) into review-level items.
  * Photos within each review are sorted by display_order.
  */
 export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
   const map = new Map<string, GalleryReviewItem>()
+  const seenPhotoIds = new Set<string>()
 
   for (const p of photos) {
+    // Pages can overlap when rows shift between fetches — never show a photo twice
+    if (seenPhotoIds.has(p.photo_id)) continue
+    seenPhotoIds.add(p.photo_id)
+
     let item = map.get(p.review_id)
     if (!item) {
       item = {
@@ -111,24 +126,43 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
   // Capture "was there a cache at mount" once — distinguishes a back-nav
   // remount (restore scroll) from a cold load (start at top).
   const restoredFromCacheRef = useRef(!!cached)
+  // Which feed the current local state belongs to. Guards the cache-sync
+  // effect (and in-flight fetches) from writing one feed's rows into the
+  // other feed's cache entry when followingOnly is toggled.
+  const loadedKeyRef = useRef(cacheKey)
+
+  // Feed switched (followingOnly toggled): synchronously swap local state
+  // over to the new key's cache before any render or effect can write the
+  // old feed's rows back under the new key.
+  if (loadedKeyRef.current !== cacheKey) {
+    loadedKeyRef.current = cacheKey
+    const entry = feedCache.get(cacheKey)
+    offsetRef.current = entry?.offset ?? 0
+    setPhotos(entry?.photos ?? [])
+    setHasMore(entry?.hasMore ?? true)
+    setLoading(!entry)
+    setError(null)
+  }
 
   const fetchPage = useCallback(async (offset: number, append: boolean) => {
+    const key = feedCacheKey(currentUserId, followingOnly)
     if (offset === 0) setLoading(true)
     else setLoadingMore(true)
 
     try {
       let followingIds: string[] | null = null
       if (followingOnly && currentUserId) {
-        const { data: follows } = await supabase
+        const { data: follows, error: followErr } = await supabase
           .from('follows')
           .select('following_id')
           .eq('follower_id', currentUserId)
+        if (followErr) throw new Error(followErr.message)
         followingIds = (follows ?? []).map((f: any) => f.following_id)
         if (followingIds.length === 0) {
-          setPhotos(append ? prev => prev : [])
-          setHasMore(false)
-          setLoading(false)
-          setLoadingMore(false)
+          if (loadedKeyRef.current === key) {
+            if (!append) setPhotos([])
+            setHasMore(false)
+          }
           return
         }
       }
@@ -145,16 +179,31 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
 
       const { data, error: err } = await query
       if (err) throw new Error(err.message)
+      // Stale response — the feed was switched while this fetch was in flight
+      if (loadedKeyRef.current !== key) return
 
       const rows = (data ?? []) as GalleryPhoto[]
       setHasMore(rows.length === PAGE_SIZE)
-      setPhotos(prev => append ? [...prev, ...rows] : rows)
+      setPhotos(prev => {
+        if (!append) return rows
+        const seen = new Set(prev.map(p => p.photo_id))
+        return [...prev, ...rows.filter(r => !seen.has(r.photo_id))]
+      })
       offsetRef.current = offset + rows.length
+      setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load gallery')
+      if (loadedKeyRef.current !== key) return
+      if (append) {
+        // Keep the already-loaded list — just tell the user paging failed
+        toast.error("Couldn't load more")
+      } else {
+        setError(e instanceof Error ? e.message : 'Failed to load gallery')
+      }
     } finally {
-      setLoading(false)
-      setLoadingMore(false)
+      if (loadedKeyRef.current === key) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
   }, [currentUserId, followingOnly])
 
@@ -170,6 +219,8 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
   // like/comment updates) so the next remount restores the latest list.
   useEffect(() => {
     if (loading) return
+    // Only persist state that actually belongs to this key
+    if (loadedKeyRef.current !== cacheKey) return
     feedCache.set(cacheKey, { photos, offset: offsetRef.current, hasMore })
   }, [photos, hasMore, loading, cacheKey])
 
@@ -195,19 +246,16 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
       )
     )
 
-    try {
-      if (wasLiked) {
-        await supabase
+    const { error: err } = wasLiked
+      ? await supabase
           .from('review_likes')
           .delete()
           .match({ review_id: reviewId, user_id: currentUserId })
-      } else {
-        await supabase
+      : await supabase
           .from('review_likes')
           .insert({ review_id: reviewId, user_id: currentUserId })
-        triggerPushDelivery()
-      }
-    } catch {
+
+    if (err) {
       setPhotos(prev =>
         prev.map(p =>
           p.review_id === reviewId
@@ -215,6 +263,9 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
             : p
         )
       )
+      toast.error('Could not update like')
+    } else if (!wasLiked) {
+      triggerPushDelivery()
     }
   }, [photos, currentUserId])
 

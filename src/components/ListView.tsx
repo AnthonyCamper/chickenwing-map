@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
 import PhotoModal from './gallery/PhotoModal'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
@@ -7,6 +8,64 @@ import { useHistoryModal } from '../hooks/useHistoryModal'
 import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 
 type SortKey = 'name' | 'rating'
+/** Local-only sort options — 'near' lives inside ListView (Home only knows name/rating). */
+type SortOption = SortKey | 'near'
+
+// ───────────────────────────────────────────────────────────────────────────
+// Pure helpers (exported for tests)
+// ───────────────────────────────────────────────────────────────────────────
+
+export function averageRating(reviews: Review[]): number {
+  if (reviews.length === 0) return 0
+  return reviews.reduce((sum, r) => sum + r.overall_rating, 0) / reviews.length
+}
+
+/**
+ * Apply the per-reviewer filter: keep only that reviewer's reviews and
+ * recompute avg_rating from them (the spot-wide average would be a lie).
+ */
+export function filterShopsByReviewer(shops: SpotWithReviews[], reviewerId: string): SpotWithReviews[] {
+  if (reviewerId === 'all') return shops
+  return shops
+    .map(s => {
+      const reviews = s.reviews.filter(r => r.user_id === reviewerId)
+      return { ...s, reviews, avg_rating: averageRating(reviews) }
+    })
+    .filter(s => s.reviews.length > 0)
+}
+
+/** Case-insensitive substring search across spot name, address, and review flavors. */
+export function filterShopsBySearch(shops: SpotWithReviews[], query: string): SpotWithReviews[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return shops
+  return shops.filter(({ spot, reviews }) => {
+    if (spot.name.toLowerCase().includes(q)) return true
+    if (spot.address.toLowerCase().includes(q)) return true
+    return reviews.some(r =>
+      (r.wing_flavors ?? []).some(f => f.toLowerCase().includes(q)) ||
+      (r.wing_flavor?.toLowerCase().includes(q) ?? false)
+    )
+  })
+}
+
+/** Great-circle distance in miles between two lat/lng points. */
+export function haversineMiles(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 3958.8 // Earth radius, miles
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+export function formatMiles(mi: number): string {
+  return mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`
+}
 
 interface Props {
   shops: SpotWithReviews[]
@@ -29,6 +88,41 @@ export default function ListView({
   const photoDetail = usePhotoDetail(currentUserId)
   useHistoryModal(!!photoDetail.photo, photoDetail.close)
 
+  const [search, setSearch] = useState('')
+  const [nearMe, setNearMe] = useState(false)
+  const [nearLoc, setNearLoc] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
+
+  const selectSort = (key: SortOption) => {
+    if (key !== 'near') {
+      setNearMe(false)
+      setSortBy(key)
+      return
+    }
+    if (nearMe || locating) return
+    if (nearLoc) {
+      setNearMe(true)
+      return
+    }
+    if (!('geolocation' in navigator)) {
+      toast.error("Location isn't available on this device")
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setNearLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setNearMe(true)
+        setLocating(false)
+      },
+      () => {
+        // Denied or failed — keep whatever sort was already active
+        setLocating(false)
+        toast.error("Couldn't get your location — keeping the current sort")
+      },
+    )
+  }
+
   const reviewers = useMemo(() => {
     const set = new Map<string, string>()
     for (const { reviews } of shops) {
@@ -42,20 +136,18 @@ export default function ListView({
   }, [shops])
 
   const sorted = useMemo(() => {
-    const filtered = filterReviewer === 'all'
-      ? shops
-      : shops
-          .map(s => ({
-            ...s,
-            reviews: s.reviews.filter(r => r.user_id === filterReviewer),
-          }))
-          .filter(s => s.reviews.length > 0)
+    const filtered = filterShopsBySearch(filterShopsByReviewer(shops, filterReviewer), search)
+      .filter(s => s.reviews.length > 0)
 
+    if (nearMe && nearLoc) {
+      return [...filtered].sort((a, b) =>
+        haversineMiles(nearLoc, a.spot) - haversineMiles(nearLoc, b.spot))
+    }
     return [...filtered].sort((a, b) => {
       if (sortBy === 'rating') return b.avg_rating - a.avg_rating
       return a.spot.name.localeCompare(b.spot.name)
     })
-  }, [shops, sortBy, filterReviewer])
+  }, [shops, sortBy, filterReviewer, search, nearMe, nearLoc])
 
   if (loading) {
     return (
@@ -75,19 +167,22 @@ export default function ListView({
     )
   }
 
-  const shopsWithReviews = sorted.filter(s => s.reviews.length > 0)
-  const showRanks = sortBy === 'rating'
+  const shopsWithReviews = sorted
+  // Anything on the board at all (pre-search/filter)? Controls stay visible even
+  // when the current search/filter matches nothing, so you can back out of it.
+  const hasAnyOnBoard = shops.some(s => s.reviews.length > 0)
+  const showRanks = sortBy === 'rating' && !nearMe
 
   return (
     <>
       <div className="max-w-2xl mx-auto px-4 py-5 pb-24">
         {/* Page heading */}
-        {shopsWithReviews.length > 0 && (
+        {hasAnyOnBoard && (
           <div className="mb-5 flex items-end justify-between gap-4">
             <div className="min-w-0">
               <p className="eyebrow mb-1">The scoreboard</p>
               <h2 className="font-display uppercase text-3xl sm:text-4xl text-night-900 leading-tight tracking-wide">
-                {sortBy === 'rating' ? 'Who runs the streets' : 'Every spot on the board'}
+                {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every spot on the board'}
               </h2>
             </div>
             <div className="sticker-night flex-shrink-0 hidden sm:inline-flex">
@@ -96,25 +191,51 @@ export default function ListView({
           </div>
         )}
 
+        {/* Search */}
+        {hasAnyOnBoard && (
+          <div className="mb-4 relative">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search spots, addresses, flavors…"
+              aria-label="Search spots by name, address, or flavor"
+              className="input pr-11"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center
+                           rounded-full text-night-700 hover:text-night-900 hover:bg-cream-200
+                           text-xl font-extrabold leading-none transition-colors cursor-pointer"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Controls */}
-        {shopsWithReviews.length > 0 && (
+        {hasAnyOnBoard && (
           <div className="mb-5 flex items-center gap-3 flex-wrap">
             {/* Sort toggle */}
             <div className="flex items-center gap-2">
               <span className="eyebrow text-night-700">Sort</span>
               <div className="flex items-center bg-night-900 rounded-full p-1 border-2 border-night-900 shadow-sticker-sm">
-                {([['name', 'A→Z'], ['rating', 'Heat']] as [SortKey, string][]).map(([key, label]) => {
-                  const active = sortBy === key
+                {([['name', 'A→Z'], ['rating', 'Heat'], ['near', 'Near me']] as [SortOption, string][]).map(([key, label]) => {
+                  const active = key === 'near' ? nearMe : !nearMe && sortBy === key
                   return (
                     <button
                       key={key}
-                      onClick={() => setSortBy(key)}
+                      onClick={() => selectSort(key)}
                       className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
                         ${active
                           ? 'bg-sauce-400 text-cream-50'
                           : 'text-cream-200/70 hover:text-cream-50'}`}
                     >
-                      {label}
+                      {key === 'near' && locating ? 'Locating…' : label}
                     </button>
                   )
                 })}
@@ -129,9 +250,10 @@ export default function ListView({
                   <select
                     value={filterReviewer}
                     onChange={e => setFilterReviewer(e.target.value)}
-                    className="appearance-none text-[11px] font-extrabold uppercase tracking-crowd
+                    /* text-base (16px): anything smaller makes iOS Safari zoom the page on focus */
+                    className="appearance-none text-base font-extrabold uppercase tracking-wide
                                rounded-full border-2 border-night-900 bg-cream-50 text-night-900
-                               pl-3 pr-8 py-1.5 shadow-sticker-sm
+                               pl-3 pr-8 py-1 shadow-sticker-sm
                                focus:outline-none focus:ring-2 focus:ring-sauce-400 cursor-pointer"
                   >
                     <option value="all">Everybody</option>
@@ -148,7 +270,9 @@ export default function ListView({
 
         {/* Shop cards */}
         {shopsWithReviews.length === 0 ? (
-          <EmptyState />
+          hasAnyOnBoard
+            ? <NoMatchState query={search} onClear={() => setSearch('')} />
+            : <EmptyState />
         ) : (
           <div className="space-y-4">
             {shopsWithReviews.map(({ spot, reviews, avg_rating, photos }, idx) => (
@@ -163,6 +287,7 @@ export default function ListView({
                 reviews={reviews}
                 avgRating={avg_rating}
                 photos={photos}
+                distanceMi={nearMe && nearLoc ? haversineMiles(nearLoc, spot) : null}
                 onViewOnMap={onViewOnMap}
               />
             ))}
@@ -205,12 +330,13 @@ interface ShopCardProps {
   avgRating: number
   photos: ReviewPhoto[]
   slug: string | null
+  distanceMi?: number | null
   onViewOnMap?: (shopId: string) => void
 }
 
 function ShopCard({
   shopId, slug, rank, showRank, name, address, reviews, avgRating, photos,
-  onViewOnMap,
+  distanceMi, onViewOnMap,
 }: ShopCardProps) {
   const isPodium = showRank && rank <= 3
   const podiumTag = rank === 1 ? 'Champ' : rank === 2 ? 'Runner-up' : rank === 3 ? 'Third' : null
@@ -272,6 +398,17 @@ function ShopCard({
           {/* Rating + reviewer stack */}
           <div className="flex items-center gap-3 mt-2.5 flex-wrap">
             <RatingChip rating={avgRating} count={reviews.length} hot={avgRating >= 8} />
+
+            {/* Distance — only when "Near me" sort is active */}
+            {distanceMi != null && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-crowd text-night-700">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                {formatMiles(distanceMi)}
+              </span>
+            )}
 
             {/* Reviewer avatar stack — secondary */}
             {reviews.length > 0 && (
@@ -349,6 +486,29 @@ function RatingChip({ rating, count, hot }: { rating: number; count: number; hot
         <span className="opacity-70 normal-case font-bold tracking-normal">· avg of {count}</span>
       )}
     </span>
+  )
+}
+
+function NoMatchState({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="relative flex flex-col items-center justify-center py-20 px-6 text-center overflow-hidden">
+      <div className="absolute inset-0 bg-splatter opacity-15 pointer-events-none" aria-hidden="true" />
+      <div className="relative">
+        <p className="eyebrow mb-2">No spots match</p>
+        <h3 className="font-display uppercase tracking-wide text-3xl text-night-900 leading-tight mb-3">
+          Nothing on the board{query.trim() ? <> for “{query.trim()}”</> : null}
+        </h3>
+        {query.trim() ? (
+          <button type="button" onClick={onClear} className="sticker-sauce cursor-pointer">
+            Clear search
+          </button>
+        ) : (
+          <p className="text-sm text-charcoal-500 max-w-xs mx-auto leading-relaxed">
+            Try a different filter.
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 

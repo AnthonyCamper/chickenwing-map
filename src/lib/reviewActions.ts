@@ -1,5 +1,7 @@
+import toast from 'react-hot-toast'
 import { supabase } from './supabase'
 import { triggerPushDelivery } from './pushManager'
+import { invalidateGalleryFeedCache } from '../hooks/useGallery'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
 export async function compressImage(file: File): Promise<Blob> {
@@ -25,6 +27,72 @@ export async function compressImage(file: File): Promise<Blob> {
     img.onerror = reject
     img.src = url
   })
+}
+
+/**
+ * reviews.wing_flavors is the source of truth; wing_flavor is the legacy
+ * column, comma-joined for multi-flavor rows. Derive the array form so both
+ * columns stay in sync on every write.
+ */
+function toFlavorArray(flavor: string | undefined | null): string[] {
+  const trimmed = flavor?.trim()
+  if (!trimmed) return []
+  return trimmed.split(', ').map(f => f.trim()).filter(Boolean)
+}
+
+/**
+ * Compress and upload one photo, then record it in review_photos.
+ * If the canvas can't decode the file (e.g. HEIC outside Safari) the original
+ * file is uploaded as-is. If the DB insert fails, the freshly uploaded storage
+ * object is removed again. Returns true on success.
+ */
+async function uploadReviewPhoto(
+  file: File,
+  userId: string,
+  reviewId: string,
+  displayOrder: number
+): Promise<boolean> {
+  let blob: Blob = file
+  let contentType = file.type || 'image/jpeg'
+  let ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  try {
+    blob = await compressImage(file)
+    contentType = 'image/jpeg'
+    ext = 'jpg'
+  } catch {
+    // Fall back to uploading the original file untouched
+  }
+
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const path = `${userId}/${reviewId}/${filename}`
+
+  const { error: uploadErr } = await supabase.storage
+    .from('review-photos')
+    .upload(path, blob, { contentType })
+  if (uploadErr) return false
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('review-photos')
+    .getPublicUrl(path)
+
+  const { error: insertErr } = await supabase.from('review_photos').insert({
+    review_id: reviewId,
+    storage_path: path,
+    url: publicUrl,
+    display_order: displayOrder,
+  })
+  if (insertErr) {
+    // Don't leave an orphaned object the review will never reference
+    await supabase.storage.from('review-photos').remove([path])
+    return false
+  }
+  return true
+}
+
+function toastFailedUploads(failed: number) {
+  if (failed > 0) {
+    toast.error(`${failed} photo${failed === 1 ? '' : 's'} failed to upload`)
+  }
 }
 
 export async function createReview(
@@ -56,6 +124,7 @@ export async function createReview(
       overall_rating: data.overall_rating,
       wing_size: data.wing_size?.trim() || null,
       wing_flavor: data.wing_flavor?.trim() || null,
+      wing_flavors: toFlavorArray(data.wing_flavor),
       is_takeout: data.is_takeout,
       takeout_container: data.takeout_container?.trim() || null,
       review_text: data.review_text?.trim() || null,
@@ -71,35 +140,15 @@ export async function createReview(
   }
 
   if (data.photos?.length) {
+    let failed = 0
     for (let i = 0; i < data.photos.length; i++) {
-      try {
-        const file = data.photos[i]
-        const compressed = await compressImage(file)
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
-        const path = `${userId}/${reviewData.id}/${filename}`
-
-        const { error: uploadErr } = await supabase.storage
-          .from('review-photos')
-          .upload(path, compressed, { contentType: 'image/jpeg' })
-
-        if (!uploadErr) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('review-photos')
-            .getPublicUrl(path)
-
-          await supabase.from('review_photos').insert({
-            review_id: reviewData.id,
-            storage_path: path,
-            url: publicUrl,
-            display_order: i,
-          })
-        }
-      } catch {
-        // Non-fatal — continue uploading remaining photos
-      }
+      const ok = await uploadReviewPhoto(data.photos[i], userId, reviewData.id, i)
+      if (!ok) failed++
     }
+    toastFailedUploads(failed)
   }
 
+  invalidateGalleryFeedCache()
   triggerPushDelivery()
   return { error: null, reviewId: reviewData.id }
 }
@@ -111,7 +160,10 @@ export async function updateReview(
   const updates: Record<string, unknown> = {}
   if (data.overall_rating !== undefined) updates.overall_rating = data.overall_rating
   if (data.wing_size !== undefined) updates.wing_size = data.wing_size.trim() || null
-  if (data.wing_flavor !== undefined) updates.wing_flavor = data.wing_flavor.trim() || null
+  if (data.wing_flavor !== undefined) {
+    updates.wing_flavor = data.wing_flavor.trim() || null
+    updates.wing_flavors = toFlavorArray(data.wing_flavor)
+  }
   if (data.is_takeout !== undefined) updates.is_takeout = data.is_takeout
   if (data.takeout_container !== undefined) updates.takeout_container = data.takeout_container.trim() || null
   if (data.review_text !== undefined) updates.review_text = data.review_text.trim() || null
@@ -152,43 +204,38 @@ export async function updateReview(
         ? existing[0].display_order + 1
         : 0
 
+      let failed = 0
       for (const file of data.new_photos) {
-        try {
-          const compressed = await compressImage(file)
-          const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`
-          const path = `${userId}/${reviewId}/${filename}`
-
-          const { error: uploadErr } = await supabase.storage
-            .from('review-photos')
-            .upload(path, compressed, { contentType: 'image/jpeg' })
-
-          if (!uploadErr) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('review-photos')
-              .getPublicUrl(path)
-
-            await supabase.from('review_photos').insert({
-              review_id: reviewId,
-              storage_path: path,
-              url: publicUrl,
-              display_order: nextOrder++,
-            })
-          }
-        } catch {
-          // Non-fatal — continue uploading remaining photos
-        }
+        const ok = await uploadReviewPhoto(file, userId, reviewId, nextOrder++)
+        if (!ok) failed++
       }
+      toastFailedUploads(failed)
     }
   }
 
+  invalidateGalleryFeedCache()
   return { error: null }
 }
 
 export async function deleteReview(reviewId: string): Promise<{ error: string | null }> {
+  // Remove storage objects first — once the row cascade-deletes there's no
+  // record of the paths left to clean up. Removal failure is non-fatal.
+  const { data: photos } = await supabase
+    .from('review_photos')
+    .select('storage_path')
+    .eq('review_id', reviewId)
+  if (photos?.length) {
+    await supabase.storage
+      .from('review-photos')
+      .remove(photos.map(p => p.storage_path))
+  }
+
   const { error: err } = await supabase
     .from('reviews')
     .delete()
     .eq('id', reviewId)
   if (err) return { error: err.message }
+
+  invalidateGalleryFeedCache()
   return { error: null }
 }

@@ -12,6 +12,7 @@ import { useUserProfile } from '../UserProfileContext'
 import LikedByOverlay from './LikedByOverlay'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { fetchReviewLikers, fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
+import { useCarouselSwipe } from './useCarouselSwipe'
 import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
 
 interface ReviewProps {
@@ -94,6 +95,9 @@ export default function PhotoModal(props: Props) {
 
   const [photoIndex, setPhotoIndex] = useState(0)
   const [showLightbox, setShowLightbox] = useState(false)
+  // iOS keyboard overlap (px) — 100dvh ignores the keyboard, so we measure it
+  // via visualViewport and lift the mobile sheet to keep the composer visible.
+  const [keyboardInset, setKeyboardInset] = useState(0)
   // Trap focus in the modal; release it while the fullscreen lightbox is open
   const panelRef = useFocusTrap<HTMLDivElement>(!showLightbox)
 
@@ -132,6 +136,24 @@ export default function PhotoModal(props: Props) {
     }
   }, [onClose, showLightbox])
 
+  // Keyboard-safe composer: track how much of the layout viewport the iOS
+  // keyboard covers. Feature-detected; listeners cleaned up on unmount.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+      setKeyboardInset(inset)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+
   const handleMobilePost = async () => {
     if ((!mobileText.trim() && !mobileSelectedGif) || mobilePosting) return
     if (!requireAuth()) return
@@ -163,9 +185,11 @@ export default function PhotoModal(props: Props) {
 
   const goToPrev = () => setPhotoIndex(i => Math.max(0, i - 1))
   const goToNext = () => setPhotoIndex(i => Math.min(reviewData.photos.length - 1, i + 1))
+  const swipeHandlers = useCarouselSwipe(goToPrev, goToNext)
+  const carouselSwipeProps = reviewData.photos.length > 1 ? swipeHandlers : {}
 
   const photoCarousel = (
-    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden">
+    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden" {...carouselSwipeProps}>
       <img
         src={currentPhoto.photo_url}
         alt={reviewData.spot_name}
@@ -280,7 +304,18 @@ export default function PhotoModal(props: Props) {
       <div
         className="sm:hidden bg-cream-50 w-full rounded-t-3xl shadow-2xl animate-slide-up
                    h-[100dvh] sm:h-[92dvh] flex flex-col overflow-hidden"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          // Keep the pinned composer above the iOS keyboard: shrink the sheet
+          // by the keyboard overlap and lift it so its bottom edge sits on
+          // top of the keyboard (100dvh ignores the keyboard on iOS).
+          ...(keyboardInset > 0
+            ? {
+                height: `calc(100dvh - ${keyboardInset}px)`,
+                transform: `translateY(-${keyboardInset}px)`,
+              }
+            : {}),
+        }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-warmgray-100">
@@ -305,7 +340,7 @@ export default function PhotoModal(props: Props) {
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-charcoal-400
+            className="w-11 h-11 -mr-2 -my-2 rounded-full flex items-center justify-center text-charcoal-400
                        hover:bg-warmgray-100 transition-colors text-lg leading-none flex-shrink-0"
             aria-label="Close"
           >×</button>
@@ -367,7 +402,8 @@ export default function PhotoModal(props: Props) {
                 Replying to <span className="font-semibold">{mobileReplyingTo.name}</span>
                 <button
                   onClick={() => setMobileReplyingTo(null)}
-                  className="ml-1.5 text-charcoal-400 hover:text-charcoal-500"
+                  className="ml-1 inline-flex items-center justify-center w-7 h-7 -my-2 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-charcoal-500"
+                  aria-label="Cancel reply"
                 >×</button>
               </span>
             )}
@@ -376,8 +412,11 @@ export default function PhotoModal(props: Props) {
                 <img src={mobileSelectedGif} alt="GIF" className="h-12 rounded-md" />
                 <button
                   onClick={() => setMobileSelectedGif(null)}
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-charcoal-700 text-white text-[10px] flex items-center justify-center"
-                >×</button>
+                  className="absolute -top-2.5 -right-2.5 w-7 h-7 flex items-center justify-center"
+                  aria-label="Remove GIF"
+                >
+                  <span className="w-4 h-4 rounded-full bg-charcoal-700 text-white text-[10px] flex items-center justify-center">×</span>
+                </button>
               </div>
             )}
           </div>
@@ -431,7 +470,7 @@ export default function PhotoModal(props: Props) {
                    sm:max-h-[86dvh] animate-slide-up"
         onClick={e => e.stopPropagation()}
       >
-        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative">
+        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative" {...carouselSwipeProps}>
           <img
             src={currentPhoto.photo_url}
             alt={reviewData.spot_name}
@@ -503,8 +542,8 @@ export default function PhotoModal(props: Props) {
             </div>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-charcoal-400
-                         hover:bg-warmgray-100 transition-colors text-lg leading-none flex-shrink-0 mt-0.5"
+              className="w-11 h-11 -mr-2 -mt-2 rounded-full flex items-center justify-center text-charcoal-400
+                         hover:bg-warmgray-100 transition-colors text-lg leading-none flex-shrink-0"
               aria-label="Close"
             >×</button>
           </div>

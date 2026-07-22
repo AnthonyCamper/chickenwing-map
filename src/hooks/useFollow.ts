@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 
 export interface PublicProfile {
@@ -44,14 +45,19 @@ export function useFollow(currentUserId: string, targetUserId: string): UseFollo
 
   const toggle = useCallback(async () => {
     if (!currentUserId || !targetUserId || isSelf) return
-    if (isFollowing) {
-      setIsFollowing(false)
-      setFollowerCount(c => c - 1)
-      await supabase.from('follows').delete().match({ follower_id: currentUserId, following_id: targetUserId })
-    } else {
-      setIsFollowing(true)
-      setFollowerCount(c => c + 1)
-      await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetUserId })
+    const wasFollowing = isFollowing
+
+    setIsFollowing(!wasFollowing)
+    setFollowerCount(c => c + (wasFollowing ? -1 : 1))
+
+    const { error } = wasFollowing
+      ? await supabase.from('follows').delete().match({ follower_id: currentUserId, following_id: targetUserId })
+      : await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetUserId })
+
+    if (error) {
+      setIsFollowing(wasFollowing)
+      setFollowerCount(c => c + (wasFollowing ? 1 : -1))
+      toast.error(wasFollowing ? 'Could not unfollow' : 'Could not follow')
     }
   }, [currentUserId, targetUserId, isFollowing, isSelf])
 
