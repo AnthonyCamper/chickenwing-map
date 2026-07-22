@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { Map as LeafletMap } from 'leaflet'
 import Supercluster from 'supercluster'
 import toast from 'react-hot-toast'
-import StarRating from './ui/StarRating'
-import ReviewCard from './ReviewCard'
 import PhotoModal from './gallery/PhotoModal'
-import { Lightbox } from './ui/PhotoGallery'
+import ShopPanel from './ShopPanel'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
-import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
+import type { SpotWithReviews, ReviewUpdateData } from '../lib/types'
 
 interface Props {
   shops: SpotWithReviews[]
@@ -280,6 +278,7 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
 
       {selectedSpot && (
         <ShopPanel
+          key={selectedSpot.spot.id}
           spotData={selectedSpot}
           onClose={() => setSelectedShop(null)}
           currentUserId={currentUserId}
@@ -406,123 +405,4 @@ function createClusterIcon(L: any, count: number) {
       </div>
     `,
   })
-}
-
-interface ShopPanelProps {
-  spotData: SpotWithReviews
-  onClose: () => void
-  currentUserId: string
-  isAdmin: boolean
-  onUpdate: Props['onUpdate']
-  onDelete: Props['onDelete']
-  onPhotoOpen: (photoId: string) => void
-}
-
-function ShopPanel({ spotData, onClose, currentUserId, isAdmin, onUpdate, onDelete, onPhotoOpen }: ShopPanelProps) {
-  const { spot, reviews, avg_rating, photos } = spotData
-
-  return (
-    <>
-      {/* Backdrop on mobile */}
-      <div
-        className="absolute inset-0 z-20 sm:hidden"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col">
-        {/* Handle (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-night-900/25" />
-        </div>
-
-        {/* Header */}
-        <div className="px-5 pt-3 pb-3 border-b border-night-900/10 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="font-display uppercase tracking-wide text-base text-night-900 leading-snug truncate">
-              {spot.name}
-            </h3>
-            <p className="text-xs text-charcoal-500 mt-0.5 truncate">{spot.address}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {reviews.length > 1 && (
-                <span className="text-xs text-charcoal-400">avg of {reviews.length}</span>
-              )}
-              <span className="rating-wing">
-                🍗 <StarRating value={avg_rating} size="sm" />
-                <span className="ml-0.5">{avg_rating.toFixed(1)}</span>
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-900 transition-colors text-2xl leading-none flex-shrink-0"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Scrollable body */}
-        <div
-          className="overflow-y-auto flex-1 overscroll-contain"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          {/* Photo strip */}
-          {photos.length > 0 && (
-            <div className="px-5 pt-4 pb-2">
-              <PhotoStrip photos={photos} onPhotoOpen={onPhotoOpen} />
-            </div>
-          )}
-
-          {/* Reviews */}
-          <div className="px-5 pb-5 divide-y divide-night-900/10">
-            {reviews.map((review: Review) => (
-              <ReviewCard
-                key={review.id}
-                review={review}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-                compact
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-interface PhotoStripProps {
-  photos: ReviewPhoto[]
-  onPhotoOpen: (photoId: string) => void
-}
-
-function PhotoStrip({ photos, onPhotoOpen }: PhotoStripProps) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-
-  return (
-    <>
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {photos.map((photo) => (
-            <button
-              key={photo.id}
-              onClick={() => onPhotoOpen(photo.id)}
-              className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-cream-200 border-2 border-night-900 hover:border-sauce-400 transition-colors focus:outline-none focus:ring-2 focus:ring-sauce-300"
-            >
-              <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-            </button>
-        ))}
-      </div>
-
-      {lightboxIndex !== null && (
-        <Lightbox
-          photos={photos}
-          initialIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-        />
-      )}
-    </>
-  )
 }
