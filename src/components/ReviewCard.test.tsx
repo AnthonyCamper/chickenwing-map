@@ -146,9 +146,11 @@ describe('ReviewCard layout', () => {
     const html = container.innerHTML
     const name = html.indexOf('WingKingTony')
     const rating = html.indexOf('6.5')
-    const date = html.indexOf('May 1, 2026')
+    const date = html.indexOf('Apr 30, 2026')
     const text = html.indexOf('Hot and crispy')
     expect(name).toBeGreaterThan(-1)
+    expect(rating).toBeGreaterThan(-1)
+    expect(date).toBeGreaterThan(-1)
     expect(name).toBeLessThan(text)
     expect(rating).toBeLessThan(text)
     expect(date).toBeLessThan(text)
