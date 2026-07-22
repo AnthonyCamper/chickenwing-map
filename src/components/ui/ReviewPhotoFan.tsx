@@ -36,6 +36,7 @@ export default function ReviewPhotoFan({ photos, onOpen }: Props) {
 
   return (
     <button
+      type="button"
       onClick={onOpen}
       aria-label={ordered.length > 1 ? `View ${ordered.length} photos` : 'View photo'}
       className="relative flex-shrink-0 w-20 h-20 rounded-xl focus:outline-none focus:ring-2 focus:ring-sauce-300"
