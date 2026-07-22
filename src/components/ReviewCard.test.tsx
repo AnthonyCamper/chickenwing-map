@@ -142,11 +142,22 @@ describe('ReviewCard undo-delete', () => {
 
 describe('ReviewCard layout', () => {
   it('leads with reviewer identity, date, and rating above the review text', () => {
-    const { container } = renderCard(vi.fn(async () => ({ error: null as string | null })))
+    // Use mid-day local timestamp (no Z) to ensure consistent formatting across timezones
+    const { container } = render(
+      <MemoryRouter>
+        <ReviewCard
+          review={makeReview({ visited_at: '2026-05-01T12:00:00' })}
+          currentUserId="u1"
+          isAdmin={false}
+          onUpdate={vi.fn(async () => ({ error: null }))}
+          onDelete={vi.fn(async () => ({ error: null as string | null }))}
+        />
+      </MemoryRouter>
+    )
     const html = container.innerHTML
     const name = html.indexOf('WingKingTony')
     const rating = html.indexOf('6.5')
-    const date = html.indexOf('Apr 30, 2026')
+    const date = html.indexOf('May 1, 2026')
     const text = html.indexOf('Hot and crispy')
     expect(name).toBeGreaterThan(-1)
     expect(rating).toBeGreaterThan(-1)
