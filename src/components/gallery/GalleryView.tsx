@@ -41,13 +41,15 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   const { requireAuth } = useAuthGate()
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // ── Scroll restoration across route nav (drill into a card → swipe back) ──
+  // ── Scroll restoration across route nav and full-page refresh ──────────────
   // Save the window scroll for the gallery feeds continuously; restore it once
-  // after the (module-cached) list has painted. useGallery seeds its list from
-  // a module cache on remount, so the page is already full-height here and the
-  // restore lands on the exact spot instead of snapping to the top. Limited to
-  // the infinite-scroll review feeds (following/discover); crawls/people are
-  // short lists that refetch on entry, where a restore could overshoot.
+  // after the list has painted. This covers both a back-nav remount (useGallery
+  // seeds from its module cache) and a cold reload (useGallery re-fetches down
+  // to the previously-loaded depth via sessionStorage, so the list is already
+  // full-height here too) — either way the restore lands on the exact spot
+  // instead of snapping to the top. Limited to the infinite-scroll review feeds
+  // (following/discover); crawls/people are short lists that refetch on entry,
+  // where a restore could overshoot.
   const isReviewFeed = feed === 'following' || feed === 'discover'
   const didRestoreScroll = useRef(false)
 
@@ -63,17 +65,13 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   useEffect(() => {
     if (didRestoreScroll.current || !isReviewFeed || gallery.loading) return
     didRestoreScroll.current = true
-    // Only restore on a back-nav remount (list came from cache). On a cold
-    // load the list is freshly fetched and short, so any saved offset would
-    // overshoot — let those start at the top.
-    if (!gallery.restoredFromCache) return
     let saved = 0
     try { saved = Number(sessionStorage.getItem(`gallery-scroll:${feed}`) || 0) } catch { /* ignore */ }
     if (saved > 0) {
       // Double rAF: let the restored list lay out before scrolling.
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved)))
     }
-  }, [feed, isReviewFeed, gallery.loading, gallery.restoredFromCache])
+  }, [feed, isReviewFeed, gallery.loading])
 
   // Crawls feed — fetched independently when the tab is active
   const [crawls, setCrawls] = useState<WingCrawlDetailed[]>([])

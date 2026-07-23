@@ -7,6 +7,19 @@ import ShopPanel from './ShopPanel'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import type { SpotWithReviews, ReviewUpdateData } from '../lib/types'
 
+const CAMERA_KEY = 'wingmap-camera'
+
+function readSavedCamera(): { lat: number; lng: number; zoom: number } | null {
+  try {
+    const raw = sessionStorage.getItem(CAMERA_KEY)
+    if (!raw) return null
+    const c = JSON.parse(raw)
+    return typeof c?.lat === 'number' && typeof c?.lng === 'number' && typeof c?.zoom === 'number' ? c : null
+  } catch {
+    return null
+  }
+}
+
 interface Props {
   shops: SpotWithReviews[]
   loading: boolean
@@ -28,6 +41,9 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   const [mapReady, setMapReady] = useState(false)
   const [selectedSpot, setSelectedShop] = useState<SpotWithReviews | null>(null)
   const [locating, setLocating] = useState(false)
+  // Set true when the map is initialised from a saved camera position, so the
+  // markers effect's auto-fit never stomps a restored view.
+  const restoredCameraRef = useRef(false)
 
   const handleLocateMe = () => {
     if (!leafletRef.current || !navigator.geolocation) {
@@ -70,13 +86,21 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
     import('leaflet').then(L => {
       if (leafletRef.current) return // already initialised (StrictMode double-mount)
 
-      // Derive a sensible initial centre from shops that are already loaded,
-      // or fall back to a neutral world view so we never hard-code Melbourne.
+      // A saved camera from a previous session wins over any derived position —
+      // it reflects where the user actually left the map, not just the shops'
+      // centroid. Otherwise derive a sensible centre from shops that are
+      // already loaded, or fall back to a neutral world view so we never
+      // hard-code Melbourne.
+      const savedCamera = readSavedCamera()
       const current = shopsRef.current
       let initialCenter: [number, number]
       let initialZoom: number
 
-      if (current.length > 0) {
+      if (savedCamera) {
+        initialCenter = [savedCamera.lat, savedCamera.lng]
+        initialZoom = savedCamera.zoom
+        restoredCameraRef.current = true
+      } else if (current.length > 0) {
         const lats = current.map(s => s.spot.lat)
         const lngs = current.map(s => s.spot.lng)
         initialCenter = [
@@ -100,6 +124,14 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19,
       }).addTo(map)
+
+      // Persist the camera on every pan/zoom so a refresh can restore it.
+      map.on('moveend', () => {
+        const c = map.getCenter()
+        try {
+          sessionStorage.setItem(CAMERA_KEY, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }))
+        } catch { /* ignore */ }
+      })
 
       leafletRef.current = map
       // Signal readiness — this triggers the markers effect via the dep array
@@ -194,15 +226,18 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       map.on('moveend', render)
       map.on('zoomend', render)
 
-      // Initial render then fit all shops into view
+      // Initial render then fit all shops into view — unless the map started
+      // from a restored camera, in which case that position must win.
       render()
-      if (shopsWithReviews.length === 1) {
-        // Single point — setView avoids degenerate zero-area bounds from fitBounds
-        const s = shopsWithReviews[0]
-        map.setView([s.spot.lat, s.spot.lng], 15)
-      } else {
-        const allBounds = shopsWithReviews.map(s => [s.spot.lat, s.spot.lng]) as [number, number][]
-        map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 15 })
+      if (!restoredCameraRef.current) {
+        if (shopsWithReviews.length === 1) {
+          // Single point — setView avoids degenerate zero-area bounds from fitBounds
+          const s = shopsWithReviews[0]
+          map.setView([s.spot.lat, s.spot.lng], 15)
+        } else {
+          const allBounds = shopsWithReviews.map(s => [s.spot.lat, s.spot.lng]) as [number, number][]
+          map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 15 })
+        }
       }
     })
 

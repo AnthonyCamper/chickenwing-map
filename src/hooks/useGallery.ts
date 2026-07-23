@@ -6,6 +6,24 @@ import type { GalleryPhoto, GalleryReviewItem } from '../lib/types'
 
 const PAGE_SIZE = 21 // 3-column multiples look clean
 
+function depthKey(followingOnly: boolean) {
+  return `gallery-depth:${followingOnly ? 'following' : 'discover'}`
+}
+
+/**
+ * How many photos were loaded last session for this feed, so a cold reload
+ * can fetch straight to that depth instead of resetting to page 1. Capped at
+ * 200 (~10 pages) — deeper restores aren't worth the query cost.
+ */
+function readSavedDepth(followingOnly: boolean): number {
+  try {
+    const n = Number(sessionStorage.getItem(depthKey(followingOnly)) || 0)
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 0
+  } catch {
+    return 0
+  }
+}
+
 /**
  * Module-level cache of loaded feed pages, keyed by (user, followingOnly).
  * Survives component unmount/remount within an SPA session, so navigating
@@ -101,9 +119,6 @@ interface UseGalleryReturn {
   loadingMore: boolean
   hasMore: boolean
   error: string | null
-  /** True when this mount seeded its list from the module cache (back-nav
-   *  remount) rather than fetching fresh — used to gate scroll restoration. */
-  restoredFromCache: boolean
   loadMore: () => void
   toggleLike: (reviewId: string) => Promise<void>
   refreshReview: (reviewId: string) => void
@@ -123,9 +138,6 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
   const [hasMore, setHasMore] = useState(cached?.hasMore ?? true)
   const [error, setError] = useState<string | null>(null)
   const offsetRef = useRef(cached?.offset ?? 0)
-  // Capture "was there a cache at mount" once — distinguishes a back-nav
-  // remount (restore scroll) from a cold load (start at top).
-  const restoredFromCacheRef = useRef(!!cached)
   // Which feed the current local state belongs to. Guards the cache-sync
   // effect (and in-flight fetches) from writing one feed's rows into the
   // other feed's cache entry when followingOnly is toggled.
@@ -144,10 +156,13 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     setError(null)
   }
 
-  const fetchPage = useCallback(async (offset: number, append: boolean) => {
+  const fetchPage = useCallback(async (offset: number, append: boolean, rangeEnd?: number) => {
     const key = feedCacheKey(currentUserId, followingOnly)
     if (offset === 0) setLoading(true)
     else setLoadingMore(true)
+
+    const end = rangeEnd ?? offset + PAGE_SIZE - 1
+    const requestedSize = end - offset + 1
 
     try {
       let followingIds: string[] | null = null
@@ -171,7 +186,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
         .from('gallery_feed')
         .select('*')
         .order('photo_created_at', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1)
+        .range(offset, end)
 
       if (followingIds) {
         query = query.in('reviewer_id', followingIds)
@@ -183,13 +198,14 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
       if (loadedKeyRef.current !== key) return
 
       const rows = (data ?? []) as GalleryPhoto[]
-      setHasMore(rows.length === PAGE_SIZE)
+      setHasMore(rows.length === requestedSize)
       setPhotos(prev => {
         if (!append) return rows
         const seen = new Set(prev.map(p => p.photo_id))
         return [...prev, ...rows.filter(r => !seen.has(r.photo_id))]
       })
       offsetRef.current = offset + rows.length
+      try { sessionStorage.setItem(depthKey(followingOnly), String(offsetRef.current)) } catch { /* ignore */ }
       setError(null)
     } catch (e) {
       if (loadedKeyRef.current !== key) return
@@ -212,8 +228,12 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     // the seeded state above already holds the full loaded list.
     if (feedCache.has(cacheKey)) return
     offsetRef.current = 0
-    fetchPage(0, false)
-  }, [fetchPage, cacheKey])
+    // Cold load (full page reload): fetch straight to the depth last loaded
+    // this feed, so useGallery restores a full-height list instead of just
+    // page 1 — that's what lets GalleryView's scroll restore land correctly.
+    const savedDepth = readSavedDepth(followingOnly)
+    fetchPage(0, false, Math.max(PAGE_SIZE, savedDepth) - 1)
+  }, [fetchPage, cacheKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the module cache in sync with local state (covers paging + optimistic
   // like/comment updates) so the next remount restores the latest list.
@@ -295,7 +315,6 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     loadingMore,
     hasMore,
     error,
-    restoredFromCache: restoredFromCacheRef.current,
     loadMore,
     toggleLike,
     refreshReview,

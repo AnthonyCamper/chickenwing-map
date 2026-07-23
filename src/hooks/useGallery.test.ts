@@ -1,12 +1,37 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { renderHook, waitFor } from '@testing-library/react'
 import type { GalleryPhoto } from '../lib/types'
 
-// useGallery's module chain pulls in the supabase client, which throws
-// without env vars — stub it out; these tests only cover the pure helpers.
-vi.mock('../lib/supabase', () => ({ supabase: {} }))
+// Mutable mock state + a minimal chainable/thenable query builder standing in
+// for the supabase-js query chain (`.select().order().range()` etc, awaited
+// directly). Built inside vi.hoisted so the vi.mock factory below can safely
+// reference it regardless of hoisting order.
+const mocks = vi.hoisted(() => {
+  const state: { rangeCalls: Array<[number, number]>; rows: unknown[] } = {
+    rangeCalls: [],
+    rows: [],
+  }
+  function makeBuilder(): any {
+    const builder: any = {
+      select: () => builder,
+      order: () => builder,
+      eq: () => builder,
+      in: () => builder,
+      range: (from: number, to: number) => {
+        state.rangeCalls.push([from, to])
+        return builder
+      },
+      then: (resolve: any) => resolve({ data: state.rows, error: null }),
+    }
+    return builder
+  }
+  return { state, from: vi.fn(() => makeBuilder()) }
+})
+
+vi.mock('../lib/supabase', () => ({ supabase: { from: mocks.from } }))
 vi.mock('../lib/pushManager', () => ({ triggerPushDelivery: vi.fn() }))
 
-const { groupByReview, invalidateGalleryFeedCache } = await import('./useGallery')
+const { useGallery, groupByReview, invalidateGalleryFeedCache } = await import('./useGallery')
 
 function makePhoto(overrides: Partial<GalleryPhoto> = {}): GalleryPhoto {
   return {
@@ -69,5 +94,36 @@ describe('groupByReview', () => {
 describe('invalidateGalleryFeedCache', () => {
   it('is exported and callable', () => {
     expect(() => invalidateGalleryFeedCache()).not.toThrow()
+  })
+})
+
+describe('useGallery depth persistence', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    mocks.state.rangeCalls = []
+    mocks.state.rows = []
+    invalidateGalleryFeedCache()
+  })
+
+  it('cold-mounts with a saved depth by fetching a range covering that depth', async () => {
+    sessionStorage.setItem('gallery-depth:discover', '42')
+    mocks.state.rows = []
+
+    renderHook(() => useGallery('u1', false))
+
+    await waitFor(() => expect(mocks.state.rangeCalls.length).toBeGreaterThan(0))
+    expect(mocks.state.rangeCalls[0]).toEqual([0, 41])
+  })
+
+  it('persists the loaded depth to sessionStorage after a successful load', async () => {
+    const rows = Array.from({ length: 21 }, (_, i) =>
+      makePhoto({ photo_id: `p${i}`, review_id: `r${i}` })
+    )
+    mocks.state.rows = rows
+
+    const { result } = renderHook(() => useGallery('u1', false))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(sessionStorage.getItem('gallery-depth:discover')).toBe(String(rows.length))
   })
 })
