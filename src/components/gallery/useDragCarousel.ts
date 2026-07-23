@@ -57,8 +57,15 @@ export function useDragCarousel(count: number, index: number, onIndexChange: (i:
     else if (dx > 0 && index > 0) onIndexChange(index - 1)
   }
 
+  const onTouchCancel = () => {
+    start.current = null
+    axis.current = null
+    setDragging(false)
+    setDragPx(0)
+  }
+
   return {
-    containerProps: { onTouchStart, onTouchMove, onTouchEnd },
+    containerProps: { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel },
     trackStyle: {
       transform: `translateX(calc(-${index * 100}% + ${dragPx}px))`,
       transition: dragging ? 'none' : 'transform 250ms cubic-bezier(0.22, 1, 0.36, 1)',
