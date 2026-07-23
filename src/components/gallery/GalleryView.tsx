@@ -64,6 +64,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
 
   useEffect(() => {
     if (didRestoreScroll.current || !isReviewFeed || gallery.loading) return
+    if (gallery.error) return // failed load — keep the restore pending for a retry
     didRestoreScroll.current = true
     let saved = 0
     try { saved = Number(sessionStorage.getItem(`gallery-scroll:${feed}`) || 0) } catch { /* ignore */ }
@@ -71,7 +72,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
       // Double rAF: let the restored list lay out before scrolling.
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved)))
     }
-  }, [feed, isReviewFeed, gallery.loading])
+  }, [feed, isReviewFeed, gallery.loading, gallery.error])
 
   // Crawls feed — fetched independently when the tab is active
   const [crawls, setCrawls] = useState<WingCrawlDetailed[]>([])
