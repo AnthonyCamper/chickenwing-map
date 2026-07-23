@@ -297,9 +297,10 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       )}
 
       {/* Photo detail modal */}
-      {photoDetail.photo && (
+      {photoDetail.review && (
         <PhotoModal
-          photo={photoDetail.photo}
+          review={photoDetail.review}
+          initialPhotoIndex={photoDetail.initialIndex}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           onClose={photoDetail.close}

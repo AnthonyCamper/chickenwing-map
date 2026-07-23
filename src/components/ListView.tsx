@@ -86,7 +86,7 @@ export default function ListView({
 }: Props) {
 
   const photoDetail = usePhotoDetail(currentUserId)
-  useHistoryModal(!!photoDetail.photo, photoDetail.close)
+  useHistoryModal(!!photoDetail.review, photoDetail.close)
 
   const [search, setSearch] = useState('')
   const [nearMe, setNearMe] = useState(false)
@@ -301,9 +301,10 @@ export default function ListView({
         </div>
       )}
 
-      {photoDetail.photo && (
+      {photoDetail.review && (
         <PhotoModal
-          photo={photoDetail.photo}
+          review={photoDetail.review}
+          initialPhotoIndex={photoDetail.initialIndex}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           onClose={photoDetail.close}

@@ -3,7 +3,17 @@ import type { Review, SpotWithReviews, WingSpot } from '../lib/types'
 
 // ListView pulls in PhotoModal + supabase-backed hooks at module scope; the
 // pure helpers under test don't need any of that, so stub the heavy imports.
-vi.mock('../hooks/usePhotoDetail', () => ({ usePhotoDetail: () => ({}) }))
+vi.mock('../hooks/usePhotoDetail', () => ({
+  usePhotoDetail: () => ({
+    review: null,
+    initialIndex: 0,
+    loading: false,
+    open: vi.fn(),
+    close: vi.fn(),
+    toggleLike: vi.fn(),
+    onCommentAdded: vi.fn(),
+  }),
+}))
 vi.mock('../hooks/useHistoryModal', () => ({ useHistoryModal: () => {} }))
 vi.mock('./gallery/PhotoModal', () => ({ default: () => null }))
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))

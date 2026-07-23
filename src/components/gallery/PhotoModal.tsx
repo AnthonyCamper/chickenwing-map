@@ -18,6 +18,7 @@ import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
 interface ReviewProps {
   review: GalleryReviewItem
   photo?: never
+  initialPhotoIndex?: number
   currentUserId: string
   isAdmin: boolean
   onClose: () => void
@@ -29,6 +30,7 @@ interface ReviewProps {
 interface PhotoProps {
   photo: GalleryPhoto
   review?: never
+  initialPhotoIndex?: number
   currentUserId: string
   isAdmin: boolean
   onClose: () => void
@@ -93,7 +95,7 @@ export default function PhotoModal(props: Props) {
   const { requireAuth } = useAuthGate()
   const { openProfile } = useUserProfile()
 
-  const [photoIndex, setPhotoIndex] = useState(0)
+  const [photoIndex, setPhotoIndex] = useState(props.initialPhotoIndex ?? 0)
   const [showLightbox, setShowLightbox] = useState(false)
   // iOS keyboard overlap (px) — 100dvh ignores the keyboard, so we measure it
   // via visualViewport and lift the mobile sheet to keep the composer visible.
