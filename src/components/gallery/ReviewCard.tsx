@@ -5,7 +5,7 @@ import HeartIcon from './HeartIcon'
 import LikedByOverlay from './LikedByOverlay'
 import { fetchReviewLikers } from '../../lib/reactionDetails'
 import { useUserProfile } from '../UserProfileContext'
-import { useCarouselSwipe } from './useCarouselSwipe'
+import { useDragCarousel } from './useDragCarousel'
 
 interface Props {
   review: GalleryReviewItem
@@ -19,27 +19,31 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
   const primaryPhoto = review.photos[0]
   const extraCount = review.photos.length - 1
   const [carouselIndex, setCarouselIndex] = useState(0)
-  const swipeHandlers = useCarouselSwipe(
-    () => setCarouselIndex(i => Math.max(0, i - 1)),
-    () => setCarouselIndex(i => Math.min(review.photos.length - 1, i + 1)),
-  )
+  const { containerProps, trackStyle } = useDragCarousel(review.photos.length, carouselIndex, setCarouselIndex)
 
   if (!primaryPhoto) return null
-
-  const displayPhoto = review.photos[carouselIndex] ?? primaryPhoto
 
   return (
     <div
       className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer"
-      {...(review.photos.length > 1 ? swipeHandlers : {})}
+      {...(review.photos.length > 1 ? containerProps : {})}
     >
-      <img
-        src={displayPhoto.photo_url}
-        alt={review.spot_name}
-        loading="lazy"
+      <div
+        className="flex h-full w-full"
+        style={review.photos.length > 1 ? trackStyle : undefined}
         onClick={onOpen}
-        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-      />
+      >
+        {review.photos.map(p => (
+          <img
+            key={p.photo_id}
+            src={p.photo_url}
+            alt={review.spot_name}
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full flex-shrink-0 object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ))}
+      </div>
 
       {review.photos.length > 1 && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">

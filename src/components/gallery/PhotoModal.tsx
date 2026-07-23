@@ -12,7 +12,7 @@ import { useUserProfile } from '../UserProfileContext'
 import LikedByOverlay from './LikedByOverlay'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { fetchReviewLikers, fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
-import { useCarouselSwipe } from './useCarouselSwipe'
+import { useDragCarousel } from './useDragCarousel'
 import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
 
 interface ReviewProps {
@@ -174,8 +174,6 @@ export default function PhotoModal(props: Props) {
     onCommentAdded()
   }
 
-  const currentPhoto = reviewData.photos[photoIndex] ?? reviewData.photos[0]
-
   const visitedDate = (() => {
     try { return format(new Date(reviewData.visited_at), 'MMM d, yyyy') }
     catch { return reviewData.visited_at }
@@ -187,17 +185,27 @@ export default function PhotoModal(props: Props) {
 
   const goToPrev = () => setPhotoIndex(i => Math.max(0, i - 1))
   const goToNext = () => setPhotoIndex(i => Math.min(reviewData.photos.length - 1, i + 1))
-  const swipeHandlers = useCarouselSwipe(goToPrev, goToNext)
-  const carouselSwipeProps = reviewData.photos.length > 1 ? swipeHandlers : {}
+  const { containerProps, trackStyle } = useDragCarousel(reviewData.photos.length, photoIndex, setPhotoIndex)
+  const dragContainerProps = reviewData.photos.length > 1 ? containerProps : {}
 
   const photoCarousel = (
-    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden" {...carouselSwipeProps}>
-      <img
-        src={currentPhoto.photo_url}
-        alt={reviewData.spot_name}
-        className="w-full h-full object-cover cursor-zoom-in"
+    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden" {...dragContainerProps}>
+      <div
+        className="flex h-full w-full"
+        style={reviewData.photos.length > 1 ? trackStyle : undefined}
         onClick={() => setShowLightbox(true)}
-      />
+      >
+        {reviewData.photos.map(p => (
+          <img
+            key={p.photo_id}
+            src={p.photo_url}
+            alt={reviewData.spot_name}
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full flex-shrink-0 object-cover cursor-zoom-in"
+          />
+        ))}
+      </div>
       {reviewData.photos.length > 1 && (
         <>
           {photoIndex > 0 && (
@@ -472,13 +480,23 @@ export default function PhotoModal(props: Props) {
                    sm:max-h-[86dvh] animate-slide-up"
         onClick={e => e.stopPropagation()}
       >
-        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative" {...carouselSwipeProps}>
-          <img
-            src={currentPhoto.photo_url}
-            alt={reviewData.spot_name}
-            className="w-full h-full object-cover cursor-zoom-in"
+        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative overflow-hidden" {...dragContainerProps}>
+          <div
+            className="flex h-full w-full"
+            style={reviewData.photos.length > 1 ? trackStyle : undefined}
             onClick={() => setShowLightbox(true)}
-          />
+          >
+            {reviewData.photos.map(p => (
+              <img
+                key={p.photo_id}
+                src={p.photo_url}
+                alt={reviewData.spot_name}
+                loading="lazy"
+                draggable={false}
+                className="w-full h-full flex-shrink-0 object-cover cursor-zoom-in"
+              />
+            ))}
+          </div>
           {reviewData.photos.length > 1 && (
             <>
               {photoIndex > 0 && (

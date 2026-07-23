@@ -8,7 +8,7 @@ import LikedByOverlay from './LikedByOverlay'
 import ReviewCommentThread from '../ReviewCommentThread'
 import { fetchReviewLikers } from '../../lib/reactionDetails'
 import { useUserProfile } from '../UserProfileContext'
-import { useCarouselSwipe } from './useCarouselSwipe'
+import { useDragCarousel } from './useDragCarousel'
 
 interface Props {
   review: GalleryReviewItem
@@ -26,11 +26,7 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
   const [commentCount, setCommentCount] = useState(review.comment_count)
 
   const primaryPhoto = review.photos[0]
-  const displayPhoto = review.photos[carouselIndex] ?? primaryPhoto
-  const swipeHandlers = useCarouselSwipe(
-    () => setCarouselIndex(i => Math.max(0, i - 1)),
-    () => setCarouselIndex(i => Math.min(review.photos.length - 1, i + 1)),
-  )
+  const { containerProps, trackStyle } = useDragCarousel(review.photos.length, carouselIndex, setCarouselIndex)
   const name = review.reviewer_name ?? review.reviewer_email?.split('@')[0] ?? 'Unknown'
   const initials = name.charAt(0).toUpperCase()
 
@@ -108,15 +104,21 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
       {/* Photo carousel */}
       {primaryPhoto && (
         <div
-          className="relative aspect-[4/3] bg-night-800"
-          {...(review.photos.length > 1 ? swipeHandlers : {})}
+          className="relative aspect-[4/3] bg-night-800 overflow-hidden"
+          {...(review.photos.length > 1 ? containerProps : {})}
         >
-          <img
-            src={displayPhoto.photo_url}
-            alt={review.spot_name}
-            loading="lazy"
-            className="w-full h-full object-cover"
-          />
+          <div className="flex h-full w-full" style={review.photos.length > 1 ? trackStyle : undefined}>
+            {review.photos.map(p => (
+              <img
+                key={p.photo_id}
+                src={p.photo_url}
+                alt={review.spot_name}
+                loading="lazy"
+                draggable={false}
+                className="w-full h-full flex-shrink-0 object-cover"
+              />
+            ))}
+          </div>
 
           {/* Full-bleed open target — sits under the dots so they stay clickable */}
           <button
