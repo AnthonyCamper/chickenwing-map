@@ -104,9 +104,13 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
       {/* Photo carousel */}
       {primaryPhoto && (
         <div
-          className="relative aspect-[4/3] bg-night-800 overflow-hidden"
+          className="relative aspect-[4/3] bg-night-800 overflow-hidden touch-pan-y"
           {...(review.photos.length > 1 ? containerProps : {})}
         >
+          {/* The track below sets an inline `transform`, creating a new stacking
+              context. The absolutely-positioned open button below only stays
+              clickable above the track because it FOLLOWS the track in DOM
+              order — don't reorder these two elements. */}
           <div className="flex h-full w-full" style={review.photos.length > 1 ? trackStyle : undefined}>
             {review.photos.map(p => (
               <img

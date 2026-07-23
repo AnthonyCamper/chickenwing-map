@@ -25,7 +25,7 @@ export default function ReviewCard({ review, onOpen, onLike }: Props) {
 
   return (
     <div
-      className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer"
+      className="group relative aspect-square bg-warmgray-100 rounded-2xl overflow-hidden cursor-pointer touch-pan-y"
       {...(review.photos.length > 1 ? containerProps : {})}
     >
       <div

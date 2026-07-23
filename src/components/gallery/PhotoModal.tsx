@@ -189,7 +189,7 @@ export default function PhotoModal(props: Props) {
   const dragContainerProps = reviewData.photos.length > 1 ? containerProps : {}
 
   const photoCarousel = (
-    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden" {...dragContainerProps}>
+    <div className="relative w-full bg-warmgray-100 aspect-video overflow-hidden touch-pan-y" {...dragContainerProps}>
       <div
         className="flex h-full w-full"
         style={reviewData.photos.length > 1 ? trackStyle : undefined}
@@ -480,7 +480,7 @@ export default function PhotoModal(props: Props) {
                    sm:max-h-[86dvh] animate-slide-up"
         onClick={e => e.stopPropagation()}
       >
-        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative overflow-hidden" {...dragContainerProps}>
+        <div className="sm:w-[46%] flex-shrink-0 bg-black flex items-center justify-center relative overflow-hidden touch-pan-y" {...dragContainerProps}>
           <div
             className="flex h-full w-full"
             style={reviewData.photos.length > 1 ? trackStyle : undefined}

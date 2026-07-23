@@ -233,7 +233,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     // page 1 — that's what lets GalleryView's scroll restore land correctly.
     const savedDepth = readSavedDepth(followingOnly)
     fetchPage(0, false, Math.max(PAGE_SIZE, savedDepth) - 1)
-  }, [fetchPage, cacheKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchPage, cacheKey, followingOnly])
 
   // Keep the module cache in sync with local state (covers paging + optimistic
   // like/comment updates) so the next remount restores the latest list.
