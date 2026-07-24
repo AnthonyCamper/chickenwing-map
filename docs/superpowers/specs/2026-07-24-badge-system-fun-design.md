@@ -21,7 +21,7 @@ displays on profiles that people actually want to browse.
 
 ## Design
 
-### 1. Data: rarity + event context (migration 027)
+### 1. Data: rarity + event context (migration 028)
 
 - New view `badge_earn_stats` (security_invoker, matching migration 022
   conventions): one row per active badge — `badge_id`, `earned_count`
