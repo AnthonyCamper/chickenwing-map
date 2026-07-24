@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
@@ -69,6 +69,21 @@ function StatusScreen({ title, message, onSignOut }: { title: string; message: s
 export default function App() {
   const auth = useAuth()
   const navigate = useNavigate()
+
+  // Return the user to where they were headed before an auth wall (set by
+  // CrawlEditor's login bounce and AuthGateModal). Survives the Google OAuth
+  // full-page round-trip because it lives in sessionStorage.
+  useEffect(() => {
+    if (auth.status !== 'authorized') return
+    let dest: string | null = null
+    try {
+      dest = sessionStorage.getItem('auth-return-to')
+      if (dest) sessionStorage.removeItem('auth-return-to')
+    } catch { /* ignore */ }
+    if (dest && dest.startsWith('/') && !dest.startsWith('//')) {
+      navigate(dest, { replace: true })
+    }
+  }, [auth.status, navigate])
 
   if (auth.status === 'loading') {
     return (

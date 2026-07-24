@@ -59,6 +59,14 @@ function AuthGateModal({
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
   const panelRef = useFocusTrap<HTMLDivElement>()
 
+  // Remember where the user was so they land back here after signing in,
+  // instead of losing the page they were looking at.
+  function rememberHere() {
+    try {
+      sessionStorage.setItem('auth-return-to', window.location.pathname + window.location.search)
+    } catch { /* ignore */ }
+  }
+
   return (
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center animate-fade-in"
@@ -116,7 +124,7 @@ function AuthGateModal({
             {onSignInGoogle && (
               <>
                 <button
-                  onClick={onSignInGoogle}
+                  onClick={() => { rememberHere(); onSignInGoogle() }}
                   className="btn w-full py-3.5 text-base bg-cream-50 border-2 border-night-900
                              text-night-800 hover:bg-cream-100 active:bg-cream-200 shadow-sticker-sm"
                 >
@@ -133,13 +141,13 @@ function AuthGateModal({
             )}
 
             <button
-              onClick={() => navigate('/register')}
+              onClick={() => { rememberHere(); navigate('/register') }}
               className="btn-primary w-full py-3.5 text-base"
             >
               Create an account
             </button>
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => { rememberHere(); navigate('/login') }}
               className="btn-secondary w-full py-3"
             >
               Sign in
