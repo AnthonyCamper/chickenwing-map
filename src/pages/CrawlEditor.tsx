@@ -15,6 +15,7 @@ import {
   deleteCrawlCover,
 } from '../lib/crawlActions'
 import AppHeader from '../components/AppHeader'
+import { useAuthContext } from '../components/AuthProvider'
 import PageStateShell from '../components/ui/PageStateShell'
 import BusinessAutocomplete from '../components/ui/BusinessAutocomplete'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
@@ -40,9 +41,11 @@ export default function CrawlEditor() {
   const navigate = useNavigate()
   const isNew = !id
 
-  const [authChecked, setAuthChecked] = useState(false)
-  const [authed, setAuthed] = useState(false)
-  const [userId, setUserId] = useState<string>('')
+  const auth = useAuthContext()
+  const authChecked = !!auth && auth.status !== 'loading'
+  const authed = auth?.status === 'authorized'
+  const userId = auth?.user?.id ?? ''
+
   const [crawl, setCrawl] = useState<WingCrawl | null>(null)
   const [items, setItems] = useState<ItemWithSpot[]>([])
   const [loading, setLoading] = useState(!isNew)
@@ -53,24 +56,27 @@ export default function CrawlEditor() {
   const [isPublic, setIsPublic] = useState(true)
   const [isRanked, setIsRanked] = useState(false)
   const [savingMeta, setSavingMeta] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveSeqRef = useRef(0)
 
   // Active undo toast id — cleared whenever items change so a stale undo
   // can't clobber subsequent edits.
   const undoToastIdRef = useRef<string | null>(null)
+  // Spot ids with an add in flight — blocks double-tap duplicate inserts.
+  const addingRef = useRef<Set<string>>(new Set())
 
-  // Auth gate
+  // Auth gate: unauthenticated users go to login (and come back here after);
+  // pending/rejected/disabled accounts can't edit lists at all.
   useEffect(() => {
-    let cancelled = false
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return
-      const ok = !!session?.user
-      setAuthed(ok)
-      setUserId(session?.user?.id ?? '')
-      setAuthChecked(true)
-      if (!ok) navigate('/login', { replace: true })
-    })
-    return () => { cancelled = true }
-  }, [navigate])
+    if (!auth || auth.status === 'loading') return
+    if (auth.status === 'unauthenticated') {
+      try { sessionStorage.setItem('auth-return-to', window.location.pathname) } catch { /* ignore */ }
+      navigate('/login', { replace: true })
+    } else if (auth.status !== 'authorized') {
+      toast.error('Your account needs approval before you can make lists')
+      navigate('/', { replace: true })
+    }
+  }, [auth, navigate])
 
   // Load existing crawl when editing. Defers until auth is known so we can
   // check ownership in the same pass (RLS would block writes anyway, but a
@@ -105,11 +111,18 @@ export default function CrawlEditor() {
     setIsPublic(crawlRow.is_public)
     setIsRanked(crawlRow.is_ranked)
 
-    const { data: itemRows } = await supabase
+    const { data: itemRows, error: itemsErr } = await supabase
       .from('wing_crawl_items')
       .select('*')
       .eq('crawl_id', crawlRow.id)
       .order('position', { ascending: true })
+
+    if (itemsErr) {
+      // Don't render a fake-empty list (it invites duplicate re-adds).
+      toast.error('Could not load spots — pull to refresh and try again')
+      setLoading(false)
+      return
+    }
 
     const itemList = (itemRows ?? []) as WingCrawlItem[]
     const spotIds = itemList.map(i => i.wing_spot_id)
@@ -132,47 +145,82 @@ export default function CrawlEditor() {
     || isPublic !== crawl.is_public
   )
 
-  // Warn before unloading the tab while there are unsaved meta changes.
+  // ── New-list draft persistence ────────────────────────────────────────────
+  // The new-list form isn't backed by a DB row yet, so a stray navigation
+  // (brand tap, back button) would destroy typed work. Persist the draft to
+  // sessionStorage and restore it when the user comes back.
+  const DRAFT_KEY = 'crawl-draft-new'
   useEffect(() => {
-    if (!metaDirty) return
+    if (!isNew) return
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const d = JSON.parse(raw)
+      if (typeof d.title === 'string') setTitle(d.title)
+      if (typeof d.description === 'string') setDescription(d.description)
+      if (typeof d.isPublic === 'boolean') setIsPublic(d.isPublic)
+      if (typeof d.isRanked === 'boolean') setIsRanked(d.isRanked)
+    } catch { /* corrupt draft — start fresh */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew])
+  useEffect(() => {
+    if (!isNew) return
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, isPublic, isRanked }))
+    } catch { /* ignore */ }
+  }, [isNew, title, description, isPublic, isRanked])
+
+  // ── Debounced autosave (edit mode) ────────────────────────────────────────
+  // One persistence model for the whole editor: everything autosaves. The
+  // seq guard drops out-of-order responses from superseded saves.
+  useEffect(() => {
+    if (!crawl || !metaDirty) return
+    if (!title.trim()) { setSaveState('error'); return }
+    setSaveState('saving')
+    const t = window.setTimeout(async () => {
+      const seq = ++saveSeqRef.current
+      const payload = { title, description, is_public: isPublic, is_ranked: isRanked }
+      const result = await updateCrawl(crawl.id, payload)
+      if (seq !== saveSeqRef.current) return
+      if (result.error) { setSaveState('error'); toast.error(result.error); return }
+      setCrawl(c => c ? {
+        ...c,
+        title: payload.title.trim(),
+        description: payload.description.trim() || null,
+        is_public: payload.is_public,
+        is_ranked: payload.is_ranked,
+      } : c)
+      setSaveState('saved')
+    }, 800)
+    return () => window.clearTimeout(t)
+  }, [crawl, metaDirty, title, description, isPublic, isRanked])
+
+  // Warn before unloading the tab while a save is pending or in flight
+  // (edit mode). New mode is covered by the sessionStorage draft instead.
+  useEffect(() => {
+    if (isNew || (!metaDirty && saveState !== 'saving')) return
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [metaDirty])
+  }, [isNew, metaDirty, saveState])
 
-  function handleDiscardMeta() {
-    if (!crawl) return
-    setTitle(crawl.title)
-    setDescription(crawl.description ?? '')
-    setIsRanked(crawl.is_ranked)
-    setIsPublic(crawl.is_public)
-  }
-
-  async function handleSaveMeta() {
+  async function handleCreate() {
     if (!title.trim()) { toast.error('Title is required'); return }
+    if (!userId) { toast.error('Not signed in'); return }
     setSavingMeta(true)
     try {
-      if (isNew) {
-        if (!userId) { toast.error('Not signed in'); return }
-        const result = await createCrawl({
-          title, description, is_public: isPublic, is_ranked: isRanked,
-        }, userId)
-        if (result.error || !result.crawl) {
-          toast.error(result.error ?? 'Could not create'); return
-        }
-        toast.success('List created')
-        navigate(`/lists/${result.crawl.id}/edit`, { replace: true })
-      } else if (crawl) {
-        const result = await updateCrawl(crawl.id, {
-          title, description, is_public: isPublic, is_ranked: isRanked,
-        })
-        if (result.error) { toast.error(result.error); return }
-        toast.success('Saved')
-        setCrawl({ ...crawl, title, description, is_public: isPublic, is_ranked: isRanked })
+      const result = await createCrawl({
+        title, description, is_public: isPublic, is_ranked: isRanked,
+      }, userId)
+      if (result.error || !result.crawl) {
+        toast.error(result.error ?? 'Could not create'); return
       }
+      try { sessionStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+      toast.success('List created — now add your spots')
+      navigate(`/lists/${result.crawl.id}/edit`, { replace: true })
     } finally {
       setSavingMeta(false)
     }
@@ -183,7 +231,9 @@ export default function CrawlEditor() {
     const { error } = await deleteCrawl(crawl.id)
     if (error) { toast.error(error); return }
     toast.success('Deleted')
-    navigate('/', { replace: true })
+    // Land where the rest of their lists live (same as deleting from the view page).
+    const username = auth?.profile?.username
+    navigate(username ? `/u/${username}` : '/', { replace: true })
   }
 
   async function handleCoverChange(file: File) {
@@ -215,35 +265,42 @@ export default function CrawlEditor() {
 
   async function handleAddSpot(spotId: string) {
     if (!crawl) return
+    if (addingRef.current.has(spotId)) return
     if (items.some(i => i.wing_spot_id === spotId)) {
       toast('Already in this list', { icon: '👀' }); return
     }
     dismissUndoToast()
-    const { error, item } = await addCrawlItem(crawl.id, spotId)
-    if (error || !item) { toast.error(error ?? 'Could not add'); return }
+    addingRef.current.add(spotId)
+    try {
+      const { error, item } = await addCrawlItem(crawl.id, spotId)
+      if (error || !item) { toast.error(error ?? 'Could not add'); return }
 
-    // Hydrate the new row's spot data without a full reload.
-    const { data: spotRow } = await supabase
-      .from('wing_spots')
-      .select('*')
-      .eq('id', spotId)
-      .maybeSingle()
-    setItems(prev => [...prev, { ...item, spot: (spotRow as WingSpot | null) ?? null }])
-    toast.success('Spot added')
+      // Hydrate the new row's spot data without a full reload.
+      const { data: spotRow } = await supabase
+        .from('wing_spots')
+        .select('*')
+        .eq('id', spotId)
+        .maybeSingle()
+      setItems(prev => [...prev, { ...item, spot: (spotRow as WingSpot | null) ?? null }])
+      toast.success('Spot added')
+    } finally {
+      addingRef.current.delete(spotId)
+    }
   }
 
   async function handleRemoveItem(itemId: string) {
     dismissUndoToast()
-    const snapshot = items
-    setItems(items.filter(i => i.id !== itemId))
+    setItems(prev => prev.filter(i => i.id !== itemId))
     const { error } = await removeCrawlItem(itemId)
-    if (error) { toast.error(error); setItems(snapshot) }
+    // Reload rather than restoring a snapshot: concurrent adds/reorders may
+    // have changed the list since, and a stale snapshot would clobber them.
+    if (error) { toast.error(error); await load() }
   }
 
   async function handleSaveNote(itemId: string, note: string) {
     const { error } = await updateCrawlItemNote(itemId, note)
     if (error) { toast.error(error); return }
-    setItems(items.map(i => i.id === itemId ? { ...i, note: note.trim() || null } : i))
+    setItems(prev => prev.map(i => i.id === itemId ? { ...i, note: note.trim() || null } : i))
   }
 
   async function applyReorder(prev: ItemWithSpot[], next: ItemWithSpot[]) {
@@ -343,10 +400,14 @@ export default function CrawlEditor() {
               {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
             </h1>
           </div>
-          {metaDirty && (
-            <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-night-900 animate-pulse" />
-              Unsaved
+          {!isNew && saveState !== 'idle' && (
+            <span className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm ${
+              saveState === 'error' ? 'bg-sauce-100 text-sauce-700' : 'bg-gold-300 text-night-900'
+            }`}>
+              {saveState === 'saving' && (
+                <span className="w-1.5 h-1.5 rounded-full bg-night-900 animate-pulse" />
+              )}
+              {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? (title.trim() ? 'Save failed' : 'Title required') : 'Saved'}
             </span>
           )}
         </div>
@@ -379,7 +440,7 @@ export default function CrawlEditor() {
               maxLength={600}
               className="input resize-none"
             />
-            <p className="mt-1 text-[11px] text-charcoal-400">{description.length} / 600</p>
+            <p className="mt-1 text-[11px] text-charcoal-500">{description.length} / 600</p>
           </div>
 
           {!isNew && crawl && (
@@ -417,16 +478,32 @@ export default function CrawlEditor() {
             </label>
           </div>
 
-          <div className="flex items-center gap-3 pt-1">
-            <button
-              onClick={handleSaveMeta}
-              disabled={savingMeta || !title.trim()}
-              className="btn-primary px-5 disabled:opacity-50"
-            >
-              {savingMeta ? 'Saving…' : isNew ? 'Create list' : 'Save changes'}
-            </button>
-          </div>
+          {isNew ? (
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleCreate}
+                disabled={savingMeta || !title.trim()}
+                className="btn-primary px-5 disabled:opacity-50"
+              >
+                {savingMeta ? 'Creating…' : 'Create list'}
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-charcoal-500 pt-1">
+              Changes save automatically.
+            </p>
+          )}
         </div>
+
+        {/* New mode: make phase two visible so the flow reads name → spots → cover */}
+        {isNew && (
+          <div className="card px-5 py-5 opacity-70">
+            <h2 className="font-display text-lg text-charcoal-800 mb-1">Spots, cover & notes</h2>
+            <p className="text-sm text-charcoal-500">
+              Create the list first — then you add spots, a cover image, and per-spot notes right here.
+            </p>
+          </div>
+        )}
 
         {/* ── Spots ────────────────────────────────────────────────── */}
         {!isNew && crawl && (
@@ -480,33 +557,6 @@ export default function CrawlEditor() {
         )}
       </main>
 
-      {/* Sticky save bar — appears when meta is dirty (edit mode only) */}
-      {!isNew && metaDirty && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-night-900 bg-cream-100/95 backdrop-blur supports-[backdrop-filter]:bg-cream-100/85 shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          <div className="max-w-3xl mx-auto px-5 py-3 flex items-center gap-3">
-            <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500">
-              Unsaved changes
-            </span>
-            <button
-              onClick={handleDiscardMeta}
-              disabled={savingMeta}
-              className="btn-ghost ml-auto text-xs"
-            >
-              Discard
-            </button>
-            <button
-              onClick={handleSaveMeta}
-              disabled={savingMeta || !title.trim()}
-              className="btn-primary px-5 disabled:opacity-50"
-            >
-              {savingMeta ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -565,18 +615,36 @@ function AddSpotForm({
       toast.error('Longitude must be between -180 and 180'); return
     }
     setCreating(true)
+    const name = newName.trim()
+    const address = newAddr.trim()
     const { data: spot, error } = await supabase
       .from('wing_spots')
-      .upsert(
-        { name: newName.trim(), address: newAddr.trim(), lat, lng },
-        { onConflict: 'name,address', ignoreDuplicates: false }
-      )
+      .insert({ name, address, lat, lng })
       .select('id')
       .single()
+    let spotId = spot?.id as string | undefined
+    if (error && !spotId) {
+      if (error.code === '23505') {
+        // Spot already exists — reuse it. Never overwrite an existing spot's
+        // coordinates from this form (that corrupts shared data).
+        const { data: existing } = await supabase
+          .from('wing_spots')
+          .select('id')
+          .eq('name', name)
+          .eq('address', address)
+          .maybeSingle()
+        spotId = (existing as { id: string } | null)?.id
+      }
+      if (!spotId) {
+        setCreating(false)
+        toast.error(error.message ?? 'Could not add spot')
+        return
+      }
+    }
     setCreating(false)
-    if (error || !spot) { toast.error(error?.message ?? 'Could not add spot'); return }
+    if (!spotId) { toast.error('Could not add spot'); return }
     setNewName(''); setNewAddr(''); setNewLat(''); setNewLng('')
-    onAdded(spot.id)
+    onAdded(spotId)
   }
 
   return (
@@ -795,7 +863,7 @@ function ItemEditor({
         ) : (
           <button
             onClick={() => setEditingNote(true)}
-            className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-500 transition-colors"
+            className="min-h-[44px] -my-2 py-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
           >
             + Add a note
           </button>
