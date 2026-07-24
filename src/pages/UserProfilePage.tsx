@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import BadgeGrid from '../components/badges/BadgeGrid'
+import BadgeIcon from '../components/badges/BadgeIcon'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import { useAuthGate } from '../components/AuthGateModal'
@@ -74,7 +75,7 @@ export default function UserProfilePage() {
         return
       }
 
-      const [reviewsRes, badgesRes, statsRes, followerRes, followingRes, followCheckRes, crawlsRes] = await Promise.all([
+      const [reviewsRes, badgesRes, badgeStatsRes, eventsRes, statsRes, followerRes, followingRes, followCheckRes, crawlsRes] = await Promise.all([
         supabase
           .from('reviews_with_profiles')
           .select('*')
@@ -86,6 +87,8 @@ export default function UserProfilePage() {
           .select('earned_at, badges(id, slug, name, description, icon, color, criteria_type, criteria_config, event_id, sort_order)')
           .eq('user_id', profile.id)
           .order('earned_at', { ascending: false }),
+        supabase.from('badge_earn_stats').select('badge_id, earned_count, member_count'),
+        supabase.from('events').select('id, name, slug'),
         supabase
           .from('leaderboard_stats')
           .select('review_count, unique_spots, avg_rating, comment_count, badge_count, total_likes_received')
@@ -114,9 +117,27 @@ export default function UserProfilePage() {
       const spotsById: Record<string, WingSpot> = {}
       for (const s of (spots ?? []) as WingSpot[]) spotsById[s.id] = s
 
+      const statsByBadge = new Map(
+        ((badgeStatsRes.data ?? []) as any[]).map(s => [s.badge_id, s])
+      )
+      const eventsById = new Map(
+        ((eventsRes.data ?? []) as any[]).map(e => [e.id, e])
+      )
       const badges = ((badgesRes.data ?? []) as any[])
         .filter(r => r.badges)
-        .map(r => ({ ...r.badges, earned: true, earned_at: r.earned_at })) as BadgeWithEarned[]
+        .map(r => {
+          const stat = statsByBadge.get(r.badges.id)
+          const evt = r.badges.event_id ? eventsById.get(r.badges.event_id) : null
+          return {
+            ...r.badges,
+            earned: true,
+            earned_at: r.earned_at,
+            earned_count: stat?.earned_count ?? null,
+            member_count: stat?.member_count ?? null,
+            event_name: evt?.name ?? null,
+            event_slug: evt?.slug ?? null,
+          }
+        }) as BadgeWithEarned[]
 
       const ratings = reviewList.map(r => Number(r.overall_rating)).filter(n => !Number.isNaN(n))
       const stats: Stats = {
@@ -277,7 +298,9 @@ export default function UserProfilePage() {
                 <span className="flex items-center gap-1">
                   <span className="font-display text-2xl text-night-900 group-hover:text-sauce-500">{stats.badgeCount}</span>
                   {badges.slice(0, 3).map(b => (
-                    <span key={b.id} className="text-base leading-none">{b.icon}</span>
+                    <span key={b.id} className="text-base leading-none inline-flex">
+                      <BadgeIcon icon={b.icon} className="w-4 h-4" />
+                    </span>
                   ))}
                 </span>
                 <span className="text-[11px] uppercase font-bold tracking-crowd text-charcoal-500 group-hover:text-sauce-500">Badges →</span>
@@ -292,12 +315,26 @@ export default function UserProfilePage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-8 pb-safe-8 space-y-8">
-        {badges.length > 0 && (
-          <section id="badges">
-            <h2 className="eyebrow mb-3">Badges</h2>
-            <BadgeGrid badges={badges} emptyMessage="No badges yet." />
-          </section>
-        )}
+        {badges.length > 0 && (() => {
+          const eventBadges = badges.filter(b => b.event_id)
+          const regularBadges = badges.filter(b => !b.event_id)
+          return (
+            <section id="badges" className="space-y-6">
+              {eventBadges.length > 0 && (
+                <div>
+                  <h2 className="eyebrow mb-3 text-gold-500">★ Event exclusives</h2>
+                  <BadgeGrid badges={eventBadges} />
+                </div>
+              )}
+              {regularBadges.length > 0 && (
+                <div>
+                  <h2 className="eyebrow mb-3">Badges</h2>
+                  <BadgeGrid badges={regularBadges} />
+                </div>
+              )}
+            </section>
+          )
+        })()}
 
         {(crawls.length > 0 || isOwner) && (
           <section>

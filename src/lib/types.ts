@@ -421,6 +421,11 @@ export interface Badge {
   criteria_config: Record<string, any>
   event_id: string | null
   sort_order: number
+  // From badges_for_user / badge_earn_stats (027) — absent on older payloads
+  earned_count?: number | null
+  member_count?: number | null
+  event_name?: string | null
+  event_slug?: string | null
 }
 
 export interface BadgeWithEarned extends Badge {

@@ -6,6 +6,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useBadges } from '../hooks/useBadges'
 import { useLeaderboard } from '../hooks/useLeaderboard'
 import BadgeGrid from './badges/BadgeGrid'
+import BadgeIcon from './badges/BadgeIcon'
 import type { AuthState } from '../hooks/useAuth'
 
 interface Props {
@@ -161,7 +162,9 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       className="inline-flex items-center gap-1.5 text-[10px] text-charcoal-500 font-bold hover:text-sauce-500 transition-colors"
                     >
                       {badgesHook.earned.slice(0, 3).map(b => (
-                        <span key={b.id} title={b.name} className="text-base leading-none">{b.icon}</span>
+                        <span key={b.id} title={b.name} className="text-base leading-none inline-flex">
+                          <BadgeIcon icon={b.icon} className="w-4 h-4" />
+                        </span>
                       ))}
                       <span>{badgesHook.earned.length} badge{badgesHook.earned.length !== 1 ? 's' : ''} →</span>
                     </button>
@@ -276,11 +279,25 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       </span>
                     </div>
 
-                    {badgesHook.earned.length > 0 && (
-                      <div className="mb-6">
-                        <BadgeGrid badges={badgesHook.earned} />
-                      </div>
-                    )}
+                    {(() => {
+                      const earnedEvent = badgesHook.earned.filter(b => b.event_id)
+                      const earnedRegular = badgesHook.earned.filter(b => !b.event_id)
+                      return (
+                        <>
+                          {earnedEvent.length > 0 && (
+                            <div className="mb-6">
+                              <p className="eyebrow mb-3 text-gold-500">★ Event exclusives</p>
+                              <BadgeGrid badges={earnedEvent} />
+                            </div>
+                          )}
+                          {earnedRegular.length > 0 && (
+                            <div className="mb-6">
+                              <BadgeGrid badges={earnedRegular} />
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
 
                     {badgesHook.locked.length > 0 && (
                       <>

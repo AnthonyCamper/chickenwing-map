@@ -10,6 +10,7 @@ import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
 import ReviewEditModal from '../components/ReviewEditModal'
 import BadgeGrid from '../components/badges/BadgeGrid'
+import BadgeIcon from '../components/badges/BadgeIcon'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import ShareButton from '../components/ui/ShareButton'
@@ -612,7 +613,7 @@ export default function EventPage({ auth }: Props) {
                               position: 'relative',
                             }}
                           >
-                            {b.icon}
+                            <BadgeIcon icon={b.icon} className="w-4 h-4 text-cream-50" />
                           </span>
                         ))}
                         {a.badges.length > 6 && (
