@@ -317,13 +317,19 @@ export default function UserProfilePage() {
                   <Link
                     key={c.id}
                     to={`/lists/${c.slug}`}
-                    className="block bg-cream-50 border-2 border-night-900 rounded-xl p-4 shadow-sticker-sm hover:shadow-sticker transition-shadow"
+                    className="block bg-cream-50 border-2 border-night-900 rounded-xl overflow-hidden p-4 shadow-sticker-sm hover:shadow-sticker transition-shadow"
                   >
+                    {c.cover_image_url && (
+                      <div className="aspect-[16/9] -mx-4 -mt-4 mb-3 overflow-hidden border-b-2 border-night-900 bg-night-800">
+                        <img src={c.cover_image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                      </div>
+                    )}
                     <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest">{c.title}</p>
                     <p className="text-xs text-charcoal-500 mt-1">
                       {c.item_count} {c.item_count === 1 ? 'spot' : 'spots'}
                       {c.is_ranked && ' · Ranked'}
-                      {!c.is_public && ' · Private'}
+                      {!c.is_public && ' · 🔒 Private'}
+                      {c.like_count > 0 && ` · ♥ ${c.like_count}`}
                     </p>
                     {c.description && (
                       <p className="text-sm text-charcoal-700 mt-2 line-clamp-2">{c.description}</p>
