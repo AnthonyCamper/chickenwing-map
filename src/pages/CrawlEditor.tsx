@@ -67,16 +67,23 @@ export default function CrawlEditor() {
 
   // Auth gate: unauthenticated users go to login (and come back here after);
   // pending/rejected/disabled accounts can't edit lists at all.
+  const authStatus = auth?.status
   useEffect(() => {
-    if (!auth || auth.status === 'loading') return
-    if (auth.status === 'unauthenticated') {
-      try { sessionStorage.setItem('auth-return-to', window.location.pathname) } catch { /* ignore */ }
+    // Depend on the status *string*: the auth object changes identity every
+    // render, and a re-run after navigate() would overwrite the stored
+    // return path with '/login' itself.
+    if (!authStatus || authStatus === 'loading') return
+    if (authStatus === 'unauthenticated') {
+      const here = window.location.pathname
+      if (here.startsWith('/lists')) {
+        try { sessionStorage.setItem('auth-return-to', here) } catch { /* ignore */ }
+      }
       navigate('/login', { replace: true })
-    } else if (auth.status !== 'authorized') {
+    } else if (authStatus !== 'authorized') {
       toast.error('Your account needs approval before you can make lists')
       navigate('/', { replace: true })
     }
-  }, [auth, navigate])
+  }, [authStatus, navigate])
 
   // Load existing crawl when editing. Defers until auth is known so we can
   // check ownership in the same pass (RLS would block writes anyway, but a

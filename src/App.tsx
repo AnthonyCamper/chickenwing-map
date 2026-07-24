@@ -80,7 +80,10 @@ export default function App() {
       dest = sessionStorage.getItem('auth-return-to')
       if (dest) sessionStorage.removeItem('auth-return-to')
     } catch { /* ignore */ }
-    if (dest && dest.startsWith('/') && !dest.startsWith('//')) {
+    if (
+      dest && dest.startsWith('/') && !dest.startsWith('//')
+      && !dest.startsWith('/login') && !dest.startsWith('/register')
+    ) {
       navigate(dest, { replace: true })
     }
   }, [auth.status, navigate])
