@@ -5,7 +5,9 @@ import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
+import { directionsUrl, loadCrawlCheckoffs, saveCrawlCheckoffs } from '../lib/crawlUtils'
 import AppHeader from '../components/AppHeader'
+import { useAuthContext } from '../components/AuthProvider'
 import PageStateShell from '../components/ui/PageStateShell'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
@@ -50,7 +52,9 @@ export default function CrawlPage() {
   const [likeBusy, setLikeBusy] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [lightbox, setLightbox] = useState<{ photos: SpotPhoto[]; index: number } | null>(null)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const { requireAuth } = useAuthGate()
+  const auth = useAuthContext()
 
   const load = useCallback(async () => {
     if (!slug) return
@@ -154,6 +158,22 @@ export default function CrawlPage() {
   }, [slug])
 
   useEffect(() => { load() }, [load])
+
+  // On-crawl check-offs are local to this device (no account needed).
+  useEffect(() => {
+    if (data) setCheckedIds(loadCrawlCheckoffs(data.crawl.id))
+  }, [data?.crawl.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleChecked(itemId: string) {
+    if (!data) return
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      saveCrawlCheckoffs(data.crawl.id, next)
+      return next
+    })
+  }
 
   async function handleToggleLike() {
     if (!data) return
@@ -299,7 +319,7 @@ export default function CrawlPage() {
             <div className="text-xs">
               <span className="text-charcoal-500">by </span>
               {authorLinkable ? (
-                <Link to={`/u/${crawl.author_username}`} className="font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
+                <Link to={`/u/${crawl.author_username}`} className="inline-flex items-center min-h-[44px] -my-3 font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
                   {crawl.author_name}
                 </Link>
               ) : (
@@ -319,12 +339,24 @@ export default function CrawlPage() {
                 <span className="text-xs font-bold">{crawl.like_count}</span>
               )}
             </button>
-            <ShareButton
-              title={crawl.title}
-              text={description}
-              url={`${window.location.origin}/lists/${crawl.slug}`}
-              className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
-            />
+            {crawl.is_public ? (
+              <ShareButton
+                title={crawl.title}
+                text={description}
+                url={`${window.location.origin}/lists/${crawl.slug}`}
+                className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
+              />
+            ) : (
+              // Only the owner can see a private list — don't offer a share
+              // link that 404s for everyone else; route to the toggle instead.
+              <Link
+                to={`/lists/${crawl.id}/edit`}
+                title="This list is private — only you can see it. Make it public to share."
+                className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
+              >
+                🔒 Private
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -346,17 +378,35 @@ export default function CrawlPage() {
             )}
           </p>
         ) : (
-          <ol className="space-y-3">
-            {items.map((it, idx) => (
-              <li key={it.id}>
-                <CrawlItemRow
-                  item={it}
-                  rank={crawl.is_ranked ? idx + 1 : null}
-                  onPhotoClick={(photoIdx) => setLightbox({ photos: it.spot_photos, index: photoIdx })}
+          <>
+            {/* On-crawl progress — device-local check-offs */}
+            <div className="card-soft px-4 py-3 mb-4 flex items-center gap-3">
+              <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 shrink-0">On the crawl</span>
+              <div className="flex-1 h-2 bg-cream-200 rounded-full overflow-hidden border border-night-900/20">
+                <div
+                  className="h-full bg-sauce-400 transition-all duration-500"
+                  style={{ width: `${Math.round((items.filter(i => checkedIds.has(i.id)).length / items.length) * 100)}%` }}
                 />
-              </li>
-            ))}
-          </ol>
+              </div>
+              <span className="text-xs font-extrabold text-sauce-500 shrink-0">
+                {items.filter(i => checkedIds.has(i.id)).length}/{items.length}
+              </span>
+            </div>
+            <ol className="space-y-3">
+              {items.map((it, idx) => (
+                <li key={it.id}>
+                  <CrawlItemRow
+                    item={it}
+                    position={idx + 1}
+                    ranked={crawl.is_ranked}
+                    checked={checkedIds.has(it.id)}
+                    onToggleChecked={() => toggleChecked(it.id)}
+                    onPhotoClick={(photoIdx) => setLightbox({ photos: it.spot_photos, index: photoIdx })}
+                  />
+                </li>
+              ))}
+            </ol>
+          </>
         )}
 
         {/* Comments */}
@@ -365,7 +415,7 @@ export default function CrawlPage() {
           <CrawlCommentThread
             crawlId={crawl.id}
             currentUserId={currentUserId}
-            isAdmin={false}
+            isAdmin={auth?.isAdmin ?? false}
           />
         </section>
       </main>
@@ -382,10 +432,13 @@ export default function CrawlPage() {
 }
 
 function CrawlItemRow({
-  item, rank, onPhotoClick,
+  item, position, ranked, checked, onToggleChecked, onPhotoClick,
 }: {
   item: ItemWithSpot
-  rank: number | null
+  position: number
+  ranked: boolean
+  checked: boolean
+  onToggleChecked: () => void
   onPhotoClick: (index: number) => void
 }) {
   const { spot, spot_photos: photos, spot_reviews: reviews } = item
@@ -397,38 +450,71 @@ function CrawlItemRow({
     )
   }
 
-  return (
-    <div className="bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker overflow-hidden">
-      {/* Header — links to spot */}
-      <Link
-        to={spot.slug ? `/spots/${spot.slug}` : '#'}
-        className="block p-4 hover:bg-cream-100/50 transition-colors"
-      >
-        <div className="flex items-start gap-3">
-          {rank != null && (
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sauce-400 border-2 border-night-900 flex items-center justify-center font-display text-lg text-night-900 shadow-sticker-sm">
-              {rank}
+  // The map numbers every pin, so the list numbers every row too — ranked
+  // just changes the styling from itinerary-neutral to top-N loud.
+  const header = (
+    <div className="flex items-start gap-3">
+      <div className={`flex-shrink-0 w-10 h-10 rounded-full border-2 border-night-900 flex items-center justify-center font-display text-lg shadow-sticker-sm ${
+        ranked ? 'bg-sauce-400 text-night-900' : 'bg-cream-200 text-night-800'
+      }`}>
+        {position}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-display uppercase text-lg text-night-900 truncate tracking-tightest">{spot.name}</p>
+            <p className="text-xs text-charcoal-500 truncate">{spot.address}</p>
+          </div>
+          {item.spot_avg_rating != null && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-cream-100 border-2 border-night-900 rounded shrink-0">
+              <span className="font-display text-sm text-night-900">{item.spot_avg_rating.toFixed(1)}</span>
+              <span className="text-[10px] uppercase font-bold tracking-crowd text-charcoal-500">/10</span>
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-display uppercase text-lg text-night-900 truncate tracking-tightest">{spot.name}</p>
-                <p className="text-xs text-charcoal-500 truncate">{spot.address}</p>
-              </div>
-              {item.spot_avg_rating != null && (
-                <div className="flex items-center gap-1 px-2 py-1 bg-cream-100 border-2 border-night-900 rounded shrink-0">
-                  <span className="font-display text-sm text-night-900">{item.spot_avg_rating.toFixed(1)}</span>
-                  <span className="text-[10px] uppercase font-bold tracking-crowd text-charcoal-500">/10</span>
-                </div>
-              )}
-            </div>
-            {item.note && (
-              <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap">"{item.note}"</p>
-            )}
-          </div>
         </div>
-      </Link>
+        {item.note && (
+          <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap">"{item.note}"</p>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="bg-cream-50 border-2 border-night-900 rounded-xl shadow-sticker overflow-hidden">
+      {/* Header — links to spot when it has a page (no dead '#' links) */}
+      {spot.slug ? (
+        <Link to={`/spots/${spot.slug}`} className="block p-4 hover:bg-cream-100/50 transition-colors">
+          {header}
+        </Link>
+      ) : (
+        <div className="p-4">{header}</div>
+      )}
+
+      {/* On-crawl actions */}
+      <div className="border-t-2 border-night-900/10 px-4 py-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggleChecked}
+          aria-pressed={checked}
+          className={`min-h-[44px] px-3 rounded-xl border-2 text-xs font-extrabold uppercase tracking-crowd transition-colors ${
+            checked
+              ? 'bg-gold-100 border-gold-300 text-gold-700'
+              : 'bg-cream-50 border-night-900/20 text-charcoal-500 hover:border-sauce-400'
+          }`}
+        >
+          {checked ? '✓ Been here' : 'Check off'}
+        </button>
+        {spot.lat != null && spot.lng != null && (
+          <a
+            href={directionsUrl(spot.lat, spot.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-h-[44px] px-3 inline-flex items-center rounded-xl border-2 border-night-900/20 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:border-sauce-400 hover:text-sauce-500 transition-colors"
+          >
+            Directions ↗
+          </a>
+        )}
+      </div>
 
       {/* Photo strip */}
       {photos.length > 0 && (
