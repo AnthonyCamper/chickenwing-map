@@ -1,3 +1,4 @@
+import BadgeIcon from './BadgeIcon'
 import type { BadgeWithEarned, Badge } from '../../lib/types'
 
 interface Props {
@@ -29,8 +30,10 @@ export default function BadgePill({ badge, onClick, size = 'md' }: Props) {
           : 'bg-cream-100 border-night-900/20 text-charcoal-400 opacity-50 grayscale cursor-default'}
         ${interactive && earned ? 'active:translate-x-[1px] active:translate-y-[1px] active:shadow-none' : ''}`}
     >
-      <span className={`${icon} mb-1 leading-none`}>
-        {earned ? badge.icon : '🔒'}
+      <span className={`${icon} mb-1 leading-none flex items-center justify-center`}>
+        {earned
+          ? <BadgeIcon icon={badge.icon} className={size === 'sm' ? 'w-6 h-6' : 'w-7 h-7'} />
+          : '🔒'}
       </span>
       <span className="text-[9px] font-extrabold uppercase tracking-crowd leading-tight">
         {badge.name}

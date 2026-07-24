@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import Modal from '../ui/Modal'
+import BadgeIcon from './BadgeIcon'
 import type { BadgeWithEarned } from '../../lib/types'
 
 interface Props {
@@ -32,15 +33,16 @@ function howToEarn(b: BadgeWithEarned): string {
     case 'takeout_count':       return `Review ${cfg.count ?? '?'} takeout orders.`
     case 'loyal_regular':       return `Review the same spot ${cfg.count ?? 3}+ times.`
     case 'jumbo_fan':             return 'Review a spot for jumbo wings.'
-    case 'review_text_contains':  return cfg.word
-      ? `Mention "${cfg.word}" in a review.`
-      : `Use a specific phrase in a review.`
+    case 'review_text_contains':  return cfg.hint
+      ?? (cfg.word ? `Mention "${cfg.word}" in a review.` : `Use a specific phrase in a review.`)
     case 'review_text_long':      return `Write a review with at least ${cfg.min_length ?? 300} characters. Go deep.`
     case 'review_text_short':     return `Write a review with ${cfg.max_length ?? 15} characters or fewer. Say it in style.`
     case 'single_rating_low':     return `Give a rating of ${cfg.max_rating ?? 2}.0 or below on any review.`
     case 'rating_floor':          return `Never give below a ${cfg.min_rating ?? 8}.0, with at least ${cfg.min_reviews ?? 5} reviews.`
     case 'rating_no_decimals':    return `Give at least ${cfg.min_reviews ?? 3} reviews and never use a decimal — whole numbers only.`
     case 'rating_uses_decimals':  return 'Use a decimal rating at least once (e.g. 7.5, 8.3).'
+    case 'rating_exact':          return cfg.hint ?? `Give a rating of exactly ${cfg.value ?? '?'}.`
+    case 'flavor_contains':       return `Review wings with ${cfg.text ?? 'a specific'} flavor.`
     default:                      return b.description ?? ''
   }
 }
@@ -53,7 +55,7 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
         <div className={`relative mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-5xl mb-5 border-2 border-night-900
           ${badge.earned ? 'bg-night-800 shadow-sticker' : 'bg-cream-200 grayscale opacity-60'}`}
         >
-          {badge.earned ? badge.icon : '🔒'}
+          {badge.earned ? <BadgeIcon icon={badge.icon} className="w-12 h-12" /> : '🔒'}
           {badge.earned && (
             <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-sauce-400 border-2 border-night-900 flex items-center justify-center text-xs">
               ✓

@@ -395,6 +395,8 @@ export type BadgeCriteriaType =
   | 'rating_floor'
   | 'rating_no_decimals'
   | 'rating_uses_decimals'
+  | 'rating_exact'
+  | 'flavor_contains'
 
 export interface LeaderboardRow {
   user_id: string
