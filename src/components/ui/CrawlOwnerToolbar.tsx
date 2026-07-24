@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface Props {
@@ -17,6 +17,7 @@ interface Props {
 export default function CrawlOwnerToolbar({ mode, viewHref, editHref, onDelete }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null)
 
   async function handleDelete() {
     if (!onDelete) return
@@ -30,7 +31,12 @@ export default function CrawlOwnerToolbar({ mode, viewHref, editHref, onDelete }
   }
 
   return (
-    <div className="sticky top-0 z-30 border-b-2 border-night-900/10 bg-cream-100/95 backdrop-blur supports-[backdrop-filter]:bg-cream-100/80">
+    <div
+      // Sticks *below* the sticky AppHeader (58px tall + safe-area) — top-0
+      // would pin it underneath the z-40 header, hiding it once you scroll.
+      className="sticky z-30 border-b-2 border-night-900/10 bg-cream-100/95 backdrop-blur supports-[backdrop-filter]:bg-cream-100/80"
+      style={{ top: 'calc(env(safe-area-inset-top) + 58px)' }}
+    >
       <div className="max-w-3xl mx-auto px-5 py-2 flex items-center gap-3">
         {/* View / Edit pill switcher */}
         <div className="flex p-0.5 bg-warmgray-100 rounded-xl border border-night-900/10">
@@ -52,7 +58,7 @@ export default function CrawlOwnerToolbar({ mode, viewHref, editHref, onDelete }
                   {busy ? 'Deleting…' : 'Yes'}
                 </button>
                 <button
-                  onClick={() => setConfirming(false)}
+                  onClick={() => { setConfirming(false); deleteTriggerRef.current?.focus() }}
                   className="btn-ghost text-xs text-charcoal-500"
                 >
                   Cancel
@@ -60,6 +66,7 @@ export default function CrawlOwnerToolbar({ mode, viewHref, editHref, onDelete }
               </span>
             ) : (
               <button
+                ref={deleteTriggerRef}
                 onClick={() => setConfirming(true)}
                 className="min-h-[44px] -my-2 px-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-600 transition-colors"
               >
