@@ -7,18 +7,19 @@ interface MapItem {
 
 interface Props {
   items: MapItem[]
-  ranked: boolean
   className?: string
   /** When provided, tapping a pin invokes this with the spot (used to navigate to the spot page). */
   onSelectSpot?: (spot: WingSpot) => void
 }
 
 /**
- * Leaflet map for a crawl: numbered markers per spot in order, polyline
- * connecting them when ranked=true. Updates reactively as items change so
- * it works inside the editor and on the public page.
+ * Leaflet map for a crawl: numbered markers per spot in order, with a
+ * polyline connecting them — position order always exists, so the route
+ * always draws (ranked is a list-presentation choice, not a map one).
+ * Updates reactively as items change so it works inside the editor and on
+ * the public page.
  */
-export default function CrawlRouteMap({ items, ranked, className, onSelectSpot }: Props) {
+export default function CrawlRouteMap({ items, className, onSelectSpot }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const layerGroupRef = useRef<import('leaflet').LayerGroup | null>(null)
@@ -31,7 +32,14 @@ export default function CrawlRouteMap({ items, ranked, className, onSelectSpot }
     let cancelled = false
     import('leaflet').then(L => {
       if (cancelled || mapRef.current) return
-      const map = L.map(el, { zoomControl: true, attributionControl: false, scrollWheelZoom: false })
+      const map = L.map(el, {
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        // One-finger drags would trap vertical page scrolling on mobile;
+        // panning stays available via two-finger gestures + zoom buttons.
+        dragging: !L.Browser.mobile,
+      })
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
       }).addTo(map)
@@ -72,7 +80,7 @@ export default function CrawlRouteMap({ items, ranked, className, onSelectSpot }
 
       const latlngs = points.map(p => [p.spot.lat, p.spot.lng] as [number, number])
 
-      if (ranked && latlngs.length > 1) {
+      if (latlngs.length > 1) {
         L.polyline(latlngs, { color: '#fa5a2e', weight: 3, opacity: 0.75 }).addTo(group)
       }
 
@@ -100,11 +108,13 @@ export default function CrawlRouteMap({ items, ranked, className, onSelectSpot }
       }
     })
     return () => { cancelled = true }
-  }, [items, ranked, onSelectSpot])
+  }, [items, onSelectSpot])
 
   return (
     <div
       ref={elRef}
+      role="region"
+      aria-label="Crawl route map"
       className={className ?? 'w-full h-56 sm:h-72 rounded-xl border-2 border-night-900 overflow-hidden shadow-sticker'}
     />
   )

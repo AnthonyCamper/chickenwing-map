@@ -334,7 +334,6 @@ export default function CrawlPage() {
           <div className="mb-6">
             <CrawlRouteMap
               items={items}
-              ranked={crawl.is_ranked}
               onSelectSpot={(spot) => { if (spot.slug) navigate(`/spots/${spot.slug}`) }}
             />
           </div>

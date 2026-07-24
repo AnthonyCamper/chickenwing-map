@@ -518,7 +518,6 @@ export default function CrawlEditor() {
             {items.length > 0 && (
               <CrawlRouteMap
                 items={items}
-                ranked={isRanked}
                 className="w-full h-48 sm:h-56 rounded-2xl border-2 border-night-900/10 overflow-hidden"
               />
             )}
