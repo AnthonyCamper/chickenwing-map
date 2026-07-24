@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import toast from 'react-hot-toast'
 
 interface Props {
   preview: string | null
@@ -13,14 +14,18 @@ interface Props {
  * the actual upload after onChange fires with the picked File.
  */
 export default function CoverImagePicker({
+  // Default suits uncompressed upload paths (event covers). Callers whose
+  // pipeline compresses (crawl covers) pass a higher cap.
   preview, onChange, onClear, maxBytes = 5 * 1024 * 1024,
 }: Props) {
+  const maxMb = Math.round(maxBytes / 1024 / 1024)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
     if (f.size > maxBytes) {
+      toast.error(`That image is too big (max ${maxMb} MB)`)
       e.target.value = ''
       return
     }
@@ -38,12 +43,12 @@ export default function CoverImagePicker({
             <img src={preview} alt="Cover preview" className="w-full max-h-72 object-contain bg-night-900" />
           </a>
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-t-2 border-night-900 bg-cream-50">
-            <span className="text-xs text-charcoal-400">Click image to view full size</span>
-            <div className="flex gap-2">
+            <span className="text-xs text-charcoal-500">Click image to view full size</span>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors"
+                className="min-h-[44px] px-2 -my-2 text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors"
               >
                 Change
               </button>
@@ -51,7 +56,7 @@ export default function CoverImagePicker({
               <button
                 type="button"
                 onClick={onClear}
-                className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-sauce-600 transition-colors"
+                className="min-h-[44px] px-2 -my-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-600 transition-colors"
               >
                 Remove
               </button>
@@ -70,14 +75,14 @@ export default function CoverImagePicker({
             <polyline points="21 15 16 10 5 21" />
           </svg>
           <span className="text-sm font-medium">Upload cover image</span>
-          <span className="text-xs">JPG, PNG, WebP · max 5 MB</span>
+          <span className="text-xs">JPG, PNG, WebP · max {maxMb} MB</span>
         </button>
       )}
 
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={pick}
       />

@@ -448,6 +448,7 @@ export default function CrawlEditor() {
               preview={crawl.cover_image_url}
               onChange={handleCoverChange}
               onClear={handleClearCover}
+              maxBytes={20 * 1024 * 1024}
             />
           )}
 
