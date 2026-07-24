@@ -45,7 +45,13 @@ function RouteMap({ stops }: RouteMapProps) {
       if (!el || el.dataset.leafletInit) return
       el.dataset.leafletInit = '1'
 
-      map = L.map(el, { zoomControl: true, attributionControl: false })
+      map = L.map(el, {
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        // One-finger drags trap vertical page scrolling on mobile.
+        dragging: !L.Browser.mobile,
+      })
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
@@ -116,11 +122,18 @@ export default function EventPage({ auth }: Props) {
     if (!eventId) return
     setResetingUserId(targetUserId)
     try {
-      await Promise.all([
+      const results = await Promise.all([
         supabase.from('event_checkins').delete().match({ event_id: eventId, user_id: targetUserId }),
         supabase.from('reviews').delete().match({ event_id: eventId, user_id: targetUserId }),
         supabase.from('user_badges').delete().match({ event_id: eventId, user_id: targetUserId }),
       ])
+      // Supabase returns errors instead of throwing — don't toast success
+      // when the deletes were silently rejected (RLS, network).
+      const firstError = results.map(r => r.error).find(Boolean)
+      if (firstError) {
+        toast.error(`Reset failed: ${firstError.message}`)
+        return
+      }
       const name = checkinAttendees.find(a => a.user_id === targetUserId)?.display_name ?? 'User'
       toast.success(`Reset ${name}'s progress`)
       setCheckinAttendees(prev => prev.filter(a => a.user_id !== targetUserId))
@@ -501,7 +514,7 @@ export default function EventPage({ auth }: Props) {
                         {stop.parking_notes && (
                           <p className="text-xs text-charcoal-600 mt-1">🅿️ {stop.parking_notes}</p>
                         )}
-                        {stop.checkin_count && stop.checkin_count > 0 && (
+                        {(stop.checkin_count ?? 0) > 0 && (
                           <p className="text-xs text-charcoal-500 mt-1">
                             {stop.checkin_count} {stop.checkin_count === 1 ? 'check-in' : 'check-ins'}
                           </p>
