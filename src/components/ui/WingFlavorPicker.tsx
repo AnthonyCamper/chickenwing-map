@@ -41,8 +41,8 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
     <div className="space-y-2">
       {value && (
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full bg-sauce-400 text-cream-50 text-sm font-bold border-2 border-night-900 shadow-sticker-sm">
-            {value}
+          <span className="inline-flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full bg-sauce-400 text-cream-50 text-sm font-bold border-2 border-night-900 shadow-sticker-sm max-w-full min-w-0">
+            <span className="truncate">{value}</span>
             <button
               type="button"
               onClick={() => onChange('')}

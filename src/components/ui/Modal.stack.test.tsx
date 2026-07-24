@@ -3,6 +3,7 @@ import { render, fireEvent } from '@testing-library/react'
 import Modal from './Modal'
 
 vi.mock('../../hooks/useBottomSheetDrag', () => ({
+  useIsMobile: () => false,
   useBottomSheetDrag: () => ({
     expanded: false,
     setExpanded: vi.fn(),

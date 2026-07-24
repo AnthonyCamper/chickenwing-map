@@ -265,13 +265,34 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
     onFocusHandled?.()
   }, [focusShopId, mapReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Fill the viewport below the app chrome ────────────────────────────────
+  // The chrome above us varies (safe-area, event broadcast strip, live
+  // marquee), so measure our own document offset instead of hardcoding an
+  // envelope — a wrong constant either crops the map or forces page scroll.
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [chromeOffset, setChromeOffset] = useState(96)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => {
+      const top = Math.round(el.getBoundingClientRect().top + window.scrollY)
+      setChromeOffset(prev => (Math.abs(prev - top) > 1 ? top : prev))
+    }
+    update()
+    window.addEventListener('resize', update)
+    const ro = new ResizeObserver(update) // catches strips mounting/unmounting
+    ro.observe(document.body)
+    return () => { window.removeEventListener('resize', update); ro.disconnect() }
+  }, [])
+  useEffect(() => {
+    leafletRef.current?.invalidateSize()
+  }, [chromeOffset])
+
   return (
-    // The header height varies with safe-area + optional event broadcast strip,
-    // so we leave a 96px envelope below 100dvh to keep the map fully visible
-    // without forcing the user to scroll past it.
     <div
+      ref={containerRef}
       className="relative w-full"
-      style={{ height: 'calc(100dvh - 96px - env(safe-area-inset-top))' }}
+      style={{ height: `calc(100dvh - ${chromeOffset}px)` }}
     >
       <div ref={mapRef} className="w-full h-full" />
 
@@ -282,7 +303,8 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
           onClick={handleLocateMe}
           disabled={locating}
           aria-label="Show my location"
-          className="absolute z-[20] right-3 bottom-24 w-11 h-11 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
+          className="absolute z-[20] right-3 w-11 h-11 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
+          style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
         >
           {locating ? (
             <span className="w-4 h-4 rounded-full border-2 border-night-700 border-t-sauce-400 animate-spin" />

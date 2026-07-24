@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import ReviewPhotoFan, { groupPhotosByReview } from './ui/ReviewPhotoFan'
@@ -20,6 +20,31 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
   // selecting another spot resets it.
   const [showReviews, setShowReviews] = useState(false)
 
+  // Swipe-down on the handle/header dismisses the sheet — the handle bar
+  // promises draggability, so honor it. Panel follows the finger, snaps
+  // back under the threshold.
+  const dragStart = useRef<{ y: number; t: number } | null>(null)
+  const [dragY, setDragY] = useState(0)
+  const dragHandlers = {
+    onTouchStart: (e: React.TouchEvent) => {
+      dragStart.current = { y: e.touches[0].clientY, t: e.timeStamp }
+      setDragY(0)
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      if (!dragStart.current) return
+      setDragY(Math.max(0, e.touches[0].clientY - dragStart.current.y))
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      if (!dragStart.current) return
+      const dy = e.changedTouches[0].clientY - dragStart.current.y
+      const dt = Math.max(1, e.timeStamp - dragStart.current.t)
+      dragStart.current = null
+      if (dy > 50 || dy / dt > 0.3) onClose()
+      else setDragY(0)
+    },
+    onTouchCancel: () => { dragStart.current = null; setDragY(0) },
+  }
+
   return (
     <>
       {/* Backdrop on mobile */}
@@ -29,9 +54,12 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
       />
 
       {/* Panel */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col">
+      <div
+        className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col"
+        style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : { transition: 'transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)' }}
+      >
         {/* Handle (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden touch-none select-none" {...dragHandlers}>
           <div className="w-10 h-1 rounded-full bg-night-900/25" />
         </div>
 
@@ -62,11 +90,9 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div
-          className="overflow-y-auto flex-1 overscroll-contain"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
+        {/* Scrollable body — pb-safe-fab keeps the fixed FAB (same z-30,
+            later in DOM) from covering the last row of content */}
+        <div className="overflow-y-auto flex-1 overscroll-contain pb-safe-fab sm:pb-0">
           {/* Photo strip — one fan per review */}
           {photos.length > 0 && (
             <div className="px-5 pt-4 pb-2">

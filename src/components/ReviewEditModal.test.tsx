@@ -4,6 +4,7 @@ import ReviewEditModal from './ReviewEditModal'
 import type { Review } from '../lib/types'
 
 vi.mock('../hooks/useBottomSheetDrag', () => ({
+  useIsMobile: () => false,
   useBottomSheetDrag: () => ({
     expanded: false,
     setExpanded: vi.fn(),

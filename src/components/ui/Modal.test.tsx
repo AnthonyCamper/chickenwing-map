@@ -11,6 +11,7 @@ const mockHandleProps = {
 }
 
 vi.mock('../../hooks/useBottomSheetDrag', () => ({
+  useIsMobile: () => false,
   useBottomSheetDrag: () => ({
     expanded: false,
     setExpanded: vi.fn(),
@@ -108,12 +109,13 @@ describe('Modal', () => {
   })
 
   it('renders with correct size class', () => {
-    const { container } = render(
+    render(
       <Modal title="Test" onClose={vi.fn()} size="lg">
         Content
       </Modal>
     )
-    const sheet = container.querySelector('.max-w-2xl')
+    // The modal portals to document.body, so query the document
+    const sheet = document.body.querySelector('.max-w-2xl')
     expect(sheet).toBeInTheDocument()
   })
 

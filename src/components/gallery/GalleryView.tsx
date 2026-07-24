@@ -146,7 +146,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
     <>
       {/* Feed tabs */}
       <div className="max-w-2xl mx-auto px-4 pt-4">
-        <div className="flex gap-1.5 mb-4" role="tablist" aria-label="Feed">
+        <div className="flex flex-wrap gap-1.5 mb-4" role="tablist" aria-label="Feed">
           {([['following', 'Following'], ['discover', 'Discover'], ['crawls', 'Lists'], ['people', 'People']] as [Feed, string][]).map(([f, label]) => (
             <button
               key={f}

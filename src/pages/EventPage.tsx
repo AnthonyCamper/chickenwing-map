@@ -681,7 +681,7 @@ export default function EventPage({ auth }: Props) {
                 .map(r => (
                   <li
                     key={r.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-100 border-2 border-night-900/20"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-100 border-2 border-night-900/20 max-w-full min-w-0"
                   >
                     {r.is_private ? (
                       <span className="w-5 h-5 rounded-full bg-cream-200 flex items-center justify-center text-xs">🔒</span>
@@ -692,7 +692,7 @@ export default function EventPage({ auth }: Props) {
                         {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
                       </span>
                     )}
-                    <span className="text-xs font-bold text-charcoal-600">
+                    <span className="text-xs font-bold text-charcoal-600 truncate">
                       {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
                     </span>
                   </li>

@@ -27,7 +27,10 @@ export default function NotificationBell({ notifications }: Props) {
   }, [open])
 
   return (
-    <div className="relative flex-shrink-0" ref={containerRef}>
+    // Not `relative`: the dropdown anchors to the header's right-side
+    // container (AppHeader) so it can't poke past the left viewport edge
+    // on narrow screens.
+    <div className="flex-shrink-0" ref={containerRef}>
       <button
         onClick={() => setOpen(!open)}
         className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-night-700 active:bg-night-600 transition-colors relative"

@@ -358,7 +358,7 @@ export default function UserProfilePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-display uppercase text-lg text-night-900 truncate">{spot?.name ?? 'Unknown spot'}</p>
-                        <p className="text-xs text-charcoal-500">
+                        <p className="text-xs text-charcoal-500 truncate">
                           {(() => { try { return format(new Date(r.visited_at), 'MMM d, yyyy') } catch { return r.visited_at } })()}
                           {r.wing_flavor ? ` · ${r.wing_flavor}` : ''}
                         </p>

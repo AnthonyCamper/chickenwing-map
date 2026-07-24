@@ -224,8 +224,11 @@ export default function AppHeader({ view, onViewChange }: Props) {
           )}
 
           {/* Notifications + Profile */}
+          {/* `relative` on this container (not the bell wrapper) anchors the
+              notification dropdown so it hugs the viewport edge instead of
+              poking past it on narrow screens. */}
           {user ? (
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="relative flex items-center gap-1 flex-shrink-0">
               <NotificationBell notifications={notificationsHook} />
               <div className="relative">
                 <button

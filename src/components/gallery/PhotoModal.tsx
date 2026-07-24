@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import StarRating from '../ui/StarRating'
 import ExpandableText from '../ui/ExpandableText'
@@ -104,6 +104,22 @@ export default function PhotoModal(props: Props) {
   const panelRef = useFocusTrap<HTMLDivElement>(!showLightbox)
 
   // Mobile input state
+  // Swipe-down on the mobile sheet header dismisses (backdrop is never
+  // visible on the full-height sheet, so × was the only touch dismissal)
+  const headerTouchStart = useRef<{ y: number; t: number } | null>(null)
+  const headerSwipeHandlers = {
+    onTouchStart: (e: React.TouchEvent) => {
+      headerTouchStart.current = { y: e.touches[0].clientY, t: e.timeStamp }
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      if (!headerTouchStart.current) return
+      const dy = e.changedTouches[0].clientY - headerTouchStart.current.y
+      const dt = Math.max(1, e.timeStamp - headerTouchStart.current.t)
+      headerTouchStart.current = null
+      if (dy > 60 || (dy > 20 && dy / dt > 0.4)) props.onClose()
+    },
+  }
+
   const [mobileText, setMobileText] = useState('')
   const [mobilePosting, setMobilePosting] = useState(false)
   const [mobileReplyingTo, setMobileReplyingTo] = useState<{ id: string; name: string } | null>(null)
@@ -328,7 +344,10 @@ export default function PhotoModal(props: Props) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-warmgray-100">
+        <div
+          className="flex-shrink-0 flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-warmgray-100"
+          {...headerSwipeHandlers}
+        >
           <div className="min-w-0">
             <p className="font-display text-sm font-semibold text-charcoal-800 truncate">{reviewData.spot_name}</p>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">

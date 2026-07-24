@@ -1,6 +1,7 @@
 import toast from 'react-hot-toast'
 import { supabase } from './supabase'
 import { triggerPushDelivery } from './pushManager'
+import { announceNewBadges, snapshotEarnedBadgeIds } from './badgeUnlocks'
 import { invalidateGalleryFeedCache } from '../hooks/useGallery'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
@@ -99,6 +100,10 @@ export async function createReview(
   data: ReviewFormData,
   userId: string
 ): Promise<{ error: string | null; reviewId?: string }> {
+  // DB triggers award badges on the insert below — snapshot first so we can
+  // diff afterwards and celebrate any new unlocks.
+  const earnedBefore = await snapshotEarnedBadgeIds()
+
   const { data: spotData, error: spotErr } = await supabase
     .from('wing_spots')
     .upsert(
@@ -150,6 +155,7 @@ export async function createReview(
 
   invalidateGalleryFeedCache()
   triggerPushDelivery()
+  void announceNewBadges(earnedBefore)
   return { error: null, reviewId: reviewData.id }
 }
 
@@ -157,6 +163,10 @@ export async function updateReview(
   reviewId: string,
   data: ReviewUpdateData
 ): Promise<{ error: string | null }> {
+  // Rating/flavor edits can also newly qualify for badges — same
+  // snapshot/diff dance as createReview.
+  const earnedBefore = await snapshotEarnedBadgeIds()
+
   const updates: Record<string, unknown> = {}
   if (data.overall_rating !== undefined) updates.overall_rating = data.overall_rating
   if (data.wing_size !== undefined) updates.wing_size = data.wing_size.trim() || null
@@ -214,6 +224,7 @@ export async function updateReview(
   }
 
   invalidateGalleryFeedCache()
+  void announceNewBadges(earnedBefore)
   return { error: null }
 }
 

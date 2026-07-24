@@ -16,6 +16,7 @@ import ShareButton from '../components/ui/ShareButton'
 import HeartIcon from '../components/gallery/HeartIcon'
 import CrawlCommentThread from '../components/CrawlCommentThread'
 import { useAuthGate } from '../components/AuthGateModal'
+import { useDragCarousel } from '../components/gallery/useDragCarousel'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
 
 interface SpotPhoto { id: string; url: string }
@@ -281,9 +282,14 @@ export default function CrawlPage() {
       <header className="border-b-2 border-night-900 bg-cream-100">
         {/* Cover */}
         {crawl.cover_image_url ? (
-          <div className="w-full h-48 sm:h-64 bg-night-900 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setLightbox({ photos: [{ id: 'cover', url: crawl.cover_image_url! }], index: 0 })}
+            aria-label="View cover photo full screen"
+            className="block w-full h-48 sm:h-64 bg-night-900 overflow-hidden cursor-zoom-in focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sauce-400"
+          >
             <img src={crawl.cover_image_url} alt="" className="w-full h-full object-cover" />
-          </div>
+          </button>
         ) : gridPhotos.length > 0 ? (
           <div className="w-full h-48 sm:h-64 grid grid-cols-2 sm:grid-cols-4 gap-px bg-night-900">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -516,28 +522,15 @@ function CrawlItemRow({
         )}
       </div>
 
-      {/* Photo strip */}
+      {/* Photos — full-width swipeable carousel; the whole photo stays visible
+          (object-contain), tapping opens the lightbox for full-screen */}
       {photos.length > 0 && (
-        <div className="border-t-2 border-night-900/10 px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide">
-          {photos.map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onPhotoClick(i)}
-              className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 border-night-900 hover:border-sauce-400 transition-colors"
-            >
-              <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
-            </button>
-          ))}
-          {spot.slug && (
-            <Link
-              to={`/spots/${spot.slug}`}
-              className="flex-shrink-0 w-20 h-20 rounded-lg border-2 border-dashed border-night-900/30 hover:border-sauce-400 flex flex-col items-center justify-center text-charcoal-400 hover:text-sauce-500 transition-colors text-[10px] font-extrabold uppercase tracking-crowd text-center px-1"
-            >
-              See all →
-            </Link>
-          )}
-        </div>
+        <CrawlItemPhotoCarousel
+          photos={photos}
+          spotName={spot.name}
+          seeAllHref={spot.slug ? `/spots/${spot.slug}` : null}
+          onPhotoClick={onPhotoClick}
+        />
       )}
 
       {/* Recent reviews */}
@@ -577,6 +570,78 @@ function CrawlItemRow({
               See all {item.spot_review_count} reviews →
             </Link>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CrawlItemPhotoCarousel({
+  photos, spotName, seeAllHref, onPhotoClick,
+}: {
+  photos: SpotPhoto[]
+  spotName: string
+  seeAllHref: string | null
+  onPhotoClick: (index: number) => void
+}) {
+  const [index, setIndex] = useState(0)
+  const { containerProps, trackStyle } = useDragCarousel(photos.length, index, setIndex)
+
+  return (
+    <div
+      className="relative border-t-2 border-night-900/10 aspect-[4/3] bg-night-900 overflow-hidden touch-pan-y"
+      {...(photos.length > 1 ? containerProps : {})}
+    >
+      {/* The track's inline `transform` creates a stacking context; the open
+          button stays clickable only because it follows the track in DOM
+          order — don't reorder (same pattern as ReviewFeedCard). */}
+      <div className="flex h-full w-full" style={photos.length > 1 ? trackStyle : undefined}>
+        {photos.map(p => (
+          <img
+            key={p.id}
+            src={p.url}
+            alt={spotName}
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full flex-shrink-0 object-contain"
+          />
+        ))}
+      </div>
+
+      {/* Full-bleed open target — under the dots/chips so those stay clickable */}
+      <button
+        type="button"
+        onClick={() => onPhotoClick(index)}
+        aria-label={`View ${spotName} photo full screen`}
+        className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sauce-400"
+      />
+
+      {seeAllHref && (
+        <Link
+          to={seeAllHref}
+          onClick={e => e.stopPropagation()}
+          className="absolute top-2 right-2 z-10 rounded-full bg-night-900/70 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-crowd text-cream-50 hover:bg-sauce-500 transition-colors"
+        >
+          See all →
+        </Link>
+      )}
+
+      {photos.length > 1 && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">
+          {photos.map((_, i) => (
+            <button
+              key={i}
+              onClick={e => { e.stopPropagation(); setIndex(i) }}
+              className="w-6 h-6 flex items-center justify-center"
+              aria-label={`Photo ${i + 1}`}
+            >
+              <span className={`block rounded-full transition-all ${
+                i === index
+                  ? 'bg-cream-50 w-2.5 h-2.5 shadow-sm'
+                  : 'bg-cream-50/55 w-1.5 h-1.5 hover:bg-cream-50/75'
+              }`} />
+            </button>
+          ))}
         </div>
       )}
     </div>

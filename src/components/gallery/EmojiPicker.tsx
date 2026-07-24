@@ -41,7 +41,7 @@ const CATEGORIES = [
     label: 'Hearts',
     icon: '❤️',
     emojis: [
-      '❤️','��','💛','💚','💙','💜','🖤','🤍','🤎','💖',
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💖',
       '💝','💘','💕','💞','💓','💗','💔','❤️‍🔥','❤️‍🩹','🩷',
       '🩵','🩶',
     ],
@@ -177,6 +177,24 @@ export default function EmojiPicker({ onSelect, onClose, anchorRect }: EmojiPick
     setActiveCategory(current)
   }, [categories])
 
+  // Mobile sheet: lock body scroll (iOS-safe variant) so reaching the end of
+  // the emoji grid doesn't chain-scroll the feed underneath.
+  useEffect(() => {
+    if (isDesktop) return
+    const scrollY = window.scrollY
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [isDesktop])
+
   // Close on outside click for desktop popover
   useEffect(() => {
     if (!isDesktop) return
@@ -246,7 +264,7 @@ export default function EmojiPicker({ onSelect, onClose, anchorRect }: EmojiPick
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-2 pb-3 min-h-0"
+        className="flex-1 overflow-y-auto overscroll-contain px-2 pb-3 min-h-0"
         style={{ maxHeight: isDesktop ? '280px' : undefined }}
       >
         {categories.map(cat => (

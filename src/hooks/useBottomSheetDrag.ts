@@ -34,6 +34,8 @@ interface Options {
   defaultMaxHeight?: string
   /** CSS max-height for expanded state. Default: 'calc(100dvh - env(safe-area-inset-top))' */
   expandedMaxHeight?: string
+  /** Called when the user swipes down while already collapsed (dismiss gesture). */
+  onDismiss?: () => void
 }
 
 /**
@@ -53,6 +55,8 @@ export function useBottomSheetDrag(options?: Options) {
   const startY = useRef(0)
   const startTime = useRef(0)
   const dragging = useRef(false)
+  const onDismissRef = useRef(options?.onDismiss)
+  onDismissRef.current = options?.onDismiss
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     startY.current = e.touches[0].clientY
@@ -73,18 +77,22 @@ export function useBottomSheetDrag(options?: Options) {
     const delta = dragDelta          // positive = down, negative = up
     const elapsed = Math.max(1, Date.now() - startTime.current)
     const velocity = delta / elapsed // px/ms
+    const downSwipe = delta > SNAP_THRESHOLD || velocity > VELOCITY_THRESHOLD
+    const upSwipe = delta < -SNAP_THRESHOLD || velocity < -VELOCITY_THRESHOLD
 
-    setExpanded(prev => {
-      if (prev) {
-        // Expanded → collapse on downward swipe
-        return !(delta > SNAP_THRESHOLD || velocity > VELOCITY_THRESHOLD)
-      }
+    if (expanded) {
+      // Expanded → collapse on downward swipe
+      if (downSwipe) setExpanded(false)
+    } else if (downSwipe) {
+      // Already collapsed → a further down-swipe dismisses (when supported)
+      onDismissRef.current?.()
+    } else {
       // Collapsed → expand on upward swipe
-      return delta < -SNAP_THRESHOLD || velocity < -VELOCITY_THRESHOLD
-    })
+      if (upSwipe) setExpanded(true)
+    }
 
     setDragDelta(0)
-  }, [dragDelta])
+  }, [dragDelta, expanded])
 
   const handleClick = useCallback(() => {
     setExpanded(prev => !prev)
@@ -96,10 +104,14 @@ export function useBottomSheetDrag(options?: Options) {
   const visualOffset = dragDelta !== 0 ? dragDelta * DAMPEN : 0
   const animating = dragDelta === 0 // apply transition only when not actively dragging
 
+  // Only set `transform` while actively dragging: any non-none transform
+  // makes the sheet the containing block for position:fixed descendants, so
+  // a rest-state translateY(0) silently breaks nested modals (they'd render
+  // clipped inside the sheet instead of covering the viewport).
   const sheetStyle: React.CSSProperties = isMobile
     ? {
         maxHeight: expanded ? expandedMax : defaultMax,
-        transform: `translateY(${visualOffset}px)`,
+        ...(visualOffset !== 0 ? { transform: `translateY(${visualOffset}px)` } : {}),
         transition: animating
           ? `max-height ${DURATION} ${CURVE}, transform ${DURATION} ${CURVE}`
           : 'none',

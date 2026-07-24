@@ -33,7 +33,13 @@ function SpotMap({ lat, lng, name }: { lat: number; lng: number; name: string })
     el.dataset.leafletInit = '1'
 
     import('leaflet').then(L => {
-      const map = L.map(el, { zoomControl: true, attributionControl: false, scrollWheelZoom: false })
+      const map = L.map(el, {
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: false,
+        // One-finger drags trap vertical page scrolling on mobile.
+        dragging: !L.Browser.mobile,
+      })
       map.setView([lat, lng], 15)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',

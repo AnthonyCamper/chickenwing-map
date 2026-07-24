@@ -53,7 +53,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="max-w-3xl mx-auto px-4 pb-0 flex gap-1">
+        <div className="max-w-3xl mx-auto px-4 pb-0 flex flex-wrap gap-1">
           {(['pending', 'users', 'events', 'settings'] as Tab[]).map(t => (
             <button
               key={t}

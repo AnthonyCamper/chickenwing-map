@@ -125,13 +125,15 @@ describe('useBottomSheetDrag', () => {
     expect(transform).toBe('translateY(-15px)')
   })
 
-  it('resets visual offset after touch end', () => {
+  it('removes the transform entirely after touch end', () => {
     const { result } = renderHook(() => useBottomSheetDrag())
 
     act(() => result.current.handleProps.onTouchStart(touch(300)))
     act(() => result.current.handleProps.onTouchMove(touch(200)))
     act(() => result.current.handleProps.onTouchEnd(touch(200) as unknown as React.TouchEvent))
 
-    expect(result.current.sheetStyle.transform).toBe('translateY(0px)')
+    // No transform at rest: a lingering translateY(0) would make the sheet
+    // the containing block for position:fixed descendants (nested modals).
+    expect(result.current.sheetStyle.transform).toBeUndefined()
   })
 })

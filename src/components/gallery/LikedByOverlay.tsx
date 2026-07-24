@@ -87,13 +87,21 @@ export default function LikedByOverlay({
     }
   }, [count])
 
-  // Lock body scroll when sheet is open
+  // Lock body scroll when sheet is open — iOS-safe variant (plain
+  // overflow:hidden still allows background rubber-band scroll on Safari)
   useEffect(() => {
     if (!showSheet) return
-    const prev = document.body.style.overflow
+    const scrollY = window.scrollY
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
     return () => {
-      document.body.style.overflow = prev
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
     }
   }, [showSheet])
 
@@ -194,7 +202,7 @@ function LikedBySheet({
         </div>
 
         {/* User list */}
-        <div className="overflow-y-auto px-4 pb-6 flex-1">
+        <div className="overflow-y-auto overscroll-contain px-4 pb-6 flex-1">
           {loading && (
             <div className="flex justify-center py-4">
               <div className="w-5 h-5 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />

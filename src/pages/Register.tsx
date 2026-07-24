@@ -88,7 +88,7 @@ export default function Register({ onSignUp }: Props) {
           </div>
           <span className="eyebrow">One more step</span>
           <h2 className="h-poster-sm mt-2 mb-4">Check your email</h2>
-          <p className="text-sm text-charcoal-600 leading-relaxed mb-6">
+          <p className="text-sm text-charcoal-600 leading-relaxed mb-6 break-words">
             We sent a confirmation link to <strong className="text-night-900">{email}</strong>.
             Click it to verify your address, then come back here — the admin will
             review your request.

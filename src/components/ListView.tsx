@@ -175,7 +175,7 @@ export default function ListView({
 
   return (
     <>
-      <div className="max-w-2xl mx-auto px-4 py-5 pb-24">
+      <div className="max-w-2xl mx-auto px-4 py-5 pb-safe-fab">
         {/* Page heading */}
         {hasAnyOnBoard && (
           <div className="mb-5 flex items-end justify-between gap-4">

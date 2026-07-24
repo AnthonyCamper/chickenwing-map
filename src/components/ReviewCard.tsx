@@ -178,17 +178,17 @@ export default function ReviewCard({
             🍗 <StarRating value={review.overall_rating} size="sm" /> {review.overall_rating.toFixed(1)}
           </span>
           {review.event_id && review.event_name && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm">
-              🏆 {review.event_name}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm max-w-full min-w-0">
+              🏆 <span className="truncate">{review.event_name}</span>
             </span>
           )}
         </div>
 
         {/* Wing flavor */}
         {review.wing_flavor && (
-          <p className="mb-2 inline-flex items-center gap-1.5">
-            <span className="eyebrow text-night-700">Flavor</span>
-            <span className="text-sm font-bold text-night-900">{review.wing_flavor}</span>
+          <p className="mb-2 flex items-baseline gap-1.5 max-w-full">
+            <span className="eyebrow text-night-700 flex-shrink-0">Flavor</span>
+            <span className="text-sm font-bold text-night-900 min-w-0 break-words [overflow-wrap:anywhere]">{review.wing_flavor}</span>
           </p>
         )}
 

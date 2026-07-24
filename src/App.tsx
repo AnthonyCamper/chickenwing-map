@@ -14,6 +14,7 @@ import NotFound from './pages/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
+import BadgeUnlockOverlay from './components/badges/BadgeUnlockOverlay'
 
 // ── Lazy-loaded routes — off the main path / heavy deps ──────────────────
 // AdminDashboard / EventPage / EventsIndex: admin or event-specific paths
@@ -245,6 +246,9 @@ export default function App() {
       </Routes>
       </Suspense>
       </ErrorBoundary>
+
+      {/* Celebrates badge unlocks announced after review/crawl writes */}
+      <BadgeUnlockOverlay />
     </AuthGateProvider>
     </AuthProvider>
   )

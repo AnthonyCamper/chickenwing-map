@@ -96,7 +96,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
               <div className="text-center space-y-4">
                 <p className="text-3xl">📬</p>
                 <p className="text-sm font-bold text-night-900 uppercase tracking-crowd">Reset link sent</p>
-                <p className="text-sm text-charcoal-600 leading-relaxed">
+                <p className="text-sm text-charcoal-600 leading-relaxed break-words">
                   If <strong className="text-night-900">{email}</strong> has an account,
                   a password reset link is on the way. Check your inbox.
                 </p>

@@ -1,5 +1,6 @@
 import { useEffect, useState, ReactNode, useId } from 'react'
-import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
+import { createPortal } from 'react-dom'
+import { useBottomSheetDrag, useIsMobile } from '../../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 interface Props {
@@ -14,10 +15,29 @@ interface Props {
 const modalStack: symbol[] = []
 
 export default function Modal({ title, onClose, children, size = 'md' }: Props) {
-  const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
+  const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({ onDismiss: onClose })
   const panelRef = useFocusTrap<HTMLDivElement>()
   const titleId = useId()
   const [stackId] = useState(() => Symbol('modal'))
+  const isMobile = useIsMobile()
+
+  // Keep the sheet above the iOS keyboard: 100dvh ignores the keyboard, so
+  // shrink and lift the bottom-anchored sheet by the overlap (same pattern
+  // as PhotoModal's mobile sheet).
+  const [keyboardInset, setKeyboardInset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      setKeyboardInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)))
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   // Lock body scroll while modal is open (prevents double-scroll on iOS)
   // Saves and restores scroll position to prevent the jump caused by position:fixed
@@ -54,7 +74,10 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
 
   const maxWidths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
 
-  return (
+  // Portaled to <body>: a transformed/overflow-hidden ancestor (e.g. a
+  // dragged bottom sheet) would otherwise become this fixed dialog's
+  // containing block and clip it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
       <div
@@ -70,7 +93,15 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
         aria-labelledby={titleId}
         tabIndex={-1}
         className={`relative w-full ${maxWidths[size]} bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up flex flex-col focus:outline-none`}
-        style={sheetStyle}
+        style={{
+          ...sheetStyle,
+          ...(isMobile && keyboardInset > 0
+            ? {
+                maxHeight: `calc(100dvh - env(safe-area-inset-top) - ${keyboardInset}px)`,
+                transform: `translateY(-${keyboardInset}px)`,
+              }
+            : {}),
+        }}
       >
         {/* Drag handle (mobile only) — swipe up to expand, down to collapse */}
         <div
@@ -106,6 +137,7 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

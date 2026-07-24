@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReviewPhoto } from '../../lib/types'
 
 interface Props {
@@ -59,11 +59,30 @@ interface LightboxProps {
   onClose: () => void
 }
 
+const SWIPE_THRESHOLD_PX = 50
+
 function Lightbox({ photos, initialIndex, onClose }: LightboxProps) {
   const [index, setIndex] = useState(initialIndex)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   const prev = () => setIndex(i => (i - 1 + photos.length) % photos.length)
   const next = () => setIndex(i => (i + 1) % photos.length)
+
+  // iOS-safe scroll lock with position preservation (same as PhotoLightbox)
+  useEffect(() => {
+    const scrollY = window.scrollY
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -76,10 +95,32 @@ function Lightbox({ photos, initialIndex, onClose }: LightboxProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return
+    const dx = e.changedTouches[0].clientX - touchStart.current.x
+    const dy = e.changedTouches[0].clientY - touchStart.current.y
+    touchStart.current = null
+    // Horizontal swipe navigates (must be more horizontal than vertical)
+    if (Math.abs(dx) > SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) prev()
+      else next()
+    }
+    // Downward swipe closes
+    else if (dy > SWIPE_THRESHOLD_PX * 1.5 && Math.abs(dy) > Math.abs(dx)) {
+      onClose()
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Image */}
       <img

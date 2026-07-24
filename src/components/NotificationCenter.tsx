@@ -115,8 +115,8 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
         </button>
       )}
 
-      {/* Notification list — cap at 60vh so it never exceeds the viewport on mobile */}
-      <div className="max-h-[60vh] overflow-y-auto">
+      {/* Notification list — cap at 60dvh so it never exceeds the viewport on mobile */}
+      <div className="max-h-[60dvh] overflow-y-auto">
         {loading && items.length === 0 && (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
