@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { useAuthContext } from '../components/AuthProvider'
 import { triggerPushDelivery } from '../lib/pushManager'
 import type { CrawlComment, CommentReaction, CommentContentType, AddCommentOptions } from '../lib/types'
 
@@ -42,6 +44,7 @@ export function useCrawlComments(
 ): UseCrawlCommentsReturn {
   const [comments, setComments] = useState<CrawlComment[]>([])
   const [loading, setLoading] = useState(true)
+  const auth = useAuthContext()
 
   const attachReactions = useCallback(
     (rawComments: RawComment[], reactions: RawReaction[]): CrawlComment[] => {
@@ -158,9 +161,11 @@ export function useCrawlComments(
         parent_comment_id: parentCommentId,
         content_type: contentType,
         media_url: mediaUrl,
-        commenter_name: null,
-        commenter_avatar: null,
-        commenter_email: null,
+        // Hydrate from the signed-in profile so your own comment doesn't
+        // render as an anonymous ghost until the next full reload.
+        commenter_name: auth?.profile?.display_name ?? auth?.profile?.full_name ?? null,
+        commenter_avatar: auth?.profile?.avatar_url ?? null,
+        commenter_email: auth?.user?.email ?? null,
         like_count: 0,
         is_liked_by_me: false,
         reply_count: 0,
@@ -212,6 +217,7 @@ export function useCrawlComments(
         } else {
           setComments(prev => prev.filter(c => c.id !== tempId))
         }
+        toast.error("Couldn't post your comment")
         return
       }
 
@@ -232,7 +238,7 @@ export function useCrawlComments(
       }
       triggerPushDelivery()
     },
-    [crawlId, currentUserId]
+    [crawlId, currentUserId, auth]
   )
 
   const deleteComment = useCallback(
@@ -257,6 +263,7 @@ export function useCrawlComments(
       const { error } = await supabase.from('crawl_comments').delete().eq('id', commentId)
       if (error) {
         setComments(snapshot)
+        toast.error("Couldn't delete comment")
       }
     },
     []
