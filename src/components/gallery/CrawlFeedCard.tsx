@@ -1,5 +1,10 @@
-import { Link } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import HeartIcon from './HeartIcon'
+import { useAuthGate } from '../AuthGateModal'
+import { useAuthContext } from '../AuthProvider'
+import { toggleCrawlLike } from '../../lib/crawlActions'
 import type { WingCrawlDetailed } from '../../lib/types'
 
 interface Props {
@@ -7,8 +12,32 @@ interface Props {
 }
 
 export default function CrawlFeedCard({ crawl }: Props) {
+  const navigate = useNavigate()
+  const { requireAuth } = useAuthGate()
+  const auth = useAuthContext()
   const authorLinkable = !crawl.author_is_private && crawl.author_username
   const initial = (crawl.author_name ?? '?').charAt(0).toUpperCase()
+
+  const [liked, setLiked] = useState(crawl.is_liked_by_me)
+  const [likeCount, setLikeCount] = useState(crawl.like_count)
+  const likeBusyRef = useRef(false)
+
+  async function handleLike(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!requireAuth() || likeBusyRef.current || !auth?.user) return
+    likeBusyRef.current = true
+    const was = liked
+    setLiked(!was)
+    setLikeCount(c => c + (was ? -1 : 1))
+    const { error } = await toggleCrawlLike(crawl.id, auth.user.id, was)
+    if (error) {
+      setLiked(was)
+      setLikeCount(c => c + (was ? 1 : -1))
+      toast.error('Could not update like')
+    }
+    likeBusyRef.current = false
+  }
 
   return (
     <Link
@@ -32,6 +61,7 @@ export default function CrawlFeedCard({ crawl }: Props) {
       <div className="p-4">
         <p className="eyebrow mb-1">
           {crawl.is_ranked ? 'Ranked list' : 'List'}
+          {!crawl.is_public && ' · 🔒 Private'}
           {' · '}{crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}
         </p>
         <h3 className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2">
@@ -51,19 +81,28 @@ export default function CrawlFeedCard({ crawl }: Props) {
           )}
           <span className="text-charcoal-500">by </span>
           {authorLinkable ? (
-            <span className="font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
+            <button
+              type="button"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`/u/${crawl.author_username}`) }}
+              className="min-h-[44px] -my-3 inline-flex items-center font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors"
+            >
               {crawl.author_name}
-            </span>
+            </button>
           ) : (
             <span className="font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
           )}
 
-          {crawl.like_count > 0 && (
-            <span className="ml-auto inline-flex items-center gap-1 text-charcoal-400">
-              <HeartIcon filled={crawl.is_liked_by_me} className="w-3.5 h-3.5" />
-              <span>{crawl.like_count}</span>
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={handleLike}
+            aria-label={liked ? 'Unlike list' : 'Like list'}
+            className={`ml-auto min-h-[44px] -my-3 px-2 inline-flex items-center gap-1 transition-colors ${
+              liked ? 'text-sauce-500' : 'text-charcoal-400 hover:text-sauce-500'
+            }`}
+          >
+            <HeartIcon filled={liked} className="w-4 h-4" />
+            {likeCount > 0 && <span>{likeCount}</span>}
+          </button>
         </div>
       </div>
     </Link>

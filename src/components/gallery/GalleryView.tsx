@@ -47,20 +47,19 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   // seeds from its module cache) and a cold reload (useGallery re-fetches down
   // to the previously-loaded depth via sessionStorage, so the list is already
   // full-height here too) — either way the restore lands on the exact spot
-  // instead of snapping to the top. Limited to the infinite-scroll review feeds
-  // (following/discover); crawls/people are short lists that refetch on entry,
-  // where a restore could overshoot.
+  // instead of snapping to the top. Review feeds (following/discover) and the
+  // crawls tab both participate; people is a short refetch-on-entry list.
   const isReviewFeed = feed === 'following' || feed === 'discover'
   const didRestoreScroll = useRef(false)
 
   useEffect(() => {
-    if (!isReviewFeed) return
+    if (feed === 'people') return
     const onScroll = () => {
       try { sessionStorage.setItem(`gallery-scroll:${feed}`, String(window.scrollY)) } catch { /* ignore */ }
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [feed, isReviewFeed])
+  }, [feed])
 
   useEffect(() => {
     if (didRestoreScroll.current || !isReviewFeed || gallery.loading) return
@@ -75,33 +74,53 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
   }, [feed, isReviewFeed, gallery.loading, gallery.error])
 
   // Crawls feed — fetched independently when the tab is active
+  const CRAWLS_PAGE = 20
   const [crawls, setCrawls] = useState<WingCrawlDetailed[]>([])
   const [crawlsLoading, setCrawlsLoading] = useState(false)
   const [crawlsError, setCrawlsError] = useState<string | null>(null)
   const [crawlsReloadKey, setCrawlsReloadKey] = useState(0)
+  const [crawlsPage, setCrawlsPage] = useState(1)
+  const [crawlsHasMore, setCrawlsHasMore] = useState(false)
 
   useEffect(() => {
     if (feed !== 'crawls') return
     let cancelled = false
-    setCrawlsLoading(true)
+    // Only show the spinner on a fresh load — "load more" keeps the list up.
+    if (crawlsPage === 1) setCrawlsLoading(true)
     setCrawlsError(null)
+    const limit = crawlsPage * CRAWLS_PAGE
     supabase
       .from('wing_crawls_detailed')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(limit + 1) // one extra row = "there's more"
       .then(({ data, error }) => {
         if (cancelled) return
         if (error) {
           setCrawlsError("Couldn't load the lists. Give it another shot.")
           setCrawls([])
+          setCrawlsHasMore(false)
         } else {
-          setCrawls((data ?? []) as WingCrawlDetailed[])
+          const rows = (data ?? []) as WingCrawlDetailed[]
+          setCrawlsHasMore(rows.length > limit)
+          setCrawls(rows.slice(0, limit))
         }
         setCrawlsLoading(false)
       })
     return () => { cancelled = true }
-  }, [feed, crawlsReloadKey])
+  }, [feed, crawlsReloadKey, crawlsPage])
+
+  // Restore crawls-tab scroll once the list has painted.
+  useEffect(() => {
+    if (didRestoreScroll.current || feed !== 'crawls' || crawlsLoading || crawlsError) return
+    if (crawls.length === 0) return
+    didRestoreScroll.current = true
+    let saved = 0
+    try { saved = Number(sessionStorage.getItem('gallery-scroll:crawls') || 0) } catch { /* ignore */ }
+    if (saved > 0) {
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved)))
+    }
+  }, [feed, crawlsLoading, crawlsError, crawls.length])
 
   // Retry for the review feeds. useGallery is gaining a refresh() (owned by
   // another change); until it lands, loadMore refetches from the current
@@ -134,7 +153,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
               role="tab"
               aria-selected={feed === f}
               onClick={() => setFeed(f)}
-              className={`px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
+              className={`px-4 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
                 feed === f
                   ? 'bg-night-900 border-night-900 text-cream-50'
                   : 'border-night-900/20 text-charcoal-600 hover:border-night-900/40'
@@ -178,9 +197,30 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {crawls.map(c => <CrawlFeedCard key={c.id} crawl={c} />)}
-            </div>
+            <>
+              {/* Create affordance lives where lists live, not just in the empty state */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-charcoal-500">
+                  {crawls.length}{crawlsHasMore ? '+' : ''} {crawls.length === 1 && !crawlsHasMore ? 'list' : 'lists'}
+                </span>
+                <button
+                  onClick={() => { if (requireAuth()) navigate('/lists/new') }}
+                  className="btn-secondary text-xs px-3 py-2"
+                >
+                  + New list
+                </button>
+              </div>
+              <div className="space-y-3">
+                {crawls.map(c => <CrawlFeedCard key={c.id} crawl={c} />)}
+              </div>
+              {crawlsHasMore && (
+                <div className="flex justify-center pt-4">
+                  <button onClick={() => setCrawlsPage(p => p + 1)} className="btn-secondary px-5">
+                    Load more
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : gallery.loading ? (
