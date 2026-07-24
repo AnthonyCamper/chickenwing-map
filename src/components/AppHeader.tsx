@@ -65,9 +65,11 @@ export default function AppHeader({ view, onViewChange }: Props) {
   const isHome = location.pathname === '/'
 
   const handleBack = () => {
-    // Use history if there's somewhere to go back to within this session,
-    // otherwise fall back to the home feed.
-    if (window.history.length > 1 && document.referrer.includes(window.location.host)) {
+    // React Router stamps an index into history.state — idx > 0 means there
+    // is in-app history to pop. (document.referrer never updates during SPA
+    // navigation, so it wrongly sent external arrivals home forever.)
+    const idx = (window.history.state as { idx?: number } | null)?.idx
+    if (typeof idx === 'number' && idx > 0) {
       navigate(-1)
     } else {
       navigate('/')
@@ -283,7 +285,11 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/events') }}>
-                        Crawls
+                        Events
+                      </MenuItem>
+
+                      <MenuItem onClick={() => { setProfileOpen(false); navigate('/?tab=crawls') }}>
+                        Lists
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/lists/new') }}>

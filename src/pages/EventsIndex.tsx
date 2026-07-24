@@ -24,7 +24,7 @@ export default function EventsIndex() {
       .then(({ data, error: err }) => {
         if (cancelled) return
         if (err) {
-          setError("Couldn't load the crawls. Give it another shot.")
+          setError("Couldn't load the events. Give it another shot.")
           setEvents([])
         } else {
           setEvents((data ?? []) as WingEvent[])
@@ -41,16 +41,16 @@ export default function EventsIndex() {
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
-        <title>Crawls — WingKingTony</title>
+        <title>Events — WingKingTony</title>
       </Helmet>
 
       <AppHeader />
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-2xl mx-auto px-5 py-6">
-          <p className="eyebrow mb-1">Group business</p>
+          <p className="eyebrow mb-1">Group crawls & meetups</p>
           <h1 className="font-display uppercase text-4xl text-night-900 leading-none tracking-tightest">
-            Crawls
+            Events
           </h1>
         </div>
       </header>
@@ -63,7 +63,7 @@ export default function EventsIndex() {
         ) : error ? (
           <div className="card px-6 py-12 text-center">
             <p className="text-4xl mb-3">🧯</p>
-            <p className="font-display uppercase text-xl text-night-900 mb-2">Couldn't load crawls</p>
+            <p className="font-display uppercase text-xl text-night-900 mb-2">Couldn't load events</p>
             <p className="text-sm text-charcoal-600 mb-5">{error}</p>
             <button onClick={() => setReloadKey(k => k + 1)} className="btn-secondary">
               Retry
@@ -74,7 +74,7 @@ export default function EventsIndex() {
             <div aria-hidden className="absolute inset-0 bg-splatter opacity-10 pointer-events-none" />
             <div className="relative">
               <p className="text-5xl mb-3">🍗</p>
-              <p className="font-display uppercase text-xl text-night-900 mb-1">No crawls yet</p>
+              <p className="font-display uppercase text-xl text-night-900 mb-1">No events yet</p>
               <p className="text-sm text-charcoal-600">Check back soon — the next route is brewing.</p>
             </div>
           </div>
