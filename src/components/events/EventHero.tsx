@@ -14,7 +14,7 @@ export default function EventHero({ event, phase, dateRange, goingCount, stopCou
   return (
     <section className="card overflow-hidden">
       {event.cover_image_url ? (
-        <img src={event.cover_image_url} alt="" className="w-full h-44 object-cover border-b-2 border-night-900" />
+        <img src={event.cover_image_url} alt="" className="w-full max-h-80 object-contain bg-night-900 border-b-2 border-night-900" />
       ) : (
         <div className="w-full h-32 bg-night-800 bg-halftone-dark border-b-2 border-night-900 flex items-center justify-center">
           <span className="text-6xl">🍗</span>
