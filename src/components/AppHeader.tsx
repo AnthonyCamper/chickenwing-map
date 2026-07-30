@@ -328,8 +328,8 @@ export default function AppHeader({ view, onViewChange }: Props) {
         </div>
       </header>
 
-      {/* Active event broadcast strip */}
-      {activeEvent && (
+      {/* Active event broadcast strip — pointless on the event's own page */}
+      {activeEvent && location.pathname !== `/events/${activeEvent.slug}` && (
         <button
           onClick={() => navigate(`/events/${activeEvent.slug}`)}
           className="relative w-full bg-sauce-500 text-cream-50 hover:bg-sauce-400 active:bg-sauce-600 transition-colors border-b-2 border-night-900 group overflow-hidden"

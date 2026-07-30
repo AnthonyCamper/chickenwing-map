@@ -187,8 +187,10 @@ export default function App() {
           )
         } />
 
+        {/* Share-link preview: logged-out visitors get a read-only event page
+            instead of a context-free login wall */}
         <Route path="/events/:slug" element={
-          auth.status === 'authorized' ? (
+          auth.status === 'authorized' || auth.status === 'unauthenticated' ? (
             <EventPage auth={auth} />
           ) : auth.status === 'pending' ? (
             <PendingApproval auth={auth} />

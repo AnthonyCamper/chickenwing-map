@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { format } from 'date-fns'
@@ -9,93 +9,19 @@ import { useReviews } from '../hooks/useReviews'
 import { useBadges } from '../hooks/useBadges'
 import ReviewFormModal from '../components/ReviewFormModal'
 import ReviewEditModal from '../components/ReviewEditModal'
-import BadgeGrid from '../components/badges/BadgeGrid'
-import BadgeIcon from '../components/badges/BadgeIcon'
 import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import ShareButton from '../components/ui/ShareButton'
+import EventHero from '../components/events/EventHero'
+import EventRsvpPanel from '../components/events/EventRsvpPanel'
+import EventProgress from '../components/events/EventProgress'
+import EventRoute from '../components/events/EventRoute'
+import EventBadges from '../components/events/EventBadges'
+import EventRecap from '../components/events/EventRecap'
+import { WhosComing, CheckedInFeed, type CheckinAttendee } from '../components/events/EventAttendees'
+import { eventPhase } from '../lib/eventPhase'
 import { supabase } from '../lib/supabase'
-import type { EventStop, Review, ReviewPhoto, ReviewFormData, RsvpStatus } from '../lib/types'
-
-interface CheckinAttendee {
-  user_id: string
-  display_name: string
-  avatar_url: string | null
-  stop_count: number
-  badges: Array<{ id: string; name: string; icon: string; color: string }>
-}
-
-interface RouteMapProps {
-  stops: EventStop[]
-}
-
-function RouteMap({ stops }: RouteMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = mapRef.current
-    if (!el || stops.length === 0) return
-    const latlngs = stops
-      .filter(s => s.spot_lat != null && s.spot_lng != null)
-      .map(s => [s.spot_lat!, s.spot_lng!] as [number, number])
-    if (latlngs.length === 0) return
-
-    let map: import('leaflet').Map | null = null
-
-    import('leaflet').then(L => {
-      if (!el || el.dataset.leafletInit) return
-      el.dataset.leafletInit = '1'
-
-      map = L.map(el, {
-        zoomControl: true,
-        attributionControl: false,
-        scrollWheelZoom: false,
-        // One-finger drags trap vertical page scrolling on mobile.
-        dragging: !L.Browser.mobile,
-      })
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-      }).addTo(map)
-
-      if (latlngs.length > 1) {
-        L.polyline(latlngs, { color: '#fa5a2e', weight: 3, opacity: 0.75 }).addTo(map)
-      }
-
-      latlngs.forEach((ll, idx) => {
-        const icon = L.divIcon({
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-          className: '',
-        })
-        L.marker(ll, { icon }).addTo(map!)
-      })
-
-      if (latlngs.length === 1) {
-        map.setView(latlngs[0], 15)
-      } else {
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] })
-      }
-    })
-
-    return () => {
-      if (map) {
-        map.remove()
-        delete el.dataset.leafletInit
-      }
-    }
-  }, [stops])
-
-  if (stops.length === 0) return null
-
-  return (
-    <div
-      ref={mapRef}
-      className="w-full h-56 rounded-xl overflow-hidden border-2 border-night-900 shadow-sticker"
-    />
-  )
-}
+import type { BadgeWithEarned, EventStop, Review, ReviewPhoto, ReviewFormData, RsvpStatus } from '../lib/types'
 
 interface Props {
   auth: AuthState
@@ -105,6 +31,7 @@ export default function EventPage({ auth }: Props) {
   const { slug } = useParams<{ slug?: string }>()
   const navigate = useNavigate()
   const userId = auth.user?.id ?? null
+  const signedIn = !!userId
   const evt = useEvent(slug ?? null, userId)
   const reviews = useReviews()
   const badges = useBadges(userId)
@@ -117,55 +44,46 @@ export default function EventPage({ auth }: Props) {
   const [checkinAttendees, setCheckinAttendees] = useState<CheckinAttendee[]>([])
   const [resetConfirmUserId, setResetConfirmUserId] = useState<string | null>(null)
   const [resetingUserId, setResetingUserId] = useState<string | null>(null)
-
-  const handleResetProgress = async (targetUserId: string) => {
-    const eventId = evt.event?.id
-    if (!eventId) return
-    setResetingUserId(targetUserId)
-    try {
-      const results = await Promise.all([
-        supabase.from('event_checkins').delete().match({ event_id: eventId, user_id: targetUserId }),
-        supabase.from('reviews').delete().match({ event_id: eventId, user_id: targetUserId }),
-        supabase.from('user_badges').delete().match({ event_id: eventId, user_id: targetUserId }),
-      ])
-      // Supabase returns errors instead of throwing — don't toast success
-      // when the deletes were silently rejected (RLS, network).
-      const firstError = results.map(r => r.error).find(Boolean)
-      if (firstError) {
-        toast.error(`Reset failed: ${firstError.message}`)
-        return
-      }
-      const name = checkinAttendees.find(a => a.user_id === targetUserId)?.display_name ?? 'User'
-      toast.success(`Reset ${name}'s progress`)
-      setCheckinAttendees(prev => prev.filter(a => a.user_id !== targetUserId))
-      if (targetUserId === userId) await evt.refresh()
-    } catch {
-      toast.error('Reset failed — try again')
-    } finally {
-      setResetingUserId(null)
-      setResetConfirmUserId(null)
-    }
-  }
+  const [anonGoingCount, setAnonGoingCount] = useState<number | null>(null)
+  const [anonBadges, setAnonBadges] = useState<BadgeWithEarned[]>([])
 
   const checkedInStopIds = useMemo(
     () => new Set(evt.myCheckins.map(c => c.event_stop_id)),
     [evt.myCheckins]
   )
 
-  const completionPct = evt.stops.length === 0
-    ? 0
-    : Math.round((checkedInStopIds.size / evt.stops.length) * 100)
-
-  // Filter badges scoped to this event (or recently earned globals)
-  const eventBadges = useMemo(
+  // Badges scoped to this event, from the signed-in user's earned view
+  const myEventBadges = useMemo(
     () => badges.badges.filter(b => b.event_id === evt.event?.id),
     [badges.badges, evt.event?.id]
   )
+  const eventBadges = signedIn ? myEventBadges : anonBadges
 
-  // Fetch all checked-in attendees with their badges
+  // Anon preview: RLS hides rsvp rows and badges_for_user, so fetch the
+  // aggregate count + the public badge list directly.
   useEffect(() => {
     const eventId = evt.event?.id
-    if (!eventId) { setCheckinAttendees([]); return }
+    if (signedIn || !eventId) return
+    let cancelled = false
+    supabase.rpc('event_going_count', { p_event_id: eventId }).then(({ data }) => {
+      if (!cancelled && typeof data === 'number') setAnonGoingCount(data)
+    })
+    supabase
+      .from('badges')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return
+        setAnonBadges(((data ?? []) as BadgeWithEarned[]).map(b => ({ ...b, earned: false, earned_at: null })))
+      })
+    return () => { cancelled = true }
+  }, [signedIn, evt.event?.id])
+
+  // Fetch all checked-in attendees with their badges (signed-in only)
+  useEffect(() => {
+    const eventId = evt.event?.id
+    if (!eventId || !signedIn) { setCheckinAttendees([]); return }
     let cancelled = false
     const load = async () => {
       const { data: checkins } = await supabase
@@ -208,7 +126,36 @@ export default function EventPage({ auth }: Props) {
     }
     load()
     return () => { cancelled = true }
-  }, [evt.event?.id, evt.myCheckins])
+  }, [evt.event?.id, evt.myCheckins, signedIn])
+
+  const handleResetProgress = async (targetUserId: string) => {
+    const eventId = evt.event?.id
+    if (!eventId) return
+    setResetingUserId(targetUserId)
+    try {
+      const results = await Promise.all([
+        supabase.from('event_checkins').delete().match({ event_id: eventId, user_id: targetUserId }),
+        supabase.from('reviews').delete().match({ event_id: eventId, user_id: targetUserId }),
+        supabase.from('user_badges').delete().match({ event_id: eventId, user_id: targetUserId }),
+      ])
+      // Supabase returns errors instead of throwing — don't toast success
+      // when the deletes were silently rejected (RLS, network).
+      const firstError = results.map(r => r.error).find(Boolean)
+      if (firstError) {
+        toast.error(`Reset failed: ${firstError.message}`)
+        return
+      }
+      const name = checkinAttendees.find(a => a.user_id === targetUserId)?.display_name ?? 'User'
+      toast.success(`Reset ${name}'s progress`)
+      setCheckinAttendees(prev => prev.filter(a => a.user_id !== targetUserId))
+      if (targetUserId === userId) await evt.refresh()
+    } catch {
+      toast.error('Reset failed — try again')
+    } finally {
+      setResetingUserId(null)
+      setResetConfirmUserId(null)
+    }
+  }
 
   if (evt.loading) {
     return (
@@ -231,6 +178,7 @@ export default function EventPage({ auth }: Props) {
   }
 
   const e = evt.event
+  const phase = eventPhase(e, evt.stops.length)
   const startsAt = e.starts_at ? new Date(e.starts_at) : null
   const endsAt   = e.ends_at   ? new Date(e.ends_at)   : null
   const dateRange = (() => {
@@ -240,6 +188,11 @@ export default function EventPage({ auth }: Props) {
     }
     return format(startsAt, 'EEEE, MMM d, yyyy')
   })()
+  const unlockLabel = startsAt ? format(startsAt, 'MMM d') : null
+  const goingCount = signedIn
+    ? (e.going_count ?? evt.rsvps.filter(r => r.status === 'going').length)
+    : (anonGoingCount ?? e.going_count ?? 0)
+  const totalCheckins = checkinAttendees.reduce((sum, a) => sum + a.stop_count, 0)
 
   const handleRsvp = async (status: RsvpStatus) => {
     if (!userId) { toast.error('Sign in to RSVP'); return }
@@ -259,6 +212,12 @@ export default function EventPage({ auth }: Props) {
     }
   }
 
+  const handleDropOut = async () => {
+    const { error } = await evt.removeRsvp()
+    if (error) toast.error(error)
+    else toast.success('RSVP removed')
+  }
+
   const handleCheckIn = async (stop: EventStop) => {
     if (!userId) { toast.error('Sign in first'); return }
     if (evt.myRsvp?.status !== 'going') { toast.error("Join the crawl first before checking in!"); return }
@@ -266,11 +225,18 @@ export default function EventPage({ auth }: Props) {
     const { error } = await evt.checkIn(stop.id)
     setCheckinSubmitting(null)
     if (error) {
-      toast.error(error)
+      // The DB rejects check-ins outside the event window (clock skew can
+      // let the button render early) — translate the policy error.
+      toast.error(error.includes('policy') ? `Check-ins unlock ${unlockLabel ?? 'on crawl day'} 🍗` : error)
     } else {
       badges.refresh()
       toast.success(`Checked in at ${stop.spot_name}! 🍗`)
     }
+  }
+
+  const handleAddReview = (stop: EventStop) => {
+    if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
+    setReviewingStop(stop)
   }
 
   const handleSubmitReview = async (data: ReviewFormData) => {
@@ -317,6 +283,54 @@ export default function EventPage({ auth }: Props) {
     }
   }
 
+  const hero = (
+    <EventHero
+      event={e}
+      phase={phase}
+      dateRange={dateRange}
+      goingCount={goingCount}
+      stopCount={Math.max(e.stop_count ?? 0, evt.stops.length)}
+      isGoing={evt.myRsvp?.status === 'going'}
+    />
+  )
+  const rsvpPanel = (
+    <EventRsvpPanel
+      signedIn={signedIn}
+      myRsvp={evt.myRsvp}
+      submitting={rsvpSubmitting}
+      onRsvp={handleRsvp}
+      onDropOut={handleDropOut}
+    />
+  )
+  const route = (
+    <EventRoute
+      phase={phase}
+      stops={evt.stops}
+      signedIn={signedIn}
+      checkedInStopIds={checkedInStopIds}
+      myCheckins={evt.myCheckins}
+      checkinSubmitting={checkinSubmitting}
+      loadingReviewId={loadingReviewId}
+      unlockLabel={unlockLabel}
+      onCheckIn={handleCheckIn}
+      onAddReview={handleAddReview}
+      onEditReview={handleEditReview}
+    />
+  )
+  const badgeSection = <EventBadges phase={phase} badges={eventBadges} />
+  const whosComing = <WhosComing rsvps={evt.rsvps} signedIn={signedIn} goingCount={goingCount} />
+  const checkedInFeed = signedIn ? (
+    <CheckedInFeed
+      attendees={checkinAttendees}
+      totalStops={evt.stops.length}
+      isAdmin={auth.isAdmin}
+      resetConfirmUserId={resetConfirmUserId}
+      resetingUserId={resetingUserId}
+      onToggleResetConfirm={setResetConfirmUserId}
+      onResetProgress={handleResetProgress}
+    />
+  ) : null
+
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
@@ -325,10 +339,14 @@ export default function EventPage({ auth }: Props) {
 
       <AppHeader />
 
-      {/* Sub-bar with event title + share */}
+      {/* Sub-bar: share action; the title lives in the hero card (on mobile
+          it would otherwise appear three times above the fold) */}
       <div className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          <h1 className="font-display uppercase text-lg text-night-900 tracking-tightest flex-1 truncate">{e.name}</h1>
+          <h1 className="font-display uppercase text-lg text-night-900 tracking-tightest flex-1 truncate hidden sm:block">{e.name}</h1>
+          <span className="flex-1 sm:hidden text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 truncate">
+            {startsAt ? format(startsAt, 'EEE MMM d') : 'Date TBA'} · {goingCount} going
+          </span>
           <ShareButton
             title={e.name}
             text={`Join me at ${e.name}! 🍗`}
@@ -338,368 +356,51 @@ export default function EventPage({ auth }: Props) {
       </div>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Hero */}
-        <section className="card overflow-hidden">
-          {e.cover_image_url ? (
-            <img src={e.cover_image_url} alt="" className="w-full h-44 object-cover border-b-2 border-night-900" />
-          ) : (
-            <div className="w-full h-32 bg-night-800 bg-halftone-dark border-b-2 border-night-900 flex items-center justify-center">
-              <span className="text-6xl">🍗</span>
-            </div>
-          )}
-          <div className="px-5 py-4">
-            <h2 className="font-display uppercase text-2xl text-night-900 tracking-tightest mb-1">{e.name}</h2>
-            {dateRange && (
-              <p className="text-sm text-charcoal-600 font-bold">{dateRange}</p>
+        {phase === 'announced' && (
+          <>
+            {hero}
+            {rsvpPanel}
+            {whosComing}
+            {route}
+            {badgeSection}
+          </>
+        )}
+
+        {phase === 'route_live' && (
+          <>
+            {hero}
+            {rsvpPanel}
+            {route}
+            {whosComing}
+            {badgeSection}
+          </>
+        )}
+
+        {phase === 'crawl_day' && (
+          <>
+            {signedIn && evt.myRsvp?.status === 'going' && (
+              <EventProgress stops={evt.stops} checkedInStopIds={checkedInStopIds} />
             )}
-            {e.description && (
-              <p className="text-sm text-charcoal-600 mt-3 leading-relaxed whitespace-pre-wrap">
-                {e.description}
-              </p>
+            {hero}
+            {!signedIn || evt.myRsvp?.status !== 'going' ? rsvpPanel : null}
+            {route}
+            {checkedInFeed}
+            {badgeSection}
+            {whosComing}
+          </>
+        )}
+
+        {phase === 'wrapped' && (
+          <>
+            {hero}
+            {signedIn ? (
+              <EventRecap eventId={e.id} totalStops={evt.stops.length} totalCheckins={totalCheckins} />
+            ) : (
+              rsvpPanel
             )}
-            <div className="flex items-center gap-4 mt-4 text-xs font-bold text-charcoal-500 uppercase tracking-crowd">
-              <span>👥 {e.going_count ?? 0} going</span>
-              <span>📍 {e.stop_count ?? evt.stops.length} stops</span>
-              {evt.myRsvp && evt.myRsvp.status === 'going' && (
-                <span className="text-sauce-500 font-extrabold">✓ You're in</span>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Join CTA / RSVP */}
-        {userId && (
-          evt.myRsvp?.status === 'going' ? (
-            <section className="card px-5 py-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">✋</span>
-                  <div>
-                    <p className="font-extrabold text-night-900 text-sm uppercase tracking-crowd">You're in!</p>
-                    <p className="text-xs text-charcoal-500">See you at the crawl</p>
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    if (!confirm('Drop your RSVP?')) return
-                    const { error } = await evt.removeRsvp()
-                    if (error) toast.error(error)
-                    else toast.success('RSVP removed')
-                  }}
-                  className="text-xs font-bold text-charcoal-500 hover:text-sauce-500 transition-colors"
-                >
-                  Drop out
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(['maybe', 'not_going'] as RsvpStatus[]).map(s => {
-                  const label = s === 'maybe' ? 'Change to Maybe' : "Can't make it"
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => handleRsvp(s)}
-                      disabled={rsvpSubmitting !== null}
-                      className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
-                    >
-                      {rsvpSubmitting === s ? '…' : label}
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          ) : evt.myRsvp ? (
-            <section className="card px-5 py-4">
-              <p className="text-sm text-charcoal-600 mb-3">
-                You said: <strong className="text-night-900">
-                  {evt.myRsvp.status === 'maybe' ? 'Maybe' : "Can't make it"}
-                </strong>
-              </p>
-              <button
-                onClick={() => handleRsvp('going')}
-                disabled={rsvpSubmitting !== null}
-                className="btn-primary w-full text-base py-3.5"
-              >
-                {rsvpSubmitting === 'going' ? 'Joining…' : '✋ Join the Crawl'}
-              </button>
-            </section>
-          ) : (
-            <section>
-              <button
-                onClick={() => handleRsvp('going')}
-                disabled={rsvpSubmitting !== null}
-                className="btn-primary w-full text-base py-4 shadow-elevated"
-              >
-                {rsvpSubmitting === 'going' ? 'Joining…' : '✋ Join the Crawl'}
-              </button>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <button
-                  onClick={() => handleRsvp('maybe')}
-                  disabled={rsvpSubmitting !== null}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
-                >
-                  🤔 Maybe
-                </button>
-                <button
-                  onClick={() => handleRsvp('not_going')}
-                  disabled={rsvpSubmitting !== null}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
-                >
-                  🙅 Can't make it
-                </button>
-              </div>
-            </section>
-          )
-        )}
-
-        {/* Progress bar (when RSVP'd and stops exist) */}
-        {evt.myRsvp?.status === 'going' && evt.stops.length > 0 && (
-          <section className="card px-5 py-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">Your progress</h3>
-              <span className="text-sm font-extrabold text-sauce-500">
-                {checkedInStopIds.size}/{evt.stops.length}
-              </span>
-            </div>
-            <div className="h-2 bg-cream-200 rounded-full overflow-hidden border border-night-900/20">
-              <div
-                className="h-full bg-sauce-400 transition-all duration-500"
-                style={{ width: `${completionPct}%` }}
-              />
-            </div>
-            {completionPct === 100 && (
-              <p className="text-xs text-gold-500 font-extrabold uppercase tracking-crowd mt-2">🏆 Crawl complete!</p>
-            )}
-          </section>
-        )}
-
-        {/* Route */}
-        <section>
-          <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-3 px-1">The Route</h3>
-          {evt.stops.length > 0 && (
-            <div className="mb-4">
-              <RouteMap stops={evt.stops} />
-            </div>
-          )}
-          {evt.stops.length === 0 ? (
-            <div className="card px-5 py-8 text-center text-charcoal-500">
-              <p className="text-sm">No stops have been added yet.</p>
-            </div>
-          ) : (
-            <ol className="space-y-3">
-              {evt.stops.map((stop, idx) => {
-                const isCheckedIn = checkedInStopIds.has(stop.id)
-                const isLoading = checkinSubmitting === stop.id
-                const myCheckin = evt.myCheckins.find(c => c.event_stop_id === stop.id)
-                const hasReview = !!myCheckin?.review_id
-                return (
-                  <li key={stop.id} className={`card px-4 py-4 ${isCheckedIn ? 'bg-gold-50 shadow-sticker-gold' : ''}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-full border-2 border-night-900 flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                        isCheckedIn
-                          ? 'bg-sauce-400 text-cream-50'
-                          : 'bg-cream-200 text-night-800'
-                      }`}>
-                        {isCheckedIn ? '✓' : idx + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-extrabold text-night-900">{stop.spot_name}</p>
-                        <p className="text-xs text-charcoal-500 truncate mt-0.5">{stop.spot_address}</p>
-                        {stop.planned_arrival && (
-                          <p className="text-xs text-charcoal-500 mt-1">
-                            ⏰ {format(new Date(stop.planned_arrival), 'h:mm a')}
-                          </p>
-                        )}
-                        {stop.notes && (
-                          <p className="text-xs text-charcoal-600 mt-1 italic">{stop.notes}</p>
-                        )}
-                        {stop.parking_notes && (
-                          <p className="text-xs text-charcoal-600 mt-1">🅿️ {stop.parking_notes}</p>
-                        )}
-                        {(stop.checkin_count ?? 0) > 0 && (
-                          <p className="text-xs text-charcoal-500 mt-1">
-                            {stop.checkin_count} {stop.checkin_count === 1 ? 'check-in' : 'check-ins'}
-                          </p>
-                        )}
-
-                        {userId && (
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {!isCheckedIn ? (
-                              <button
-                                onClick={() => handleCheckIn(stop)}
-                                disabled={isLoading}
-                                className="btn-primary px-4 py-2 text-xs"
-                              >
-                                {isLoading ? '…' : '📍 Check in'}
-                              </button>
-                            ) : (
-                              <span className="px-3 py-2 rounded-xl bg-gold-100 text-gold-700 border-2 border-gold-300 text-xs font-extrabold uppercase tracking-crowd">
-                                ✓ Checked in
-                              </span>
-                            )}
-                            {(() => {
-                              const isLoadingThisReview = !!myCheckin?.review_id && loadingReviewId === myCheckin.review_id
-                              return (
-                                <button
-                                  onClick={() => {
-                                    if (evt.myRsvp?.status !== 'going') { toast.error('Join the crawl first!'); return }
-                                    if (hasReview && myCheckin?.review_id) {
-                                      handleEditReview(myCheckin.review_id)
-                                    } else {
-                                      setReviewingStop(stop)
-                                    }
-                                  }}
-                                  disabled={isLoadingThisReview}
-                                  className="btn-secondary px-4 py-2 text-xs disabled:opacity-50"
-                                >
-                                  ✏️ {isLoadingThisReview
-                                    ? 'Loading…'
-                                    : isCheckedIn ? (hasReview ? 'Edit review' : 'Add review') : 'Check in + review'}
-                                </button>
-                              )
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          )}
-        </section>
-
-        {/* Event badges */}
-        {eventBadges.length > 0 && (
-          <section>
-            <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-3 px-1">Event Badges</h3>
-            <BadgeGrid badges={eventBadges} />
-          </section>
-        )}
-
-        {/* Checked-in attendees with badges */}
-        {checkinAttendees.length > 0 && (
-          <section className="card px-5 py-4">
-            <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">
-              Checked in ({checkinAttendees.length})
-            </h3>
-            <ul className="space-y-3">
-              {checkinAttendees.map(a => (
-                <li key={a.user_id} className="flex flex-col gap-1">
-                  <div className="flex items-center gap-3">
-                    {a.avatar_url ? (
-                      <img src={a.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-night-900 flex-shrink-0" />
-                    ) : (
-                      <span className="w-9 h-9 rounded-full bg-night-700 border-2 border-night-900 flex items-center justify-center text-sm font-extrabold text-cream-50 flex-shrink-0">
-                        {a.display_name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-night-900 truncate">{a.display_name}</p>
-                      <p className="text-xs text-charcoal-500">
-                        {a.stop_count}/{evt.stops.length} {a.stop_count === 1 ? 'stop' : 'stops'}
-                      </p>
-                    </div>
-                    {a.badges.length > 0 && (
-                      <div className="flex items-center flex-shrink-0">
-                        {a.badges.slice(0, 6).map((b, i) => (
-                          <span
-                            key={b.id}
-                            title={b.name}
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-sm border-2 border-white shadow-sm"
-                            style={{
-                              backgroundColor: b.color,
-                              marginLeft: i > 0 ? '-8px' : 0,
-                              zIndex: a.badges.length - i,
-                              position: 'relative',
-                            }}
-                          >
-                            <BadgeIcon icon={b.icon} className="w-4 h-4 text-cream-50" />
-                          </span>
-                        ))}
-                        {a.badges.length > 6 && (
-                          <span
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-cream-200 text-charcoal-500 border-2 border-white shadow-sm"
-                            style={{ marginLeft: '-8px', position: 'relative', zIndex: 0 }}
-                          >
-                            +{a.badges.length - 6}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {auth.isAdmin && (
-                      <button
-                        onClick={() => setResetConfirmUserId(resetConfirmUserId === a.user_id ? null : a.user_id)}
-                        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-charcoal-400 hover:text-sauce-500 hover:bg-sauce-50 transition-colors"
-                        title="Reset progress"
-                        disabled={resetingUserId === a.user_id}
-                      >
-                        {resetingUserId === a.user_id ? (
-                          <span className="w-3.5 h-3.5 rounded-full border-2 border-sauce-400 border-t-transparent animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                            <path d="M3 3v5h5" />
-                          </svg>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                  {auth.isAdmin && resetConfirmUserId === a.user_id && (
-                    <div className="ml-12 flex items-center gap-2 py-2 px-3 bg-sauce-50 border-2 border-sauce-300 rounded-xl">
-                      <p className="text-xs font-semibold text-sauce-700 flex-1">
-                        Reset {a.display_name}'s check-ins, reviews & badges?
-                      </p>
-                      <button
-                        onClick={() => setResetConfirmUserId(null)}
-                        className="text-xs font-bold text-charcoal-500 hover:text-charcoal-700 px-2 py-1 rounded-lg hover:bg-cream-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleResetProgress(a.user_id)}
-                        disabled={!!resetingUserId}
-                        className="text-xs font-extrabold text-cream-50 bg-sauce-500 hover:bg-sauce-600 px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Going list */}
-        {evt.rsvps.filter(r => r.status === 'going').length > 0 && (
-          <section className="card px-5 py-4">
-            <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">
-              Who's coming ({evt.rsvps.filter(r => r.status === 'going').length})
-            </h3>
-            <ul className="flex flex-wrap gap-2">
-              {evt.rsvps
-                .filter(r => r.status === 'going')
-                .map(r => (
-                  <li
-                    key={r.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-100 border-2 border-night-900/20 max-w-full min-w-0"
-                  >
-                    {r.is_private ? (
-                      <span className="w-5 h-5 rounded-full bg-cream-200 flex items-center justify-center text-xs">🔒</span>
-                    ) : r.user_avatar ? (
-                      <img src={r.user_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                    ) : (
-                      <span className="w-5 h-5 rounded-full bg-night-700 flex items-center justify-center text-xs font-bold text-cream-50">
-                        {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                    <span className="text-xs font-bold text-charcoal-600 truncate">
-                      {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </section>
+            {route}
+            {signedIn && badgeSection}
+          </>
         )}
       </main>
 

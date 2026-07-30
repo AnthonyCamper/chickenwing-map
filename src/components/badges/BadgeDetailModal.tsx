@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void
 }
 
-function howToEarn(b: BadgeWithEarned): string {
+export function howToEarn(b: BadgeWithEarned): string {
   const cfg = b.criteria_config ?? {}
   switch (b.criteria_type) {
     case 'first_review':        return 'Post your first review.'
