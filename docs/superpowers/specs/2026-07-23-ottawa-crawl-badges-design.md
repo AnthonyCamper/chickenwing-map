@@ -48,8 +48,17 @@ project via the Supabase MCP and mirrored in `supabase/migrations/`.
 
 ## Canadiana badges (round 2)
 
-17 additional global (non-event) fun badges with Ottawa/Canada references,
-seeded by migration `026_canadiana_badges.sql`. Two new criteria types:
+Fun badges with Ottawa/Canada references, seeded by migration
+`026_canadiana_badges.sql` and **scoped to the Ottawa crawl** by
+`027_canadiana_badges_crawl_scoped.sql`: all 13 carry the event's `event_id`
+and only match reviews with that `event_id`. Migration 027 also dropped four
+count-based badges from 026 (The Alfie, The Two-Four, The Snowbirds, Snow
+Day) — their thresholds (11/24 reviews, 9 spots, 10 takeouts) can't be
+reached inside a one-day crawl — and revoked the 026 backfill awards, which
+had been earned from pre-crawl activity. `award_user_badges` now skips
+generic-criteria badges that carry an `event_id` (its queries are not
+event-aware); `award_canadiana_badges` evaluates them event-scoped, including
+event-scoped `review_text_contains`. Two new criteria types:
 
 - `rating_exact` `{value}` — gave a review rated exactly that number. Used for
   rating easter eggs: **Confederation** (6.7 → 1867), **Canada Day** (7.1 →
@@ -63,15 +72,11 @@ Both are evaluated by a new `award_canadiana_badges()` function (following the
 019 pattern of not touching `award_user_badges`), called from the existing
 review trigger via `award_engagement_after_change`.
 
-The rest reuse existing criteria: word/pattern badges (**Side of Poutine**,
-**The Extra U** — Canadian spellings, **National Reflex** — said sorry,
-**Tapped** — maple, **Rink Rat** — hockey/Sens, **Timmies Run**) via
-`review_text_contains` with word-boundary regex patterns plus a new `hint`
-config key surfaced in the detail modal; and Canadian-number counts
-(**The Alfie** — 11 reviews for Alfredsson's number, **The Two-Four** — 24
-reviews, **The Snowbirds** — 9 unique spots for the 9-jet formation,
-**Snow Day** — 10 takeout orders). Each has a custom SVG in the BadgeIcon
-registry.
+The rest are word/pattern badges (**Side of Poutine**, **The Extra U** —
+Canadian spellings, **National Reflex** — said sorry, **Tapped** — maple,
+**Rink Rat** — hockey/Sens, **Timmies Run**) via `review_text_contains` with
+word-boundary regex patterns plus a `hint` config key surfaced in the detail
+modal. Each has a custom SVG in the BadgeIcon registry.
 
 ## Testing
 
