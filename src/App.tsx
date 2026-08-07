@@ -177,8 +177,11 @@ export default function App() {
           )
         } />
 
+        {/* Logged-out visitors get the index too — it only lists published
+            events (anon-readable per 029), and bouncing them to /login was
+            the dead end that hid the crawl from anyone without a share link */}
         <Route path="/events" element={
-          auth.status === 'authorized' ? (
+          auth.status === 'authorized' || auth.status === 'unauthenticated' ? (
             <EventsIndex />
           ) : auth.status === 'pending' ? (
             <PendingApproval auth={auth} />

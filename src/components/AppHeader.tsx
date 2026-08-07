@@ -106,8 +106,10 @@ export default function AppHeader({ view, onViewChange }: Props) {
     })
   }, [profileOpen])
 
+  // Runs signed-out too: published events are anon-readable (migration 029),
+  // and the broadcast strip is the only in-app pointer to the crawl — gating
+  // it on a session left logged-out visitors with no way to find the event.
   useEffect(() => {
-    if (!auth?.user) { setActiveEvent(null); return }
     let cancelled = false
     const fetchActive = async () => {
       const now = new Date().toISOString()
