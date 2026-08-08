@@ -11,6 +11,15 @@ interface Props {
   onSubmit: (data: ReviewUpdateData) => Promise<void>
 }
 
+// Local date, not toISOString(): west of UTC the ISO date rolls over in the
+// evening, which would let the picker accept tomorrow. Same reasoning as
+// ReviewFormModal — worth hoisting into a shared helper once the crawl is over.
+function todayLocal(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const [overallRating, setOverallRating] = useState<number>(Number(review.overall_rating) || 5)
   const [wingSize, setWingSize] = useState(review.wing_size ?? '')
@@ -19,7 +28,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const [takeoutContainer, setTakeoutContainer] = useState(review.takeout_container ?? '')
   const [reviewText, setReviewText] = useState(review.review_text ?? '')
   const [visitedAt, setVisitedAt] = useState(
-    (review.visited_at ?? new Date().toISOString()).split('T')[0]
+    review.visited_at ? review.visited_at.split('T')[0] : todayLocal()
   )
 
   // Photo editing state — `deletedPhotoIds` is the ground truth for what will
@@ -147,7 +156,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
             className="input"
             value={visitedAt}
             onChange={e => setVisitedAt(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
+            max={todayLocal()}
             required
           />
         </div>
