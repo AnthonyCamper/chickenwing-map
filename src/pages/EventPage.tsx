@@ -244,9 +244,20 @@ export default function EventPage({ auth }: Props) {
     if (evt.myRsvp?.status !== 'going') return { error: 'Join the crawl first before leaving a review!' }
     const result = await reviews.createReview(data, userId ?? '')
     if (!result.error) {
-      // Ensure a checkin exists and link this review to it
+      // Ensure a checkin exists and link this review to it. The review is
+      // already saved at this point, so a rejected check-in (e.g. outside the
+      // event window) must be surfaced — silently swallowing it leaves the
+      // user believing they're checked in when they aren't.
       if (result.reviewId) {
-        await evt.checkIn(reviewingStop.id, result.reviewId)
+        const { error: checkinError } = await evt.checkIn(reviewingStop.id, result.reviewId)
+        if (checkinError) {
+          toast.error(
+            checkinError.includes('policy')
+              ? `Review saved, but check-ins for ${e.name} are closed — ask an admin.`
+              : `Review saved, but check-in failed: ${checkinError}`,
+            { duration: 6000 }
+          )
+        }
       }
       badges.refresh()
       setReviewingStop(null)

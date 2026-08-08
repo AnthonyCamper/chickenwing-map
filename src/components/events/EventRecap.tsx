@@ -8,13 +8,13 @@ interface RecapReview {
   user_id: string
   overall_rating: number
   spot_name?: string | null
-  user_name?: string | null
+  reviewer_name?: string | null
 }
 
 interface RecapPhoto {
   id: string
   review_id: string
-  photo_url: string
+  url: string
 }
 
 interface BadgeWinner {
@@ -44,36 +44,58 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const { data: revs } = await supabase
+      const { data: revs, error: revErr } = await supabase
         .from('reviews_with_profiles')
-        .select('id, user_id, overall_rating, spot_name, user_name')
+        .select('id, user_id, overall_rating, spot_name, reviewer_name')
         .eq('event_id', eventId)
       if (cancelled) return
+      if (revErr) console.error('Recap: reviews query failed', revErr)
       const reviewRows = (revs ?? []) as RecapReview[]
       setReviews(reviewRows)
 
       if (reviewRows.length > 0) {
-        const { data: pics } = await supabase
+        const { data: pics, error: picErr } = await supabase
           .from('review_photos')
-          .select('id, review_id, photo_url')
+          .select('id, review_id, url')
           .in('review_id', reviewRows.map(r => r.id))
           .order('display_order')
+        if (picErr) console.error('Recap: photos query failed', picErr)
         if (!cancelled) setPhotos((pics ?? []) as RecapPhoto[])
       }
 
-      const { data: ub } = await supabase
+      // user_badges.user_id FKs to auth.users, not profiles — PostgREST can't
+      // embed profiles from here, so resolve the names in a second query.
+      const { data: ub, error: ubErr } = await supabase
         .from('user_badges')
-        .select('user_id, badges!inner(id, name, icon, color), profiles!inner(id, display_name, full_name, avatar_url)')
+        .select('user_id, badges!inner(id, name, icon, color)')
         .eq('event_id', eventId)
       if (cancelled) return
+      if (ubErr) console.error('Recap: badge winners query failed', ubErr)
 
       type Row = {
         user_id: string
         badges: { id: string; name: string; icon: string; color: string }
-        profiles: { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null }
       }
+      const badgeRows = (ub ?? []) as unknown as Row[]
+
+      const profileMap = new Map<string, { display_name: string; avatar_url: string | null }>()
+      const winnerIds = [...new Set(badgeRows.map(r => r.user_id))]
+      if (winnerIds.length > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, display_name, full_name, avatar_url, is_private')
+          .in('id', winnerIds)
+        if (cancelled) return
+        type P = { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; is_private: boolean | null }
+        for (const p of (profs ?? []) as P[]) {
+          profileMap.set(p.id, p.is_private
+            ? { display_name: 'Private', avatar_url: null }
+            : { display_name: p.display_name ?? p.full_name ?? 'Wing lover', avatar_url: p.avatar_url })
+        }
+      }
+
       const byBadge = new Map<string, BadgeWinner>()
-      for (const row of (ub ?? []) as unknown as Row[]) {
+      for (const row of badgeRows) {
         const w = byBadge.get(row.badges.id) ?? {
           badge_id: row.badges.id,
           name: row.badges.name,
@@ -81,10 +103,11 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
           color: row.badges.color,
           earners: [],
         }
+        const prof = profileMap.get(row.user_id)
         w.earners.push({
           user_id: row.user_id,
-          display_name: row.profiles.display_name ?? row.profiles.full_name ?? 'Wing lover',
-          avatar_url: row.profiles.avatar_url,
+          display_name: prof?.display_name ?? 'Wing lover',
+          avatar_url: prof?.avatar_url ?? null,
         })
         byBadge.set(row.badges.id, w)
       }
@@ -118,7 +141,7 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
                 to={`/reviews/${p.review_id}`}
                 className="block aspect-square rounded-xl overflow-hidden border-2 border-night-900"
               >
-                <img src={p.photo_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
               </Link>
             ))}
           </div>
