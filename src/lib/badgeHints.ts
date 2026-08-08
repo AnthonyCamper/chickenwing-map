@@ -1,0 +1,106 @@
+import type { Badge, BadgeWithEarned } from './types'
+
+/**
+ * Oblique, per-badge hints shown for LOCKED badges only. Each one gestures at
+ * the real criteria without spelling out the literal word/number/pattern the
+ * evaluator checks for — keyed by slug (not criteria_type) so every badge
+ * gets copy written for what it actually is, not a shared template.
+ */
+const BADGE_TEASERS: Record<string, string> = {
+  'first-review': 'Post the very first review of your wing career.',
+  'review-count-5': "You're just getting warmed up — a few reviews in.",
+  'review-count-10': "You've moved past \"just trying this out\" territory.",
+  'review-count-25': 'Your opinions on wings are starting to carry some real weight.',
+  'review-count-50': "You've reviewed enough wings to have a whole personality around it.",
+  'size-sampler': 'Order every size on the menu — small, medium, large, and the big one.',
+  'wing-veteran': "You've put in enough reviews to call yourself a veteran.",
+  'century-club': 'Triple digits. An absurd, deeply respectable number of reviews.',
+
+  '2026-chicken-wing-crawl-ottawa-rsvp': "Tell the Ottawa crawl you're coming.",
+  '2026-dc-chicken-wing-crawl-rsvp': "Tell the DC crawl you're coming.",
+  '2026-dc-chicken-wing-crawl-early': 'Be the very first person through the door at the DC crawl.',
+  '2026-chicken-wing-crawl-ottawa-early': 'Be the very first person through the door at the Ottawa crawl.',
+  '2026-dc-chicken-wing-crawl-social': 'RSVP to the DC crawl and bring people with you.',
+  '2026-chicken-wing-crawl-ottawa-social': 'RSVP to the Ottawa crawl with a full crew, not solo.',
+  '2026-chicken-wing-crawl-ottawa-first': 'Check in at your first stop on the Ottawa route.',
+  '2026-dc-chicken-wing-crawl-first': 'Check in at your first stop on the DC route.',
+  '2026-chicken-wing-crawl-ottawa-two': 'A couple of stops into the Ottawa route now.',
+  '2026-dc-chicken-wing-crawl-two': 'A couple of stops into the DC route now.',
+  '2026-dc-chicken-wing-crawl-three': 'Building real momentum on the DC route.',
+  '2026-chicken-wing-crawl-ottawa-three': 'A number hockey fans love — that many stops in on the Ottawa route.',
+  '2026-chicken-wing-crawl-ottawa-four': 'Deep into the Ottawa route now, carrying serious momentum.',
+  '2026-dc-chicken-wing-crawl-four': 'Deep enough into the DC route to call yourself a veteran of it.',
+  '2026-chicken-wing-crawl-ottawa-review': 'File at least one review during the Ottawa crawl.',
+  '2026-dc-chicken-wing-crawl-review': 'File at least one review during the DC crawl.',
+  '2026-dc-chicken-wing-crawl-all-reviews': 'Leave a review for every single stop you check into at the DC crawl.',
+  '2026-chicken-wing-crawl-ottawa-all-reviews': 'Keep a full record — a review for every stop you check into at the Ottawa crawl.',
+  '2026-chicken-wing-crawl-ottawa-champion': 'Check in at every stop on the Ottawa route, start to finish.',
+  '2026-dc-chicken-wing-crawl-champion': 'Check in at every stop on the DC route, start to finish.',
+
+  scout: 'Start poking around beyond your usual go-to spot.',
+  explorer: 'Cover real ground — reviews spread across quite a few different spots.',
+  cartographer: "You could basically draw the wing map from memory at this point.",
+  'district-mapper': "You've charted a serious chunk of the entire wing scene.",
+
+  'flavor-curious': 'Branch out past your usual order a handful of times.',
+  'sauce-scholar': "You've clearly been doing your homework on the sauce menu.",
+  'flavor-professor': 'You could teach a class on wing flavors at this point.',
+
+  'lemon-pepper-legend': "There's a dry rub with citrus and pepper right in its name — you know the one.",
+  'crispy-devotee': 'Describe the one texture you refuse to compromise on.',
+  'ranch-defender': 'Defend the dip everyone loves to argue about.',
+  'bone-in-purist': "Take a side on wings that haven't had the bone taken out.",
+  'blue-cheese-believer': 'Pick a side in the eternal dip debate — and say which one, out loud.',
+  'heat-survivor': 'Take on a flavor built to make you regret it, and live to review it.',
+  'the-essayist': 'Some people write a sentence. You write a chapter.',
+  'short-and-sweet': 'Say everything you need to say in almost no words at all.',
+  'scorched-earth': 'Give a spot a rating that leaves absolutely nothing standing.',
+
+  'first-crawl': 'Build your very first crawl — your own route, your own rules.',
+  'first-voice': 'Say something, anything, in the comments for the first time.',
+  'not-impressed': 'Give a spot a rating that makes your feelings pretty clear.',
+  'loud-mouth': "You've got a lot to say, and you keep saying it.",
+  'thread-lord': 'You basically live in the comment section at this point.',
+  'easy-grader': 'Never give anyone anything less than a great score, review after review.',
+  'crawl-curator': 'Build a crawl with some real substance to it — not just a couple of stops thrown together.',
+  'rookie-rater': 'Keep every score a clean, round number — no fractions allowed.',
+  'crawl-crowd-pleaser': 'Get one of your crawls some real love from other people.',
+  'decimal-daredevil': 'Break out of whole numbers — get precise with a rating.',
+  'crawl-prolific': "Publish enough crawls that you've basically got a whole catalog going.",
+  'crawl-spoke-up': "Leave your first comment on somebody else's crawl.",
+  'crawl-yapper': 'You clearly have a lot of thoughts about other people\'s crawls, and you share them.',
+  'crawl-hot-take': "Tell a crawl you're not impressed — in exactly the words people use to start an argument online.",
+  'harsh-critic': 'Keep your average score brutally low across a handful of reviews.',
+  'high-standards': 'Keep your average score practically perfect across a handful of reviews.',
+  'crawl-hype-beast': 'Hype a crawl up in exactly the way the internet hypes things up.',
+  'crawl-just-a-gif': 'Reply to a crawl with a GIF and absolutely nothing else.',
+  'perfect-ten': 'Give somebody the highest score the scale allows.',
+  'crawl-reply-guy': "Show up in the comments of a crawl that isn't yours.",
+  'rate-tough-crowd': 'Give a spot a rating low enough that they know exactly how you felt.',
+  'rate-cold-blooded': 'Give a spot the lowest possible score. No mercy.',
+  'rate-serial-hater': 'Rack up a handful of reviews that are all pretty rough.',
+  'rate-easy-lover': 'Rack up a bunch of reviews that are basically all glowing.',
+  'takeout-king': 'Get your wings to go often enough to earn a title for it.',
+  'to-go-loyalist': "You've basically given up on eating in at this point.",
+  regular: 'Keep going back to the same spot enough that they might start to recognize you.',
+  'day-one': 'Be loyal enough to one spot that you could call yourself an original.',
+  'jumbo-fan': "There's a wing size bigger than large — that's the one you're after.",
+
+  'canadiana-confederation': 'Rate a spot the exact year Canada became a country — just the last two digits, as a decimal.',
+  'canadiana-canada-day': "Rate a spot like it's Canada's birthday — month and day, as a decimal.",
+  'canadiana-skateway': "Rate a spot the length, in kilometres, of the world's largest naturally frozen skating rink — right here in Ottawa.",
+  'canadiana-great-one': "Rate a spot the jersey number worn by hockey's most famous #99.",
+  'canadiana-loonie': 'Rate a spot exactly what a loonie is worth.',
+  'canadiana-toonie': "Rate a spot exactly double what a loonie's worth.",
+  'canadiana-poutine': "Mention the dish that's just fries, cheese curds, and gravy having a moment.",
+  'canadiana-extra-u': 'Spell a word the Canadian way — with the letter Americans like to drop.',
+  'canadiana-sorry': "Apologize for something in your review. It's basically involuntary up here.",
+  'canadiana-tapped': 'Mention the tree that bleeds breakfast syrup.',
+  'canadiana-rink-rat': 'Bring up the sport played on ice, or the local team that plays it.',
+  'canadiana-timmies': 'Mention a classic Canadian coffee chain.',
+  'canadiana-honey-garlic': 'Order the flavor combo that reads like a peace treaty between sweet and savory.',
+}
+
+export function badgeTeaser(badge: Badge | BadgeWithEarned): string {
+  return BADGE_TEASERS[badge.slug] ?? `There's a specific way to unlock "${badge.name}" — you'll have to find it.`
+}

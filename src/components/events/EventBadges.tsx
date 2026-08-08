@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import BadgeGrid from '../badges/BadgeGrid'
 import BadgeIcon from '../badges/BadgeIcon'
 import BadgeDetailModal, { howToEarn } from '../badges/BadgeDetailModal'
+import { badgeTeaser } from '../../lib/badgeHints'
 import type { BadgeWithEarned } from '../../lib/types'
 import type { EventPhase } from '../../lib/eventPhase'
 
@@ -63,7 +64,7 @@ export default function EventBadges({ phase, badges }: Props) {
                       {b.earned && <span className="ml-1.5 text-sauce-500">✓</span>}
                     </span>
                     <span className="block text-xs text-charcoal-500 truncate">
-                      {b.earned ? howToEarn(b) : 'Locked — unlock during the crawl.'}
+                      {b.earned ? howToEarn(b) : badgeTeaser(b)}
                     </span>
                   </span>
                 </button>
