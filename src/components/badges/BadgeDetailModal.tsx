@@ -76,7 +76,7 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
         </p>
         <h3 className="font-display uppercase tracking-wide text-2xl text-night-900 mb-2 leading-tight">{badge.name}</h3>
 
-        {badge.description && (
+        {badge.earned && badge.description && (
           <p className="text-sm text-charcoal-500 mb-3 leading-relaxed max-w-[220px] mx-auto">{badge.description}</p>
         )}
 
@@ -118,9 +118,9 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
             Earned{badge.earned_at ? ` · ${format(new Date(badge.earned_at), 'MMM d, yyyy')}` : ''}
           </div>
         ) : (
-          <div className="bg-cream-100 border-2 border-night-900/20 rounded-xl px-4 py-3 text-left">
-            <p className="eyebrow mb-1.5">How to earn</p>
-            <p className="text-sm text-charcoal-600 leading-relaxed">{howToEarn(badge)}</p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cream-100 border-2 border-night-900/20 text-charcoal-500 text-xs font-extrabold uppercase tracking-crowd">
+            <span>🔒</span>
+            Locked
           </div>
         )}
       </div>

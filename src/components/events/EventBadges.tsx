@@ -62,7 +62,9 @@ export default function EventBadges({ phase, badges }: Props) {
                       {b.name}
                       {b.earned && <span className="ml-1.5 text-sauce-500">✓</span>}
                     </span>
-                    <span className="block text-xs text-charcoal-500 truncate">{howToEarn(b)}</span>
+                    <span className="block text-xs text-charcoal-500 truncate">
+                      {b.earned ? howToEarn(b) : 'Locked — unlock during the crawl.'}
+                    </span>
                   </span>
                 </button>
               </li>
