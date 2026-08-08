@@ -188,7 +188,20 @@ export default function EventPage({ auth }: Props) {
     }
     return format(startsAt, 'EEEE, MMM d, yyyy')
   })()
-  const unlockLabel = startsAt ? format(startsAt, 'MMM d') : null
+  // Check-ins unlock when the crawl starts, which is deliberately later than
+  // the crawl-day page going live. The DB resolves the instant and enforces
+  // it in RLS; we mirror it so the button reflects the real state.
+  const checkinsUnlockAt = (() => {
+    const raw = e.checkins_unlock_at ?? e.starts_at
+    if (!raw) return null
+    const d = new Date(raw)
+    return isNaN(d.getTime()) ? null : d
+  })()
+  const checkinsUnlocked =
+    phase === 'crawl_day' && (!checkinsUnlockAt || new Date() >= checkinsUnlockAt)
+  const unlockLabel = checkinsUnlockAt
+    ? format(checkinsUnlockAt, phase === 'crawl_day' ? 'h:mm a' : 'MMM d')
+    : null
   const goingCount = signedIn
     ? (e.going_count ?? evt.rsvps.filter(r => r.status === 'going').length)
     : (anonGoingCount ?? e.going_count ?? 0)
@@ -323,6 +336,7 @@ export default function EventPage({ auth }: Props) {
       checkinSubmitting={checkinSubmitting}
       loadingReviewId={loadingReviewId}
       unlockLabel={unlockLabel}
+      checkinsUnlocked={checkinsUnlocked}
       onCheckIn={handleCheckIn}
       onAddReview={handleAddReview}
       onEditReview={handleEditReview}

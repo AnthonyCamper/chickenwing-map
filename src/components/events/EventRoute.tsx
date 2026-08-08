@@ -80,7 +80,8 @@ interface Props {
   myCheckins: EventCheckin[]
   checkinSubmitting: string | null
   loadingReviewId: string | null
-  unlockLabel: string | null   // e.g. "Aug 8" — when check-ins open
+  unlockLabel: string | null   // e.g. "Aug 8" or "3:00 PM" — when check-ins open
+  checkinsUnlocked: boolean    // mirrors the DB window; false keeps stops locked
   onCheckIn: (stop: EventStop) => void
   onAddReview: (stop: EventStop) => void
   onEditReview: (reviewId: string) => void
@@ -88,7 +89,7 @@ interface Props {
 
 export default function EventRoute({
   phase, stops, signedIn, checkedInStopIds, myCheckins,
-  checkinSubmitting, loadingReviewId, unlockLabel,
+  checkinSubmitting, loadingReviewId, unlockLabel, checkinsUnlocked,
   onCheckIn, onAddReview, onEditReview,
 }: Props) {
   if (phase === 'announced') {
@@ -106,7 +107,8 @@ export default function EventRoute({
     )
   }
 
-  const locked = phase === 'route_live'
+  // Locked until the crawl actually starts — not merely once it's crawl day.
+  const locked = !checkinsUnlocked
   const showActions = signedIn && (phase === 'route_live' || phase === 'crawl_day')
 
   return (

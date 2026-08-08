@@ -317,10 +317,25 @@ export interface WingEvent {
   created_by: string | null
   created_at: string
   updated_at: string
+  /** IANA zone the event's local day is resolved against. */
+  timezone?: string
   // From events_with_counts
   stop_count?: number
   going_count?: number
   maybe_count?: number
+  /**
+   * Check-in window resolved server-side against `timezone` — the same
+   * instants the check-in RLS policy enforces. Prefer these over deriving
+   * the day from the browser clock.
+   */
+  window_opens_at?: string | null
+  window_closes_at?: string | null
+  /**
+   * When check-ins unlock — `checkins_open_at` if set, else `starts_at`.
+   * Deliberately separate from the crawl-day UI: the page can go live in
+   * the morning while check-ins stay shut until the crawl starts.
+   */
+  checkins_unlock_at?: string | null
 }
 
 export interface EventStop {
