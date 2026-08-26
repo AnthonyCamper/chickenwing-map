@@ -49,7 +49,7 @@ export default function UserProfilePage() {
 
       const { data: profile, error: profileErr } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, display_name, username, avatar_url, bio, status, is_admin, can_leave_reviews, is_private, created_at')
         .eq('username', username)
         .maybeSingle()
 

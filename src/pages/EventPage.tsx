@@ -99,7 +99,7 @@ export default function EventPage({ auth }: Props) {
       const userIds = [...stopCountMap.keys()]
 
       const [profilesRes, badgesRes] = await Promise.all([
-        supabase.from('profiles').select('id, display_name, full_name, avatar_url, email, is_private').in('id', userIds),
+        supabase.from('profiles').select('id, display_name, full_name, avatar_url, username, is_private').in('id', userIds),
         supabase.from('user_badges').select('user_id, badges!inner(id, name, icon, color)').in('user_id', userIds),
       ])
       if (cancelled) return
@@ -114,9 +114,9 @@ export default function EventPage({ auth }: Props) {
 
       const attendees: CheckinAttendee[] = (profilesRes.data ?? [])
         .filter((p: { id: string; is_private?: boolean }) => !p.is_private || p.id === userId || auth.isAdmin)
-        .map((p: { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; email: string | null }) => ({
+        .map((p: { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; username: string | null }) => ({
           user_id: p.id,
-          display_name: p.display_name ?? p.full_name ?? p.email ?? 'Unknown',
+          display_name: p.display_name ?? p.full_name ?? p.username ?? 'Unknown',
           avatar_url: p.avatar_url ?? null,
           stop_count: stopCountMap.get(p.id) ?? 0,
           badges: badgesMap.get(p.id) ?? [],

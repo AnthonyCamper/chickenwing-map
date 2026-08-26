@@ -20,7 +20,7 @@ export async function fetchReviewLikers(reviewId: string): Promise<ReactionUser[
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', likes.map(l => l.user_id))
 
   const profileMap = new Map(
@@ -30,7 +30,7 @@ export async function fetchReviewLikers(reviewId: string): Promise<ReactionUser[
   return likes.map(l => {
     const p = profileMap.get(l.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
     }
   })
@@ -51,7 +51,7 @@ export async function fetchReviewReactors(reviewId: string): Promise<ReactionUse
   const userIds = [...new Set(reactions.map(r => r.user_id))]
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', userIds)
 
   const profileMap = new Map(
@@ -61,7 +61,7 @@ export async function fetchReviewReactors(reviewId: string): Promise<ReactionUse
   return reactions.map(r => {
     const p = profileMap.get(r.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
       reactionType: r.reaction_type,
     }
@@ -82,7 +82,7 @@ export async function fetchReviewCommentLikers(commentId: string): Promise<React
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', likes.map(l => l.user_id))
 
   const profileMap = new Map(
@@ -92,7 +92,7 @@ export async function fetchReviewCommentLikers(commentId: string): Promise<React
   return likes.map(l => {
     const p = profileMap.get(l.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
     }
   })
@@ -111,7 +111,7 @@ export async function fetchReviewCommentReactors(commentId: string): Promise<Rea
   const userIds = [...new Set(reactions.map(r => r.user_id))]
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', userIds)
 
   const profileMap = new Map(
@@ -121,7 +121,7 @@ export async function fetchReviewCommentReactors(commentId: string): Promise<Rea
   return reactions.map(r => {
     const p = profileMap.get(r.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
       reactionType: r.reaction_type,
     }
@@ -142,7 +142,7 @@ export async function fetchCrawlCommentLikers(commentId: string): Promise<Reacti
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', likes.map(l => l.user_id))
 
   const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
@@ -150,7 +150,7 @@ export async function fetchCrawlCommentLikers(commentId: string): Promise<Reacti
   return likes.map(l => {
     const p = profileMap.get(l.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
     }
   })
@@ -169,7 +169,7 @@ export async function fetchCrawlCommentReactors(commentId: string): Promise<Reac
   const userIds = [...new Set(reactions.map(r => r.user_id))]
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name, display_name, avatar_url, email')
+    .select('id, full_name, display_name, avatar_url, username')
     .in('id', userIds)
 
   const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
@@ -177,7 +177,7 @@ export async function fetchCrawlCommentReactors(commentId: string): Promise<Reac
   return reactions.map(r => {
     const p = profileMap.get(r.user_id)
     return {
-      name: p?.display_name || p?.full_name || p?.email?.split('@')[0] || 'Unknown',
+      name: p?.display_name || p?.full_name || p?.username || 'Unknown',
       avatar: p?.avatar_url ?? null,
       reactionType: r.reaction_type,
     }

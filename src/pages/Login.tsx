@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabase'
+import { friendlyAuthError } from '../lib/authErrors'
 
 interface Props {
   onSignInGoogle: () => Promise<void>
@@ -52,7 +53,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     setResetSending(false)
     if (resetError) {
-      setError(resetError.message)
+      setError(friendlyAuthError(resetError.message))
       return
     }
     setResetSent(true)

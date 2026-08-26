@@ -25,10 +25,9 @@ export function useAdminUsers(): UseAdminUsersReturn {
     setLoading(true)
     try {
       const [usersResult, settingsResult] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, email, full_name, display_name, avatar_url, status, is_admin, can_leave_reviews, created_at')
-          .order('created_at', { ascending: false }),
+        // Admin-only RPC: reads profiles WITH email via a SECURITY DEFINER
+        // guard, since SELECT(email) is revoked from the authenticated role.
+        supabase.rpc('admin_list_profiles'),
         supabase
           .from('site_settings')
           .select('is_public')
@@ -52,15 +51,18 @@ export function useAdminUsers(): UseAdminUsersReturn {
   }, [fetchAll])
 
   const updateUserStatus = async (userId: string, updates: Partial<UserProfile>) => {
+    // Note: email is intentionally not selected back — SELECT(email) is revoked
+    // from the authenticated role. Merge the returned columns onto the existing
+    // row so the already-loaded email is preserved.
     const { data } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('id, email, full_name, display_name, avatar_url, status, is_admin, can_leave_reviews, created_at')
+      .select('id, full_name, display_name, avatar_url, status, is_admin, can_leave_reviews, created_at')
       .maybeSingle()
 
     if (data) {
-      setUsers(prev => prev.map(u => (u.id === userId ? (data as UserProfile) : u)))
+      setUsers(prev => prev.map(u => (u.id === userId ? { ...u, ...(data as Partial<UserProfile>) } : u)))
     }
   }
 

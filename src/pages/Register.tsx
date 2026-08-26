@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+import { friendlyAuthError } from '../lib/authErrors'
 
 function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
   if (!pw) return { score: 0, label: '' }
@@ -66,7 +67,7 @@ export default function Register({ onSignUp }: Props) {
     setLoading(false)
 
     if (result.error) {
-      setError(result.error)
+      setError(friendlyAuthError(result.error))
     } else if (result.needsEmailConfirmation) {
       setNeedsEmail(true)
     } else {
