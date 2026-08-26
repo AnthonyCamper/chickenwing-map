@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { isSchemaDriftError, SCHEMA_DRIFT_MESSAGE } from '../lib/authErrors'
 import type { AuthStatus, UserProfile, SiteSettings } from '../lib/types'
 
 export interface AuthState {
@@ -34,6 +35,8 @@ export function useAuth(): AuthState {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  // checkApproval reruns on every auth state change; only shout once.
+  const schemaDriftReported = useRef(false)
 
   // Detect OAuth callback errors in URL and clean them up
   useEffect(() => {
@@ -78,6 +81,18 @@ export function useAuth(): AuthState {
     if (settingsData) setSiteSettings({ is_public: settingsData.is_public })
 
     if (error) {
+      // Schema drift is permanent: waiting or retrying will not fix it, and
+      // quietly degrading to read-only hides a broken deploy from everyone —
+      // it once cost two weeks of nobody being able to post. Say so instead.
+      if (isSchemaDriftError(error)) {
+        console.error('[auth] profile fetch rejected by the database:', error)
+        setAuthError(SCHEMA_DRIFT_MESSAGE)
+        if (!schemaDriftReported.current) {
+          schemaDriftReported.current = true
+          toast.error(SCHEMA_DRIFT_MESSAGE, { duration: 10000 })
+        }
+      }
+
       // Transient fetch failure (network, RLS hiccup) — keep whatever
       // status/profile we already resolved rather than demoting an approved
       // user to the pending gate mid-session. Only a cold load (still
