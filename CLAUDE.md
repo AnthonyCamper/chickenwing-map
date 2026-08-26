@@ -19,9 +19,23 @@ npm run build
 
 # Preview production build locally
 npm run preview
+```
 
-# Deploy to GitHub Pages
-npm run deploy
+## Deploying
+
+Push to `master`. GitHub Pages is configured as `build_type: workflow` and
+builds the site from `.github/workflows/deploy.yml` on every push to
+`master`/`main`; the workflow supplies the `VITE_*` values from repo secrets.
+
+There is deliberately no `npm run deploy`. It used to publish to a `gh-pages`
+branch that Pages does not serve, so it reported success while changing
+nothing — that silently stranded a security fix for two weeks. To check what
+is actually live, compare the hashed bundle name on the site against the
+latest deployment:
+
+```bash
+curl -s https://wingkingtony.com/ | grep -o 'assets/index-[^"]*'
+gh api repos/AnthonyCamper/chickenwing-map/deployments --jq '.[0] | {sha, created_at}'
 ```
 
 ## Environment Setup
