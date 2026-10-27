@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
 import ExpandableText from './ui/ExpandableText'
+import AvatarImage from './ui/AvatarImage'
 import ReviewEditModal from './ReviewEditModal'
 import ReviewCommentThread from './ReviewCommentThread'
 import ReactionPicker from './gallery/ReactionPicker'
@@ -12,6 +12,8 @@ import Modal from './ui/Modal'
 import { useReviewReactions } from '../hooks/useReviewReactions'
 import { useAuthGate } from './AuthGateModal'
 import { fetchReviewReactors } from '../lib/reactionDetails'
+import { supabase } from '../lib/supabase'
+import { formatVisitDate } from '../lib/dates'
 import type { Review, ReviewUpdateData } from '../lib/types'
 
 const UNDO_WINDOW_MS = 5000
@@ -23,6 +25,8 @@ interface Props {
   onUpdate: (id: string, data: ReviewUpdateData) => Promise<{ error: string | null }>
   onDelete: (id: string) => Promise<{ error: string | null }>
   compact?: boolean
+  /** Real comment count (top-level + replies). When omitted the card
+   *  fetches it itself so the label never claims "0 comments" falsely. */
   commentCount?: number
 }
 
@@ -33,14 +37,34 @@ export default function ReviewCard({
   onUpdate,
   onDelete,
   compact = false,
-  commentCount = 0,
+  commentCount,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [localCommentCount, setLocalCommentCount] = useState(commentCount)
+  const [localCommentCount, setLocalCommentCount] = useState(commentCount ?? 0)
+
+  // The parent's count can arrive after mount (pages fetch it alongside the
+  // reviews), so keep following the prop instead of freezing the first value.
+  useEffect(() => {
+    if (commentCount !== undefined) setLocalCommentCount(commentCount)
+  }, [commentCount])
+
+  // No count from the parent: ask for it (head-only count, no rows).
+  useEffect(() => {
+    if (commentCount !== undefined) return
+    let cancelled = false
+    supabase
+      .from('review_comments')
+      .select('id', { count: 'exact', head: true })
+      .eq('review_id', review.id)
+      .then(({ count, error }) => {
+        if (!cancelled && !error && count != null) setLocalCommentCount(count)
+      })
+    return () => { cancelled = true }
+  }, [commentCount, review.id])
 
   // Deferred-delete window: the card stays mounted as an "Undo" stub for
   // UNDO_WINDOW_MS; only after that does the real delete fire.
@@ -82,10 +106,7 @@ export default function ReviewCard({
   const totalReactionCount = reactions.reduce((sum, r) => sum + r.count, 0)
 
   const canEdit = isAdmin || review.user_id === currentUserId
-  const visitedDate = (() => {
-    try { return format(new Date(review.visited_at), 'MMM d, yyyy') }
-    catch { return review.visited_at }
-  })()
+  const visitedDate = formatVisitDate(review.visited_at)
 
   const undoDelete = () => {
     cleanupTimer()
@@ -141,7 +162,7 @@ export default function ReviewCard({
     <>
       <div id={`review-${review.id}`} className={`${compact ? 'py-3' : 'py-4'} animate-fade-in transition-shadow duration-300`}>
         {/* Identity + rating header */}
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-2 mb-2 flex-wrap min-w-0">
           {(() => {
             const isPrivate = review.reviewer_is_private === true
             const displayName = isPrivate ? 'Private' : (review.reviewer_name ?? review.reviewer_email ?? 'Unknown')
@@ -149,28 +170,27 @@ export default function ReviewCard({
             const linkable = !isPrivate && review.reviewer_username
             const chip = (
               <>
-                {avatar ? (
-                  <img
-                    src={avatar}
-                    alt={displayName}
-                    className="w-6 h-6 rounded-full object-cover border border-night-900"
-                  />
-                ) : (
-                  <span className="w-6 h-6 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
-                    {displayName.charAt(0)}
-                  </span>
-                )}
-                <span className="text-[11px] font-extrabold uppercase tracking-crowd text-night-800">
+                <AvatarImage
+                  src={avatar}
+                  alt={displayName}
+                  className="w-6 h-6 flex-shrink-0 rounded-full object-cover border border-night-900"
+                  fallback={
+                    <span className="w-6 h-6 flex-shrink-0 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
+                      {displayName.charAt(0)}
+                    </span>
+                  }
+                />
+                <span className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-crowd text-night-800">
                   {displayName}
                 </span>
               </>
             )
             return linkable ? (
-              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 hover:text-sauce-500 transition-colors">
+              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 min-w-0 max-w-full hover:text-sauce-500 transition-colors">
                 {chip}
               </Link>
             ) : (
-              <span className="inline-flex items-center gap-2">{chip}</span>
+              <span className="inline-flex items-center gap-2 min-w-0 max-w-full">{chip}</span>
             )
           })()}
           <span className="text-[11px] text-charcoal-500 font-medium">{visitedDate}</span>
@@ -178,17 +198,36 @@ export default function ReviewCard({
             🍗 <StarRating value={review.overall_rating} size="sm" /> {review.overall_rating.toFixed(1)}
           </span>
           {review.event_id && review.event_name && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm max-w-full min-w-0">
-              🏆 <span className="truncate">{review.event_name}</span>
-            </span>
+            review.event_slug ? (
+              <Link
+                to={`/events/${review.event_slug}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm max-w-full min-w-0 hover:bg-gold-200 transition-colors"
+              >
+                🏆 <span className="truncate">{review.event_name}</span>
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border-2 border-night-900 bg-gold-300 text-night-900 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm max-w-full min-w-0">
+                🏆 <span className="truncate">{review.event_name}</span>
+              </span>
+            )
           )}
         </div>
 
-        {/* Wing flavor */}
-        {review.wing_flavor && (
-          <p className="mb-2 flex items-baseline gap-1.5 max-w-full">
-            <span className="eyebrow text-night-700 flex-shrink-0">Flavor</span>
-            <span className="text-sm font-bold text-night-900 min-w-0 break-words [overflow-wrap:anywhere]">{review.wing_flavor}</span>
+        {/* Wing flavor + size */}
+        {(review.wing_flavor || review.wing_size) && (
+          <p className="mb-2 flex items-baseline flex-wrap gap-x-4 gap-y-1 max-w-full">
+            {review.wing_flavor && (
+              <span className="flex items-baseline gap-1.5 min-w-0 max-w-full">
+                <span className="eyebrow text-night-700 flex-shrink-0">Flavor</span>
+                <span className="text-sm font-bold text-night-900 min-w-0 break-words [overflow-wrap:anywhere]">{review.wing_flavor}</span>
+              </span>
+            )}
+            {review.wing_size && (
+              <span className="flex items-baseline gap-1.5">
+                <span className="eyebrow text-night-700 flex-shrink-0">Wing size</span>
+                <span className="text-sm font-bold text-night-900 capitalize">{review.wing_size}</span>
+              </span>
+            )}
           </p>
         )}
 
@@ -199,18 +238,20 @@ export default function ReviewCard({
 
         {/* Footer: comments + options */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
-          {/* Comment toggle — icon + count only, no text label */}
+          {/* Comment toggle — icon + visible text, 44px tall hit area */}
           <button
             onClick={() => setShowComments(!showComments)}
-            aria-label={`${localCommentCount} comment${localCommentCount !== 1 ? 's' : ''}`}
-            className="inline-flex items-center gap-1 min-h-[32px] px-1 -mx-1 text-charcoal-500 hover:text-sauce-500 transition-colors"
+            aria-expanded={showComments}
+            className="inline-flex items-center gap-1.5 min-h-[44px] px-1 -mx-1 text-charcoal-500 hover:text-sauce-500 transition-colors"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            {localCommentCount > 0 && (
-              <span className="text-[11px] font-bold">{localCommentCount}</span>
-            )}
+            <span className="text-xs font-bold">
+              {localCommentCount > 0
+                ? `${localCommentCount} comment${localCommentCount !== 1 ? 's' : ''}`
+                : 'Comment'}
+            </span>
           </button>
 
           {/* Edit/Delete — behind a muted kebab, requires deliberate tap */}
@@ -221,9 +262,10 @@ export default function ReviewCard({
                 aria-label="Review options"
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
-                className="w-9 h-9 flex items-center justify-center rounded-lg text-charcoal-500 hover:text-night-800 hover:bg-cream-100 active:bg-cream-200 transition-colors text-base leading-none"
+                className="min-h-[44px] min-w-[44px] px-2 inline-flex items-center justify-center gap-1 rounded-lg text-charcoal-500 hover:text-night-800 hover:bg-cream-100 active:bg-cream-200 transition-colors leading-none"
               >
-                ···
+                <span aria-hidden="true" className="text-base">···</span>
+                <span className="text-xs font-bold">Options</span>
               </button>
               {menuOpen && (
                 <div role="menu" className="absolute right-0 bottom-full mb-1 w-32 bg-cream-50 border-2 border-night-900 rounded-lg shadow-sticker overflow-hidden z-20 animate-fade-in">
@@ -253,6 +295,7 @@ export default function ReviewCard({
             <ReactionPicker
               reactions={reactions}
               onToggle={type => { if (requireAuth()) toggleReaction(type) }}
+              showLabel
             />
           </LikedByOverlay>
         </div>

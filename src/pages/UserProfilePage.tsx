@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { formatVisitDate } from '../lib/dates'
+import AvatarImage from '../components/ui/AvatarImage'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import BadgeIcon from '../components/badges/BadgeIcon'
 import AppHeader from '../components/AppHeader'
@@ -38,6 +39,7 @@ export default function UserProfilePage() {
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [isFollowing, setIsFollowing] = useState(false)
   const [followBusy, setFollowBusy] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const { requireAuth } = useAuthGate()
 
   useEffect(() => {
@@ -166,7 +168,7 @@ export default function UserProfilePage() {
 
     load()
     return () => { cancelled = true }
-  }, [username])
+  }, [username, reloadKey])
 
   async function handleFollowToggle() {
     if (!data) return
@@ -210,7 +212,10 @@ export default function UserProfilePage() {
     return (
       <PageStateShell>
         <p className="eyebrow">404</p>
-        <h1 className="font-display uppercase text-3xl text-night-900">No user here</h1>
+        <h1 className="font-display uppercase text-3xl text-night-900">Profile not found</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          No one uses this username. Check the link and try again.
+        </p>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -221,11 +226,11 @@ export default function UserProfilePage() {
       <PageStateShell>
         <Helmet>
           <title>Private profile — WingKingTony</title>
-          <meta name="description" content="This wing-logger has set their profile to private." />
+          <meta name="description" content="This person has set their profile to private." />
         </Helmet>
         <p className="eyebrow">Members only</p>
         <h1 className="font-display uppercase text-3xl text-night-900">Private profile</h1>
-        <p className="text-sm text-charcoal-600 max-w-prose">This wing-logger keeps their stuff to themselves.</p>
+        <p className="text-sm text-charcoal-600 max-w-prose">This person made their profile private, so their reviews aren't shown here.</p>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -234,8 +239,14 @@ export default function UserProfilePage() {
   if (status === 'error' || !data) {
     return (
       <PageStateShell>
-        <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back home</Link>
+        <h1 className="font-display uppercase text-3xl text-night-900">Couldn't load this profile</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          Check your connection and try again.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => setReloadKey(k => k + 1)} className="btn-primary">Try again</button>
+          <Link to="/" className="btn-secondary">Back home</Link>
+        </div>
       </PageStateShell>
     )
   }
@@ -263,16 +274,19 @@ export default function UserProfilePage() {
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-3xl mx-auto px-5 py-6">
           <div className="flex items-start gap-4">
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-20 h-20 rounded-full border-2 border-night-900 object-cover shadow-sticker" />
-            ) : (
-              <div className="w-20 h-20 rounded-full border-2 border-night-900 bg-cream-200 flex items-center justify-center text-2xl font-bold text-night-900 shadow-sticker">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
+            <AvatarImage
+              src={profile.avatar_url}
+              alt=""
+              className="w-20 h-20 flex-shrink-0 rounded-full border-2 border-night-900 object-cover shadow-sticker"
+              fallback={
+                <div className="w-20 h-20 flex-shrink-0 rounded-full border-2 border-night-900 bg-cream-200 flex items-center justify-center text-2xl font-bold text-night-900 shadow-sticker">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              }
+            />
             <div className="min-w-0 flex-1">
               <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest truncate">{displayName}</h1>
-              <p className="text-xs text-charcoal-500 mt-1">@{profile.username}</p>
+              <p className="text-xs text-charcoal-500 mt-1 truncate">@{profile.username}</p>
             </div>
             {!isOwner && (
               <button
@@ -286,7 +300,7 @@ export default function UserProfilePage() {
           </div>
 
           {profile.bio && (
-            <p className="text-sm text-charcoal-700 mt-4 max-w-prose whitespace-pre-wrap">{profile.bio}</p>
+            <p className="text-sm text-charcoal-700 mt-4 max-w-prose whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{profile.bio}</p>
           )}
 
           <div className="flex gap-6 mt-5 text-sm flex-wrap">
@@ -361,7 +375,7 @@ export default function UserProfilePage() {
                         <img src={c.cover_image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
                       </div>
                     )}
-                    <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest">{c.title}</p>
+                    <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words [overflow-wrap:anywhere]">{c.title}</p>
                     <p className="text-xs text-charcoal-500 mt-1">
                       {c.item_count} {c.item_count === 1 ? 'spot' : 'spots'}
                       {c.is_ranked && ' · Ranked'}
@@ -369,7 +383,7 @@ export default function UserProfilePage() {
                       {c.like_count > 0 && ` · ♥ ${c.like_count}`}
                     </p>
                     {c.description && (
-                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-2">{c.description}</p>
+                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-2 break-words [overflow-wrap:anywhere]">{c.description}</p>
                     )}
                   </Link>
                 ))}
@@ -396,14 +410,15 @@ export default function UserProfilePage() {
                       <div className="min-w-0">
                         <p className="font-display uppercase text-lg text-night-900 truncate">{spot?.name ?? 'Unknown spot'}</p>
                         <p className="text-xs text-charcoal-500 truncate">
-                          {(() => { try { return format(new Date(r.visited_at), 'MMM d, yyyy') } catch { return r.visited_at } })()}
+                          {formatVisitDate(r.visited_at)}
                           {r.wing_flavor ? ` · ${r.wing_flavor}` : ''}
+                          {r.wing_size ? ` · Size: ${r.wing_size}` : ''}
                         </p>
                       </div>
                       <div className="font-display text-2xl text-night-900 shrink-0">{Number(r.overall_rating).toFixed(1)}</div>
                     </div>
                     {r.review_text && (
-                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-3 whitespace-pre-wrap">{r.review_text}</p>
+                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{r.review_text}</p>
                     )}
                   </Link>
                 )

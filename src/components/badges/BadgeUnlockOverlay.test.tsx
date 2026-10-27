@@ -40,11 +40,19 @@ describe('BadgeUnlockOverlay', () => {
 
   it('shows badge name and rarity after an unlock event', () => {
     render(<BadgeUnlockOverlay />)
-    fireUnlock([makeBadge({ earned_count: 8, member_count: 34 })])
+    fireUnlock([makeBadge({ earned_count: 4, member_count: 34 })])
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('First Flight')).toBeInTheDocument()
     expect(screen.getByText('Rare')).toBeInTheDocument()
-    expect(screen.getByText(/Only 24% of members/)).toBeInTheDocument()
+    expect(screen.getByText(/Only 12% of members/)).toBeInTheDocument()
+  })
+
+  it('labels a badge half the members hold as Common, not Uncommon', () => {
+    render(<BadgeUnlockOverlay />)
+    fireUnlock([makeBadge({ earned_count: 49, member_count: 100 })])
+    expect(screen.getByText('Common')).toBeInTheDocument()
+    expect(screen.queryByText('Uncommon')).not.toBeInTheDocument()
+    expect(screen.getByText('49 of 100 members have this')).toBeInTheDocument()
   })
 
   it('celebrates being the first to earn a badge', () => {
@@ -60,17 +68,28 @@ describe('BadgeUnlockOverlay', () => {
     expect(screen.getByText(/Earned at Ottawa Wing Crawl/)).toBeInTheDocument()
   })
 
-  it('queues multiple badges and advances one at a time', () => {
+  it('shows several badges from one action in a single overlay', () => {
     render(<BadgeUnlockOverlay />)
     fireUnlock([
       makeBadge({ id: 'b1', name: 'First Flight' }),
       makeBadge({ id: 'b2', name: 'Heat Seeker' }),
+      makeBadge({ id: 'b3', name: 'Crispy or Die' }),
     ])
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByText('You unlocked 3 badges')).toBeInTheDocument()
     expect(screen.getByText('First Flight')).toBeInTheDocument()
-    expect(screen.getByText('1 of 2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Next badge/ }))
     expect(screen.getByText('Heat Seeker')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Wear it proud/ }))
+    expect(screen.getByText('Crispy or Die')).toBeInTheDocument()
+    // One tap closes everything — no "Next badge" chain.
+    expect(screen.queryByRole('button', { name: /Next badge/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('has a Close button', () => {
+    render(<BadgeUnlockOverlay />)
+    fireUnlock([makeBadge()])
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

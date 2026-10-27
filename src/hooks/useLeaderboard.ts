@@ -21,8 +21,7 @@ export function useLeaderboard(currentUserId: string | undefined): UseLeaderboar
     setLoading(true)
     const { data } = await supabase.from('leaderboard_stats').select('*')
     if (data) {
-      const sorted = sortBy(data as LeaderboardRow[], category)
-      setRows(sorted)
+      setRows(rankRows(data as LeaderboardRow[], category))
     }
     setLoading(false)
   }, [category])
@@ -34,6 +33,20 @@ export function useLeaderboard(currentUserId: string | undefined): UseLeaderboar
     : null
 
   return { rows, loading, category, setCategory, myRank }
+}
+
+/**
+ * An average from one or two reviews isn't a ranking: a brand-new account's
+ * single 10/10 would top the board. The average-rating board only lists
+ * people with at least this many reviews.
+ */
+export const MIN_REVIEWS_FOR_AVG_RANK = 3
+
+export function rankRows(rows: LeaderboardRow[], cat: LeaderboardCategory): LeaderboardRow[] {
+  const eligible = cat === 'heat'
+    ? rows.filter(r => r.avg_rating != null && r.review_count >= MIN_REVIEWS_FOR_AVG_RANK)
+    : rows
+  return sortBy(eligible, cat)
 }
 
 function sortBy(rows: LeaderboardRow[], cat: LeaderboardCategory): LeaderboardRow[] {

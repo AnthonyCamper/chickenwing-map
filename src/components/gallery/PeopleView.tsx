@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useUserProfile } from '../UserProfileContext'
+import { useAuthGate } from '../AuthGateModal'
+import AvatarImage from '../ui/AvatarImage'
 
 interface UserRow {
   user_id: string
@@ -17,6 +19,7 @@ interface Props {
 
 export default function PeopleView({ currentUserId }: Props) {
   const { openProfile } = useUserProfile()
+  const { requireAuth } = useAuthGate()
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,14 +37,18 @@ export default function PeopleView({ currentUserId }: Props) {
           .from('leaderboard_stats')
           .select('user_id, display_name, avatar_url, review_count, badge_count, unique_spots')
           .order('review_count', { ascending: false }),
-        supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', currentUserId),
+        // Signed out there is nobody to follow from; querying with an empty
+        // id was a guaranteed 400 on every visit to this tab.
+        currentUserId
+          ? supabase
+              .from('follows')
+              .select('following_id')
+              .eq('follower_id', currentUserId)
+          : Promise.resolve({ data: [] as { following_id: string }[] }),
       ])
       if (cancelled) return
       if (usersRes.error) {
-        setError("Couldn't load the wing heads. Give it another shot.")
+        setError("Couldn't load people. Check your connection and try again.")
         setUsers([])
         setLoading(false)
         return
@@ -73,6 +80,7 @@ export default function PeopleView({ currentUserId }: Props) {
 
   async function toggle(e: React.MouseEvent, targetId: string) {
     e.stopPropagation()
+    if (!currentUserId) { requireAuth(); return }
     const isFollowing = followingIds.has(targetId)
     setFollowingIds(prev => {
       const next = new Set(prev)
@@ -102,19 +110,20 @@ export default function PeopleView({ currentUserId }: Props) {
         <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load people</h3>
         <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{error}</p>
         <button onClick={() => setReloadKey(k => k + 1)} className="btn-secondary px-5">
-          Retry
+          Try again
         </button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pb-safe-8">
+    <div className="max-w-2xl mx-auto px-4 pb-safe-fab">
       <div className="relative mb-4">
         <input
           type="search"
           className="input pl-9"
           placeholder="Search people…"
+          aria-label="Search people by name"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -142,11 +151,12 @@ export default function PeopleView({ currentUserId }: Props) {
                 className="flex items-center gap-3 py-3 cursor-pointer hover:bg-cream-100/60 -mx-1 px-1 rounded-lg transition-colors"
               >
                 <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-night-900 flex-shrink-0 bg-night-700 flex items-center justify-center shadow-sticker-sm">
-                  {u.avatar_url ? (
-                    <img src={u.avatar_url} alt={name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-base font-extrabold text-cream-50 uppercase">{name.charAt(0)}</span>
-                  )}
+                  <AvatarImage
+                    src={u.avatar_url}
+                    alt={name}
+                    className="w-full h-full object-cover"
+                    fallback={<span className="text-base font-extrabold text-cream-50 uppercase">{name.charAt(0)}</span>}
+                  />
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -156,15 +166,15 @@ export default function PeopleView({ currentUserId }: Props) {
                   </p>
                   <p className="text-[11px] text-charcoal-500 font-medium mt-0.5">
                     {u.review_count} {u.review_count === 1 ? 'review' : 'reviews'}
-                    {u.unique_spots > 0 && ` · ${u.unique_spots} spots`}
-                    {u.badge_count > 0 && ` · ${u.badge_count} 🏅`}
+                    {u.unique_spots > 0 && ` · ${u.unique_spots} ${u.unique_spots === 1 ? 'spot' : 'spots'}`}
+                    {u.badge_count > 0 && ` · ${u.badge_count} ${u.badge_count === 1 ? 'badge' : 'badges'}`}
                   </p>
                 </div>
 
                 {!isMe && (
                   <button
                     onClick={e => toggle(e, u.user_id)}
-                    className={`group flex-shrink-0 font-extrabold uppercase tracking-crowd text-[11px] px-4 py-1.5 rounded-lg border-2 transition-all ${
+                    className={`group flex-shrink-0 min-h-11 font-extrabold uppercase tracking-crowd text-[11px] px-4 py-1.5 rounded-lg border-2 transition-all ${
                       isFollowing
                         ? 'bg-transparent border-night-900/20 text-charcoal-500 hover:border-sauce-400 hover:text-sauce-400'
                         : 'bg-sauce-400 border-sauce-400 text-cream-50 hover:bg-sauce-500 hover:border-sauce-500'

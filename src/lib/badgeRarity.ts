@@ -33,11 +33,14 @@ export function badgeRarity(
   const ratio = Math.min(earnedCount / memberCount, 1)
   const pct = earnedCount === 0 ? 0 : Math.max(1, Math.round(ratio * 100))
 
+  // Thresholds are on the share of members, and the label must read true
+  // next to the percentage: "Uncommon — 49%" was wrong (half of everyone has
+  // it), so anything held by more than about a third is Common.
   let tier: RarityTier
   if (earnedCount <= 1) tier = 'first'
-  else if (ratio <= 0.10) tier = 'legendary'
-  else if (ratio <= 0.25) tier = 'rare'
-  else if (ratio <= 0.50) tier = 'uncommon'
+  else if (ratio <= 0.05) tier = 'legendary'
+  else if (ratio <= 0.15) tier = 'rare'
+  else if (ratio <= 0.35) tier = 'uncommon'
   else tier = 'common'
 
   return { tier, label: LABELS[tier], pct, earnedCount, memberCount }

@@ -12,9 +12,11 @@ interface Props {
   disabled?: boolean
   /** Compact mode hides the add button when there are no reactions */
   compact?: boolean
+  /** Show a visible "React" label on the add button (44px tall pill). */
+  showLabel?: boolean
 }
 
-export default function ReactionPicker({ reactions, onToggle, disabled, compact }: Props) {
+export default function ReactionPicker({ reactions, onToggle, disabled, compact, showLabel }: Props) {
   const [showQuickTray, setShowQuickTray] = useState(false)
   const [showFullPicker, setShowFullPicker] = useState(false)
   const [trayPos, setTrayPos] = useState<{ top: number; left: number } | null>(null)
@@ -115,13 +117,15 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
             ref={addBtnRef}
             type="button"
             onClick={() => showQuickTray ? setShowQuickTray(false) : openQuickTray()}
-            className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm transition-all duration-150 ${
+            className={`inline-flex items-center justify-center rounded-full text-sm transition-all duration-150 ${
+              showLabel ? 'gap-1.5 min-h-[44px] px-3 text-xs font-bold' : 'w-8 h-8'
+            } ${
               showQuickTray
                 ? 'bg-sauce-100 text-sauce-500'
                 : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
             } ${!hasAny && compact ? 'opacity-60 group-hover:opacity-100 sm:opacity-0' : ''}`}
             title="Add reaction"
-            aria-label="Add reaction"
+            aria-label={showLabel ? 'React: add a reaction' : 'Add reaction'}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -129,6 +133,7 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact 
               <line x1="9" y1="9" x2="9.01" y2="9" />
               <line x1="15" y1="9" x2="15.01" y2="9" />
             </svg>
+            {showLabel && <span>React</span>}
           </button>
 
           {/* Quick emoji tray — portaled to body with viewport-aware positioning */}

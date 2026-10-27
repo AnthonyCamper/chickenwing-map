@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
+import { formatVisitDate } from '../../lib/dates'
+import AvatarImage from '../ui/AvatarImage'
 import StarRating from '../ui/StarRating'
 import ExpandableText from '../ui/ExpandableText'
 import CommentSection from './CommentSection'
@@ -190,10 +191,7 @@ export default function PhotoModal(props: Props) {
     onCommentAdded()
   }
 
-  const visitedDate = (() => {
-    try { return format(new Date(reviewData.visited_at), 'MMM d, yyyy') }
-    catch { return reviewData.visited_at }
-  })()
+  const visitedDate = formatVisitDate(reviewData.visited_at)
 
   const reviewerName = reviewData.reviewer_name ?? reviewData.reviewer_email?.split('@')[0] ?? 'Unknown'
 
@@ -268,11 +266,12 @@ export default function PhotoModal(props: Props) {
       className="flex items-center gap-2 mb-2 group text-left hover:opacity-80 transition-opacity"
     >
       <div className="w-7 h-7 rounded-full overflow-hidden bg-warmgray-200 flex-shrink-0 flex items-center justify-center">
-        {reviewData.reviewer_avatar ? (
-          <img src={reviewData.reviewer_avatar} alt={reviewerName} className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-xs font-semibold text-charcoal-500">{reviewerName.charAt(0).toUpperCase()}</span>
-        )}
+        <AvatarImage
+          src={reviewData.reviewer_avatar}
+          alt={reviewerName}
+          className="w-full h-full object-cover"
+          fallback={<span className="text-xs font-semibold text-charcoal-500">{reviewerName.charAt(0).toUpperCase()}</span>}
+        />
       </div>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-charcoal-700 truncate group-hover:text-sauce-500 transition-colors">{reviewerName}</p>

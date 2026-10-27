@@ -24,7 +24,7 @@ export default function EventsIndex() {
       .then(({ data, error: err }) => {
         if (cancelled) return
         if (err) {
-          setError("Couldn't load the events. Give it another shot.")
+          setError("Couldn't load the events. Check your connection and try again.")
           setEvents([])
         } else {
           setEvents((data ?? []) as WingEvent[])
@@ -66,7 +66,7 @@ export default function EventsIndex() {
             <p className="font-display uppercase text-xl text-night-900 mb-2">Couldn't load events</p>
             <p className="text-sm text-charcoal-600 mb-5">{error}</p>
             <button onClick={() => setReloadKey(k => k + 1)} className="btn-secondary">
-              Retry
+              Try again
             </button>
           </div>
         ) : events.length === 0 ? (

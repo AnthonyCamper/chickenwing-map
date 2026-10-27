@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import ShopPanel from './ShopPanel'
 import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 
@@ -18,9 +19,9 @@ function photo(id: string, review_id: string, display_order: number): ReviewPhot
   }
 }
 
-function makeSpotData(reviewIds: string[], photos: ReviewPhoto[]): SpotWithReviews {
+function makeSpotData(reviewIds: string[], photos: ReviewPhoto[], slug: string | null = null): SpotWithReviews {
   return {
-    spot: { id: 'spot1', name: 'Wing Palace', address: '123 Main St' },
+    spot: { id: 'spot1', name: 'Wing Palace', address: '123 Main St', slug },
     reviews: reviewIds.map(id => ({ id })),
     avg_rating: 8.2,
     photos,
@@ -29,6 +30,7 @@ function makeSpotData(reviewIds: string[], photos: ReviewPhoto[]): SpotWithRevie
 
 function renderPanel(spotData: SpotWithReviews, onPhotoOpen = vi.fn()) {
   render(
+    <MemoryRouter>
     <ShopPanel
       spotData={spotData}
       onClose={vi.fn()}
@@ -38,6 +40,7 @@ function renderPanel(spotData: SpotWithReviews, onPhotoOpen = vi.fn()) {
       onDelete={vi.fn(async () => ({ error: null as string | null }))}
       onPhotoOpen={onPhotoOpen}
     />
+    </MemoryRouter>
   )
   return { onPhotoOpen }
 }
@@ -87,5 +90,17 @@ describe('ShopPanel review collapse', () => {
   it('renders no toggle when the spot has no reviews', () => {
     renderPanel(makeSpotData([], []))
     expect(screen.queryByRole('button', { name: /Show/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('ShopPanel spot page link', () => {
+  it('links to the spot page when the spot has a slug', () => {
+    renderPanel(makeSpotData(['rA'], [], 'wing-palace'))
+    expect(screen.getByRole('link', { name: /Open spot page/ })).toHaveAttribute('href', '/spots/wing-palace')
+  })
+
+  it('shows no dead link when the spot has no slug', () => {
+    renderPanel(makeSpotData(['rA'], []))
+    expect(screen.queryByRole('link', { name: /Open spot page/ })).not.toBeInTheDocument()
   })
 })

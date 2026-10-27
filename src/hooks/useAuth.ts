@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { isSchemaDriftError, SCHEMA_DRIFT_MESSAGE } from '../lib/authErrors'
+import { friendlyAuthError, isSchemaDriftError, SCHEMA_DRIFT_MESSAGE } from '../lib/authErrors'
+import { clearReturnTo } from '../lib/authReturn'
 import type { AuthStatus, UserProfile, SiteSettings } from '../lib/types'
 
 export interface AuthState {
@@ -23,7 +24,8 @@ export interface AuthState {
     avatar?: File
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
-  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => Promise<void>
+  /** Resolves true when the row was saved; on failure it has already shown a toast. */
+  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => Promise<boolean>
   refreshProfile: () => Promise<void>
 }
 
@@ -274,9 +276,9 @@ export function useAuth(): AuthState {
     await supabase.auth.signOut()
   }
 
-  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => {
+  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }): Promise<boolean> => {
     const userId = session?.user?.id
-    if (!userId) return
+    if (!userId) return false
 
     const { data, error } = await supabase
       .from('profiles')
@@ -287,9 +289,10 @@ export function useAuth(): AuthState {
 
     if (error || !data) {
       toast.error(error?.message ?? 'Could not update profile')
-      return
+      return false
     }
     setProfile(prev => prev ? { ...prev, ...updates } : prev)
+    return true
   }
 
   return {
@@ -308,4 +311,80 @@ export function useAuth(): AuthState {
     updateProfile,
     refreshProfile,
   }
+}
+
+// ── Account settings ─────────────────────────────────────────────────────────
+
+/** True for accounts that can sign in with an email + password (as opposed to
+ *  Google only), i.e. the ones where "Change password" means something. */
+export function hasPasswordLogin(user: User | null | undefined): boolean {
+  if (!user) return false
+  const providers = user.app_metadata?.providers
+  if (Array.isArray(providers)) return providers.includes('email')
+  return user.app_metadata?.provider === 'email'
+}
+
+/** Check the current password, then set a new one. */
+export async function changePassword(
+  email: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ error: string | null }> {
+  // updateUser alone doesn't ask for the old password, so anyone at an
+  // unlocked, signed-in device could change it. Re-check it first.
+  const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (checkError) {
+    return {
+      error: checkError.message.toLowerCase().includes('invalid login')
+        ? 'Your current password is not correct.'
+        : friendlyAuthError(checkError.message),
+    }
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return { error: friendlyAuthError(error.message) }
+  return { error: null }
+}
+
+// Every file this user uploaded lives under "<uid>/…" (avatars: <uid>/avatar.ext;
+// review photos and list covers: <uid>/<review or list id>/<file>). Storage
+// list() isn't recursive, so walk one level of sub-folders.
+const USER_BUCKETS = ['review-photos', 'user-avatars', 'crawl-covers'] as const
+
+async function removeUserFolder(bucket: string, userId: string): Promise<void> {
+  const store = supabase.storage.from(bucket)
+  const { data: top } = await store.list(userId, { limit: 1000 })
+  const paths: string[] = []
+  for (const item of top ?? []) {
+    if (item.id) {
+      paths.push(`${userId}/${item.name}`)
+      continue
+    }
+    // id === null → a folder
+    const { data: inner } = await store.list(`${userId}/${item.name}`, { limit: 1000 })
+    for (const f of inner ?? []) {
+      if (f.id) paths.push(`${userId}/${item.name}/${f.name}`)
+    }
+  }
+  for (let i = 0; i < paths.length; i += 100) {
+    await store.remove(paths.slice(i, i + 100))
+  }
+}
+
+/**
+ * Permanently delete the signed-in user's account. Uploaded files are removed
+ * first (best effort: a failure there must not block deleting the account),
+ * then the delete_own_account() RPC (migration 038) deletes the auth user and
+ * the database cascades remove their profile and everything they posted.
+ * Finally drops the local session.
+ */
+export async function deleteOwnAccount(userId: string): Promise<{ error: string | null }> {
+  for (const bucket of USER_BUCKETS) {
+    try { await removeUserFolder(bucket, userId) } catch { /* best effort */ }
+  }
+  const { error } = await supabase.rpc('delete_own_account')
+  if (error) return { error: error.message || 'Could not delete your account. Please try again.' }
+  clearReturnTo()
+  // The user no longer exists server-side, so only clear the local session.
+  try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* ignore */ }
+  return { error: null }
 }

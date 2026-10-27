@@ -1,13 +1,15 @@
-import { createContext, useCallback, useContext, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { clearReturnTo, rememberReturnTo } from '../lib/authReturn'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 interface AuthGateContextValue {
-  /** Returns true if authenticated. If not, shows the auth prompt and returns false. */
-  requireAuth: () => boolean
+  /** Returns true if authenticated. If not, shows the auth prompt and returns false.
+   *  `returnTo` overrides where the user lands after signing in (default: this page). */
+  requireAuth: (returnTo?: string) => boolean
 }
 
 const AuthGateContext = createContext<AuthGateContextValue>({ requireAuth: () => true })
@@ -26,9 +28,21 @@ interface ProviderProps {
 
 export function AuthGateProvider({ isAuthenticated, onSignInGoogle, children }: ProviderProps) {
   const [open, setOpen] = useState(false)
+  const [returnTo, setReturnTo] = useState<string | undefined>()
+  const { pathname } = useLocation()
 
-  const requireAuth = useCallback(() => {
+  // Close on any route change (its own links, the browser Back button, a
+  // header link) so the sheet never sits on top of /register or /login.
+  const lastPath = useRef(pathname)
+  useEffect(() => {
+    if (lastPath.current === pathname) return
+    lastPath.current = pathname
+    setOpen(false)
+  }, [pathname])
+
+  const requireAuth = useCallback((dest?: string) => {
     if (isAuthenticated) return true
+    setReturnTo(dest)
     setOpen(true)
     return false
   }, [isAuthenticated])
@@ -40,6 +54,7 @@ export function AuthGateProvider({ isAuthenticated, onSignInGoogle, children }: 
         <AuthGateModal
           onClose={() => setOpen(false)}
           onSignInGoogle={onSignInGoogle}
+          returnTo={returnTo}
         />
       )}
     </AuthGateContext.Provider>
@@ -51,26 +66,36 @@ export function AuthGateProvider({ isAuthenticated, onSignInGoogle, children }: 
 function AuthGateModal({
   onClose,
   onSignInGoogle,
+  returnTo,
 }: {
   onClose: () => void
   onSignInGoogle?: () => Promise<void>
+  returnTo?: string
 }) {
   const navigate = useNavigate()
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag()
   const panelRef = useFocusTrap<HTMLDivElement>()
 
-  // Remember where the user was so they land back here after signing in,
-  // instead of losing the page they were looking at.
-  function rememberHere() {
-    try {
-      sessionStorage.setItem('auth-return-to', window.location.pathname + window.location.search)
-    } catch { /* ignore */ }
+  // Remember where the user was so they land back here after signing in or
+  // creating an account, instead of losing the page they were looking at.
+  // Then close: the sheet must not stay on top of the page we navigate to.
+  function goTo(path: string) {
+    rememberReturnTo(returnTo)
+    navigate(path)
+    onClose()
+  }
+
+  // "Continue browsing" means they've dropped the idea of signing in, so a
+  // later sign-up shouldn't jump back here.
+  function dismiss() {
+    clearReturnTo()
+    onClose()
   }
 
   return (
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center animate-fade-in"
-      onClick={onClose}
+      onClick={dismiss}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-night-900/60 backdrop-blur-sm" />
@@ -114,8 +139,9 @@ function AuthGateModal({
           <h2 className="font-display uppercase tracking-wide text-2xl text-night-900 mb-2">
             Join the conversation
           </h2>
-          <p className="text-sm text-charcoal-500 leading-relaxed max-w-[260px] mb-7">
-            Sign up or log in to react, comment, and share your thoughts.
+          <p className="text-sm text-charcoal-500 leading-relaxed max-w-[280px] mb-7">
+            Sign in or create a free account to rate wings, comment and react.
+            It takes a minute, and we'll bring you back to this page.
           </p>
 
           {/* CTAs */}
@@ -124,7 +150,7 @@ function AuthGateModal({
             {onSignInGoogle && (
               <>
                 <button
-                  onClick={() => { rememberHere(); onSignInGoogle() }}
+                  onClick={() => { rememberReturnTo(returnTo); onSignInGoogle() }}
                   className="btn w-full py-3.5 text-base bg-cream-50 border-2 border-night-900
                              text-night-800 hover:bg-cream-100 active:bg-cream-200 shadow-sticker-sm"
                 >
@@ -141,13 +167,13 @@ function AuthGateModal({
             )}
 
             <button
-              onClick={() => { rememberHere(); navigate('/register') }}
+              onClick={() => goTo('/register')}
               className="btn-primary w-full py-3.5 text-base"
             >
               Create an account
             </button>
             <button
-              onClick={() => { rememberHere(); navigate('/login') }}
+              onClick={() => goTo('/login')}
               className="btn-secondary w-full py-3"
             >
               Sign in
@@ -156,8 +182,8 @@ function AuthGateModal({
 
           {/* Dismiss */}
           <button
-            onClick={onClose}
-            className="mt-5 min-h-[40px] text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-night-700 transition-colors"
+            onClick={dismiss}
+            className="mt-5 min-h-[44px] px-4 text-xs font-extrabold uppercase tracking-crowd text-charcoal-400 hover:text-night-700 transition-colors"
           >
             Continue browsing
           </button>

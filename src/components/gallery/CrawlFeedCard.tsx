@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import HeartIcon from './HeartIcon'
+import AvatarImage from '../ui/AvatarImage'
 import { useAuthGate } from '../AuthGateModal'
 import { useAuthContext } from '../AuthProvider'
 import { toggleCrawlLike } from '../../lib/crawlActions'
@@ -51,7 +52,7 @@ export default function CrawlFeedCard({ crawl }: Props) {
         </div>
       ) : (
         <div className="aspect-[16/9] bg-gradient-to-br from-night-900 via-night-800 to-sauce-600 flex items-center justify-center px-6">
-          <p className="font-display uppercase text-cream-50 text-2xl text-center leading-tight tracking-tightest line-clamp-3">
+          <p className="font-display uppercase text-cream-50 text-2xl text-center leading-tight tracking-tightest line-clamp-3 break-words [overflow-wrap:anywhere] min-w-0">
             {crawl.title}
           </p>
         </div>
@@ -64,39 +65,44 @@ export default function CrawlFeedCard({ crawl }: Props) {
           {!crawl.is_public && ' · 🔒 Private'}
           {' · '}{crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}
         </p>
-        <h3 className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2">
+        <h3 className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words [overflow-wrap:anywhere]">
           {crawl.title}
         </h3>
         {crawl.description && (
-          <p className="text-sm text-charcoal-600 mt-2 line-clamp-2">{crawl.description}</p>
+          <p className="text-sm text-charcoal-600 mt-2 line-clamp-2 break-words [overflow-wrap:anywhere]">{crawl.description}</p>
         )}
 
         <div className="flex items-center gap-2 mt-3 text-xs">
-          {crawl.author_avatar ? (
-            <img src={crawl.author_avatar} alt="" className="w-5 h-5 rounded-full border border-night-900 object-cover" />
-          ) : (
-            <div className="w-5 h-5 rounded-full border border-night-900 bg-night-700 text-cream-50 flex items-center justify-center text-[10px] font-extrabold">
-              {initial}
-            </div>
-          )}
-          <span className="text-charcoal-500">by </span>
+          <AvatarImage
+            src={crawl.author_avatar}
+            alt=""
+            className="w-5 h-5 flex-shrink-0 rounded-full border border-night-900 object-cover"
+            fallback={
+              <div className="w-5 h-5 flex-shrink-0 rounded-full border border-night-900 bg-night-700 text-cream-50 flex items-center justify-center text-[10px] font-extrabold">
+                {initial}
+              </div>
+            }
+          />
+          <span className="text-charcoal-500 flex-shrink-0">by </span>
+          {/* min-w-0 + truncate: long or multi-script names stay on one line
+              with an ellipsis instead of wrapping into the "by" label. */}
           {authorLinkable ? (
             <button
               type="button"
               onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`/u/${crawl.author_username}`) }}
-              className="min-h-[44px] -my-3 inline-flex items-center font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors"
+              className="min-w-0 min-h-[44px] -my-3 inline-flex items-center font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors"
             >
-              {crawl.author_name}
+              <span className="truncate">{crawl.author_name}</span>
             </button>
           ) : (
-            <span className="font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
+            <span className="min-w-0 truncate font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
           )}
 
           <button
             type="button"
             onClick={handleLike}
             aria-label={liked ? 'Unlike list' : 'Like list'}
-            className={`ml-auto min-h-[44px] -my-3 px-2 inline-flex items-center gap-1 transition-colors ${
+            className={`ml-auto flex-shrink-0 min-h-[44px] min-w-[44px] -my-3 px-2 inline-flex justify-center items-center gap-1 transition-colors ${
               liked ? 'text-sauce-500' : 'text-charcoal-400 hover:text-sauce-500'
             }`}
           >

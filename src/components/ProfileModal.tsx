@@ -7,7 +7,10 @@ import { useBadges } from '../hooks/useBadges'
 import { useLeaderboard } from '../hooks/useLeaderboard'
 import BadgeGrid from './badges/BadgeGrid'
 import BadgeIcon from './badges/BadgeIcon'
-import type { AuthState } from '../hooks/useAuth'
+import AvatarImage from './ui/AvatarImage'
+import { changePassword, deleteOwnAccount, hasPasswordLogin, type AuthState } from '../hooks/useAuth'
+import { displayNameProblem, MIN_PASSWORD_LENGTH, passwordProblem } from '../lib/authErrors'
+import { validateImageFile } from '../lib/imageValidation'
 
 interface Props {
   auth: AuthState
@@ -15,6 +18,10 @@ interface Props {
 }
 
 type Tab = 'profile' | 'badges' | 'stats'
+// Account actions open in place of the profile form, inside the same sheet.
+type AccountPanel = null | 'password' | 'delete'
+
+export const DELETE_CONFIRM_WORD = 'DELETE'
 
 export default function ProfileModal({ auth, onClose }: Props) {
   const profile = auth.profile
@@ -27,7 +34,16 @@ export default function ProfileModal({ auth, onClose }: Props) {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [panel, setPanel] = useState<AccountPanel>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // The Account buttons sit at the bottom of a scrolled form; start the panel
+  // they open (and the form, on the way back) at the top.
+  useEffect(() => {
+    scrollRef.current?.scrollTo?.(0, 0)
+  }, [panel])
 
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(92dvh - env(safe-area-inset-top))',
@@ -62,16 +78,24 @@ export default function ProfileModal({ auth, onClose }: Props) {
     { key: 'stats',   label: 'Stats' },
   ]
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = '' // let the same file be picked again after an error
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('Photo must be under 5 MB'); return }
+    // Decode it: a renamed non-image passes the type check and would be
+    // saved as a broken avatar everywhere.
+    const problem = await validateImageFile(file, 5)
+    if (problem) { toast.error(problem); return }
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
   }
 
   const handleSave = async () => {
     if (!user) return
+    const trimmedName = displayName.trim()
+    const problem = displayNameProblem(trimmedName)
+    if (problem) { setNameError(problem); return }
+    setNameError(null)
     setSaving(true)
     try {
       let avatarUrl: string | undefined
@@ -86,12 +110,13 @@ export default function ProfileModal({ auth, onClose }: Props) {
           avatarUrl = data.publicUrl
         }
       }
-      await auth.updateProfile({
-        display_name: displayName.trim() || undefined,
+      const ok = await auth.updateProfile({
+        display_name: trimmedName,
         bio: bio.trim().slice(0, 140) || undefined,
         is_private: isPrivate,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       })
+      if (!ok) return // updateProfile already showed the error
       toast.success('Profile updated')
       onClose()
     } finally { setSaving(false) }
@@ -126,18 +151,25 @@ export default function ProfileModal({ auth, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-night-900 shadow-sticker-sm flex-shrink-0 bg-night-700 group flex items-center justify-center"
+                className="relative w-14 h-14 flex-shrink-0 group"
                 aria-label="Change profile photo"
               >
-                {currentAvatar ? (
-                  <img src={currentAvatar} alt={name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl font-extrabold text-cream-50">{initials}</span>
-                )}
-                {/* Touch users see the badge always; desktop reveals on hover. */}
-                <div className="absolute inset-0 bg-night-900/45 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="text-cream-50 text-[10px] font-extrabold uppercase tracking-crowd">Edit</span>
-                </div>
+                <span className="w-14 h-14 rounded-full overflow-hidden border-2 border-night-900 shadow-sticker-sm bg-night-700 flex items-center justify-center">
+                  <AvatarImage
+                    src={currentAvatar}
+                    alt={name}
+                    className="w-full h-full object-cover"
+                    fallback={<span className="text-xl font-extrabold text-cream-50">{initials}</span>}
+                  />
+                </span>
+                {/* A small corner badge instead of a label across the middle,
+                    so it never covers the initial or the photo. */}
+                <span
+                  aria-hidden
+                  className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md border-2 border-night-900 bg-cream-50 text-night-900 text-[9px] font-extrabold uppercase tracking-crowd leading-none shadow-sticker-sm group-hover:bg-sauce-400 group-hover:text-cream-50 transition-colors"
+                >
+                  Edit
+                </span>
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
@@ -145,11 +177,6 @@ export default function ProfileModal({ auth, onClose }: Props) {
                 <p className="font-display uppercase tracking-wide text-xl text-night-900 leading-tight truncate">{name}</p>
                 <p className="text-[11px] text-charcoal-500 truncate mt-0.5">{email}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {profile?.status === 'approved' && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-night-900/20 bg-cream-100 text-[10px] font-extrabold uppercase tracking-crowd text-night-700">
-                      Approved
-                    </span>
-                  )}
                   {auth.isAdmin && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md border-2 border-night-900 bg-sauce-400 text-cream-50 text-[10px] font-extrabold uppercase tracking-crowd shadow-sticker-sm">
                       Admin
@@ -159,7 +186,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     <button
                       type="button"
                       onClick={() => setTab('badges')}
-                      className="inline-flex items-center gap-1.5 text-[10px] text-charcoal-500 font-bold hover:text-sauce-500 transition-colors"
+                      className="inline-flex items-center gap-1.5 py-3 -my-3 text-[10px] text-charcoal-500 font-bold hover:text-sauce-500 transition-colors"
                     >
                       {badgesHook.earned.slice(0, 3).map(b => (
                         <span key={b.id} title={b.name} className="text-base leading-none inline-flex">
@@ -178,7 +205,13 @@ export default function ProfileModal({ auth, onClose }: Props) {
                 </div>
               </div>
 
-              <button onClick={onClose} className="w-8 h-8 rounded-lg bg-cream-100 border border-night-900/20 text-night-700 flex items-center justify-center text-lg hover:bg-cream-200 transition-colors flex-shrink-0 self-start">×</button>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="w-11 h-11 -mr-1.5 -mt-1.5 rounded-lg text-night-700 flex items-center justify-center flex-shrink-0 self-start hover:bg-cream-200 transition-colors"
+              >
+                <span className="w-8 h-8 rounded-lg bg-cream-100 border border-night-900/20 flex items-center justify-center text-lg">×</span>
+              </button>
             </div>
 
             {/* Tab bar */}
@@ -186,8 +219,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
               {TABS.map(t => (
                 <button
                   key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`mr-4 pb-2.5 text-[11px] font-extrabold uppercase tracking-crowd transition-colors border-b-2 -mb-[2px]
+                  onClick={() => { setTab(t.key); setPanel(null) }}
+                  className={`mr-4 min-h-[44px] pb-2.5 pt-2 text-[11px] font-extrabold uppercase tracking-crowd transition-colors border-b-2 -mb-[2px]
                     ${tab === t.key
                       ? 'border-sauce-400 text-sauce-500'
                       : 'border-transparent text-charcoal-400 hover:text-night-700'}`}
@@ -199,28 +232,48 @@ export default function ProfileModal({ auth, onClose }: Props) {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
 
             {/* ── Profile tab ─────────────────────────────────────── */}
-            {tab === 'profile' && (
+            {tab === 'profile' && panel === 'password' && user && (
+              <ChangePasswordPanel email={email} onDone={() => setPanel(null)} />
+            )}
+
+            {tab === 'profile' && panel === 'delete' && user && (
+              <DeleteAccountPanel
+                userId={user.id}
+                isAdmin={auth.isAdmin}
+                onCancel={() => setPanel(null)}
+              />
+            )}
+
+            {tab === 'profile' && !panel && (
               <div className="space-y-4">
                 <div>
-                  <label className="label">Display name</label>
+                  <label className="label" htmlFor="profile-display-name">Display name</label>
                   <input
+                    id="profile-display-name"
                     type="text"
                     value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
+                    onChange={e => { setDisplayName(e.target.value); setNameError(null) }}
                     placeholder="Your name"
                     className="input"
+                    maxLength={60}
                     disabled={saving}
+                    aria-invalid={nameError ? true : undefined}
+                    aria-describedby={nameError ? 'profile-name-error' : undefined}
                   />
+                  {nameError && (
+                    <p id="profile-name-error" role="alert" className="text-[11px] font-bold text-sauce-600 mt-1">{nameError}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="label">Bio</label>
+                  <label className="label" htmlFor="profile-bio">Bio</label>
                   <textarea
+                    id="profile-bio"
                     value={bio}
                     onChange={e => setBio(e.target.value.slice(0, 140))}
-                    placeholder="Chasing perfect drums since forever."
+                    placeholder="A few words about you (optional)"
                     rows={2}
                     className="input resize-none"
                     disabled={saving}
@@ -231,21 +284,24 @@ export default function ProfileModal({ auth, onClose }: Props) {
                 </div>
                 <div>
                   <label className="label">Email</label>
-                  <p className="text-sm font-medium text-charcoal-600 px-4 py-3 bg-cream-100 rounded-lg border border-night-900/15">
+                  <p className="text-sm font-medium text-charcoal-600 px-4 py-3 bg-cream-100 rounded-lg border border-night-900/15 break-all">
                     {email}
                   </p>
+                  <p className="text-[11px] text-charcoal-500 mt-1">Only you can see this.</p>
                 </div>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={isPrivate}
                   onClick={() => setIsPrivate(p => !p)}
-                  className="w-full flex items-center justify-between text-left py-3 px-4 rounded-xl border border-night-900/15 bg-cream-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400"
+                  className="w-full flex items-center justify-between gap-3 text-left py-3 px-4 rounded-xl border border-night-900/15 bg-cream-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400"
                 >
                   <div>
                     <p className="text-sm font-extrabold text-night-900">Private profile</p>
-                    <p className="text-[11px] text-charcoal-500 mt-0.5">
-                      Hide your name and photo from event attendee lists
+                    <p className="text-[11px] text-charcoal-500 mt-0.5 leading-snug">
+                      Other people can’t open your profile page, and your name is hidden on
+                      event attendee lists and wing lists. Your reviews stay public and still
+                      show your name in the feed and the People list.
                     </p>
                   </div>
                   <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${isPrivate ? 'bg-sauce-400' : 'bg-night-900/20'}`}>
@@ -253,12 +309,27 @@ export default function ProfileModal({ auth, onClose }: Props) {
                   </div>
                 </button>
 
-                <div className="flex gap-3 pt-2">
-                  <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-                  <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
-                    {saving && <span className="w-4 h-4 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />}
-                    {saving ? 'Saving…' : 'Save'}
-                  </button>
+                {/* ── Account ─────────────────────────────────────── */}
+                <div className="pt-2">
+                  <p className="eyebrow mb-2">Account</p>
+                  <div className="rounded-xl border border-night-900/15 bg-cream-100 divide-y divide-night-900/10 overflow-hidden">
+                    {hasPasswordLogin(user) && (
+                      <button
+                        type="button"
+                        onClick={() => setPanel('password')}
+                        className="w-full min-h-[48px] px-4 flex items-center justify-between text-left text-sm font-bold text-night-900 hover:bg-cream-200 transition-colors"
+                      >
+                        Change password <span aria-hidden>→</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPanel('delete')}
+                      className="w-full min-h-[48px] px-4 flex items-center justify-between text-left text-sm font-bold text-sauce-600 hover:bg-sauce-50 transition-colors"
+                    >
+                      Delete account <span aria-hidden>→</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -327,7 +398,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                   </div>
                 ) : (
                   <>
-                    <p className="eyebrow mb-3">Your scene stats</p>
+                    <p className="eyebrow mb-3">Your stats</p>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <StatCard emoji="🍗" label="Reviews posted" value={myRow.review_count} />
@@ -345,7 +416,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                         {[
                           { label: 'Most reviews',  key: 'reviews',  val: myRow.review_count },
                           { label: 'Most spots',    key: 'spots',    val: myRow.unique_spots },
-                          { label: 'Highest heat',  key: 'heat',     val: myRow.avg_rating ?? 0 },
+                          { label: 'Highest average rating', key: 'heat',     val: myRow.avg_rating ?? 0 },
                           { label: 'Most comments', key: 'comments', val: myRow.comment_count },
                           { label: 'Most badges',   key: 'badges',   val: myRow.badge_count },
                           { label: 'Most liked',    key: 'likes',    val: myRow.total_likes_received },
@@ -376,6 +447,21 @@ export default function ProfileModal({ auth, onClose }: Props) {
               </div>
             )}
           </div>
+
+          {/* Save bar: outside the scroll area so it's always on screen,
+              even on a short phone where the form scrolls. */}
+          {tab === 'profile' && !panel && (
+            <div
+              className="flex-shrink-0 flex gap-3 px-5 pt-3 border-t-2 border-night-900/10 bg-cream-50"
+              style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+            >
+              <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+                {saving && <span className="w-4 h-4 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />}
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -389,5 +475,137 @@ function StatCard({ emoji, label, value }: { emoji: string; label: string; value
       <span className="font-display uppercase tracking-wide text-2xl text-cream-50 leading-none mt-1">{value}</span>
       <span className="text-[9px] font-extrabold uppercase tracking-crowd text-cream-100/60">{label}</span>
     </div>
+  )
+}
+
+// ── Account panels ───────────────────────────────────────────────────────────
+
+function ChangePasswordPanel({ email, onDone }: { email: string; onDone: () => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const nextProblem = next ? passwordProblem(next) : null
+  const mismatch = confirm.length > 0 && confirm !== next
+  const canSubmit = !!current && !!next && !nextProblem && confirm === next && !busy
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit) return
+    setBusy(true)
+    setError(null)
+    const { error } = await changePassword(email, current, next)
+    setBusy(false)
+    if (error) { setError(error); return }
+    toast.success('Password changed')
+    onDone()
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <button type="button" onClick={onDone} className="min-h-[44px] -mt-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-night-900">
+        ← Back to profile
+      </button>
+      <h3 className="font-display uppercase tracking-wide text-xl text-night-900">Change password</h3>
+      {error && (
+        <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
+      )}
+      <div>
+        <label className="label" htmlFor="pw-current">Current password</label>
+        <input id="pw-current" type="password" autoComplete="current-password" className="input"
+          value={current} onChange={e => setCurrent(e.target.value)} disabled={busy} />
+      </div>
+      <div>
+        <label className="label" htmlFor="pw-new">New password</label>
+        <input id="pw-new" type="password" autoComplete="new-password" className="input"
+          value={next} onChange={e => setNext(e.target.value)} disabled={busy}
+          aria-describedby="pw-new-help" aria-invalid={nextProblem ? true : undefined} />
+        <p id="pw-new-help" className={`text-[11px] mt-1 ${nextProblem ? 'font-bold text-sauce-600' : 'text-charcoal-500'}`}>
+          {nextProblem ?? `At least ${MIN_PASSWORD_LENGTH} characters.`}
+        </p>
+      </div>
+      <div>
+        <label className="label" htmlFor="pw-confirm">Type the new password again</label>
+        <input id="pw-confirm" type="password" autoComplete="new-password" className="input"
+          value={confirm} onChange={e => setConfirm(e.target.value)} disabled={busy}
+          aria-invalid={mismatch || undefined} />
+        {mismatch && <p className="text-[11px] font-bold text-sauce-600 mt-1">The two new passwords don’t match.</p>}
+      </div>
+      <button type="submit" disabled={!canSubmit} className="btn-primary w-full py-3">
+        {busy ? 'Changing…' : 'Change password'}
+      </button>
+    </form>
+  )
+}
+
+function DeleteAccountPanel({ userId, isAdmin, onCancel }: { userId: string; isAdmin: boolean; onCancel: () => void }) {
+  const [typed, setTyped] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const confirmed = typed.trim().toUpperCase() === DELETE_CONFIRM_WORD
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!confirmed || busy || isAdmin) return
+    setBusy(true)
+    setError(null)
+    const { error } = await deleteOwnAccount(userId)
+    if (error) {
+      setBusy(false)
+      setError(error)
+      return
+    }
+    toast.success('Your account was deleted')
+    // Full reload: drops every cached feed, profile and modal history entry
+    // that still refers to the deleted user.
+    window.location.replace('/')
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <button type="button" onClick={onCancel} disabled={busy} className="min-h-[44px] -mt-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-night-900">
+        ← Back to profile
+      </button>
+      <h3 className="font-display uppercase tracking-wide text-xl text-sauce-600">Delete account</h3>
+      <div className="text-sm text-charcoal-700 leading-relaxed space-y-2">
+        <p>This permanently deletes your account and everything you posted:</p>
+        <ul className="list-disc pl-5 space-y-0.5 text-[13px]">
+          <li>your profile, photo and bio</li>
+          <li>your reviews and review photos</li>
+          <li>your comments, likes and reactions</li>
+          <li>your wing lists, follows, event RSVPs and check-ins</li>
+          <li>your badges, notifications and settings</li>
+        </ul>
+        <p>Spots you added stay on the map, without your name. <strong>This can’t be undone.</strong></p>
+      </div>
+      {isAdmin ? (
+        <p className="text-xs font-bold text-night-800 bg-cream-100 border-2 border-night-900/20 rounded-lg px-3 py-2">
+          Admin accounts can’t be deleted here. Remove your admin rights first.
+        </p>
+      ) : (
+        <>
+          {error && (
+            <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
+          )}
+          <div>
+            <label className="label" htmlFor="delete-confirm">Type {DELETE_CONFIRM_WORD} to confirm</label>
+            <input id="delete-confirm" type="text" autoComplete="off" autoCapitalize="characters" className="input"
+              value={typed} onChange={e => setTyped(e.target.value)} disabled={busy} />
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onCancel} disabled={busy} className="btn-secondary flex-1">Cancel</button>
+            <button
+              type="submit"
+              disabled={!confirmed || busy}
+              className="btn flex-1 py-3 bg-sauce-600 text-cream-50 border-2 border-night-900 shadow-sticker-sm disabled:opacity-50"
+            >
+              {busy ? 'Deleting…' : 'Delete forever'}
+            </button>
+          </div>
+        </>
+      )}
+    </form>
   )
 }

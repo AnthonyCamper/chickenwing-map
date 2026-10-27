@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
+import AvatarImage from './ui/AvatarImage'
 import PhotoModal from './gallery/PhotoModal'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
@@ -65,6 +66,19 @@ export function haversineMiles(
 
 export function formatMiles(mi: number): string {
   return mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`
+}
+
+/** "12 spots", or "3 of 12 spots" while a search/filter hides some. */
+export function spotCountLabel(shown: number, total: number): string {
+  const noun = (n: number) => (n === 1 ? 'spot' : 'spots')
+  return shown === total ? `${total} ${noun(total)}` : `${shown} of ${total} ${noun(total)}`
+}
+
+/** Keep native <select> options readable: user names are free text and can
+ *  be hundreds of characters long. */
+export function shortLabel(s: string, max = 32): string {
+  const chars = Array.from(s.trim())
+  return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join('')
 }
 
 interface Props {
@@ -153,7 +167,7 @@ export default function ListView({
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-        <p className="font-display uppercase tracking-crowd text-sm text-night-700">Loading the scoreboard…</p>
+        <p className="font-display uppercase tracking-crowd text-sm text-night-700">Loading spots…</p>
       </div>
     )
   }
@@ -161,7 +175,7 @@ export default function ListView({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-        <div className="sticker-sauce mb-4">Scene broke</div>
+        <div className="sticker-sauce mb-4">Couldn't load spots</div>
         <p className="text-sm text-charcoal-500 max-w-xs">{error}</p>
       </div>
     )
@@ -171,6 +185,8 @@ export default function ListView({
   // Anything on the board at all (pre-search/filter)? Controls stay visible even
   // when the current search/filter matches nothing, so you can back out of it.
   const hasAnyOnBoard = shops.some(s => s.reviews.length > 0)
+  // Same number as the ticker and the map: spots with at least one review.
+  const totalRated = shops.reduce((n, s) => n + (s.reviews.length > 0 ? 1 : 0), 0)
   const showRanks = sortBy === 'rating' && !nearMe
 
   return (
@@ -185,8 +201,8 @@ export default function ListView({
                 {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every spot on the board'}
               </h2>
             </div>
-            <div className="sticker-night flex-shrink-0 hidden sm:inline-flex">
-              {shopsWithReviews.length} {shopsWithReviews.length === 1 ? 'spot' : 'spots'}
+            <div className="sticker-night flex-shrink-0">
+              {spotCountLabel(shopsWithReviews.length, totalRated)}
             </div>
           </div>
         )}
@@ -223,14 +239,15 @@ export default function ListView({
             {/* Sort toggle */}
             <div className="flex items-center gap-2">
               <span className="eyebrow text-night-700">Sort</span>
-              <div className="flex items-center bg-night-900 rounded-full p-1 border-2 border-night-900 shadow-sticker-sm">
-                {([['name', 'A→Z'], ['rating', 'Heat'], ['near', 'Near me']] as [SortOption, string][]).map(([key, label]) => {
+              <div className="flex items-center bg-night-900 rounded-full p-0.5 shadow-sticker-sm">
+                {([['name', 'A–Z'], ['rating', 'Top rated'], ['near', 'Near me']] as [SortOption, string][]).map(([key, label]) => {
                   const active = key === 'near' ? nearMe : !nearMe && sortBy === key
                   return (
                     <button
                       key={key}
                       onClick={() => selectSort(key)}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
+                      aria-pressed={active}
+                      className={`min-h-11 px-3 rounded-full text-[11px] font-extrabold uppercase tracking-wide whitespace-nowrap transition-all
                         ${active
                           ? 'bg-sauce-400 text-cream-50'
                           : 'text-cream-200/70 hover:text-cream-50'}`}
@@ -244,21 +261,25 @@ export default function ListView({
 
             {/* Reviewer filter */}
             {reviewers.length > 1 && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="eyebrow text-night-700">Who</span>
-                <div className="relative">
+              // min-w-0 + max-w-full keep it inside a 375px screen even when a
+              // reviewer's name is very long (it used to run off the edge)
+              <div className="flex items-center gap-2 min-w-0 max-w-full sm:ml-auto">
+                <label htmlFor="reviewer-filter" className="eyebrow text-night-700 flex-shrink-0">Reviewer</label>
+                <div className="relative min-w-0">
                   <select
+                    id="reviewer-filter"
                     value={filterReviewer}
                     onChange={e => setFilterReviewer(e.target.value)}
                     /* text-base (16px): anything smaller makes iOS Safari zoom the page on focus */
-                    className="appearance-none text-base font-extrabold uppercase tracking-wide
+                    className="appearance-none text-base font-extrabold tracking-wide
+                               w-full max-w-[14rem] min-h-11 truncate
                                rounded-full border-2 border-night-900 bg-cream-50 text-night-900
                                pl-3 pr-8 py-1 shadow-sticker-sm
                                focus:outline-none focus:ring-2 focus:ring-sauce-400 cursor-pointer"
                   >
-                    <option value="all">Everybody</option>
+                    <option value="all">Everyone</option>
                     {reviewers.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
+                      <option key={r.id} value={r.id}>{shortLabel(r.name)}</option>
                     ))}
                   </select>
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-night-900 text-xs">▾</span>
@@ -384,7 +405,8 @@ function ShopCard({
               <button
                 type="button"
                 onClick={e => { e.preventDefault(); e.stopPropagation(); onViewOnMap(shopId) }}
-                className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400 rounded transition-colors cursor-pointer"
+                // py/-my pads the hit area to 44px without moving the layout
+                className="flex-shrink-0 inline-flex items-center gap-1 py-3.5 -my-3.5 px-1.5 -mx-1.5 text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400 rounded transition-colors cursor-pointer"
                 aria-label="View on map"
               >
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -420,13 +442,16 @@ function ShopCard({
                     className="w-6 h-6 rounded-full overflow-hidden border-2 border-cream-50 bg-night-700 flex items-center justify-center"
                     style={{ zIndex: 4 - i }}
                   >
-                    {r.reviewer_avatar ? (
-                      <img src={r.reviewer_avatar} alt={r.reviewer_name ?? ''} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[10px] font-extrabold text-cream-50 uppercase">
-                        {(r.reviewer_name ?? r.reviewer_email ?? '?').charAt(0)}
-                      </span>
-                    )}
+                    <AvatarImage
+                      src={r.reviewer_avatar}
+                      alt={r.reviewer_name ?? ''}
+                      className="w-full h-full object-cover"
+                      fallback={
+                        <span className="text-[10px] font-extrabold text-cream-50 uppercase">
+                          {(r.reviewer_name ?? r.reviewer_email ?? '?').charAt(0)}
+                        </span>
+                      }
+                    />
                   </div>
                 ))}
                 {reviews.length > 4 && (
@@ -483,9 +508,9 @@ function RatingChip({ rating, count, hot }: { rating: number; count: number; hot
       <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
       <StarRating value={rating} size="sm" />
       <span>{rating.toFixed(1)}</span>
-      {count > 1 && (
-        <span className="opacity-70 normal-case font-bold tracking-normal">· avg of {count}</span>
-      )}
+      <span className="opacity-70 normal-case font-bold tracking-normal">
+        · {count} {count === 1 ? 'review' : 'reviews'}
+      </span>
     </span>
   )
 }
@@ -495,9 +520,9 @@ function NoMatchState({ query, onClear }: { query: string; onClear: () => void }
     <div className="relative flex flex-col items-center justify-center py-20 px-6 text-center overflow-hidden">
       <div className="absolute inset-0 bg-splatter opacity-15 pointer-events-none" aria-hidden="true" />
       <div className="relative">
-        <p className="eyebrow mb-2">No spots match</p>
-        <h3 className="font-display uppercase tracking-wide text-3xl text-night-900 leading-tight mb-3">
-          Nothing on the board{query.trim() ? <> for “{query.trim()}”</> : null}
+        <p className="eyebrow mb-2">No results</p>
+        <h3 className="font-display uppercase tracking-wide text-3xl text-night-900 leading-tight mb-3 [overflow-wrap:anywhere]">
+          No spots match{query.trim() ? <> “{query.trim()}”</> : ' this filter'}
         </h3>
         {query.trim() ? (
           <button type="button" onClick={onClear} className="sticker-sauce cursor-pointer">
@@ -505,7 +530,7 @@ function NoMatchState({ query, onClear }: { query: string; onClear: () => void }
           </button>
         ) : (
           <p className="text-sm text-charcoal-500 max-w-xs mx-auto leading-relaxed">
-            Try a different filter.
+            Pick a different reviewer.
           </p>
         )}
       </div>
@@ -521,12 +546,12 @@ function EmptyState() {
         <div className="inline-flex items-center justify-center mb-5">
           <img src="/favicon.svg" alt="" className="w-16 h-16 rounded-xl border-2 border-night-900 shadow-sticker" />
         </div>
-        <p className="eyebrow mb-2">Empty scoreboard</p>
+        <p className="eyebrow mb-2">No spots yet</p>
         <h3 className="font-display uppercase tracking-wide text-3xl text-night-900 leading-tight mb-3">
-          Nobody's on the board yet
+          No spots rated yet
         </h3>
         <p className="text-sm text-charcoal-500 max-w-xs mx-auto leading-relaxed">
-          Tap the <span className="font-extrabold text-sauce-500 uppercase">+ Rate</span> button to drop the first wing spot. Set the bar.
+          Tap the <span className="font-extrabold text-sauce-500 uppercase">+ Rate wings</span> button to add the first review.
         </p>
       </div>
     </div>

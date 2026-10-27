@@ -1,14 +1,18 @@
-import { ReactNode, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from './AuthProvider'
 import { useNotifications } from '../hooks/useNotifications'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import { supabase } from '../lib/supabase'
 import type { WingEvent } from '../lib/types'
-import ProfileModal from './ProfileModal'
-import LeaderboardModal from './LeaderboardModal'
 import NotificationBell from './NotificationBell'
-import NotificationSettings from './NotificationSettings'
+import AvatarImage from './ui/AvatarImage'
+
+// Opened from the profile menu only, and the header ships on every page:
+// keep them out of the first-load bundle.
+const ProfileModal = lazy(() => import('./ProfileModal'))
+const LeaderboardModal = lazy(() => import('./LeaderboardModal'))
+const NotificationSettings = lazy(() => import('./NotificationSettings'))
 
 type View = 'list' | 'map' | 'gallery'
 
@@ -161,13 +165,13 @@ export default function AppHeader({ view, onViewChange }: Props) {
       >
         <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-25" aria-hidden="true" />
 
-        <div className="relative max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+        <div className="relative max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
           {/* Back button — visible on non-home routes for predictable navigation */}
           {!isHome && (
             <button
               onClick={handleBack}
               aria-label="Back"
-              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-cream-100 hover:text-cream-50 hover:bg-night-800 active:bg-night-700 transition-colors -ml-1"
+              className="flex-shrink-0 w-10 h-11 flex items-center justify-center rounded-lg text-cream-100 hover:text-cream-50 hover:bg-night-800 active:bg-night-700 transition-colors -ml-1.5"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
@@ -175,13 +179,18 @@ export default function AppHeader({ view, onViewChange }: Props) {
             </button>
           )}
 
-          {/* Brand — shrinks if the toggle + actions need more space */}
+          {/* Brand — shrinks if the toggle + actions need more space. On a
+              phone with the view tabs showing there's no room for the full
+              wordmark (it clipped to "WINGKINGTON'"), so it's icon-only there. */}
           <button
             onClick={handleBrandClick}
-            className="flex items-center gap-2 min-w-0 flex-shrink group"
-            aria-label="Home"
+            // With the view tabs, the brand is just the icon (and on the very
+            // narrowest phones it steps aside entirely; the Feed tab goes to
+            // the same place)
+            className={`${view && onViewChange ? 'hidden min-[340px]:flex flex-shrink-0' : 'flex flex-shrink'} items-center gap-2 min-w-0 min-h-11 group`}
+            aria-label="WingKingTony home"
           >
-            <span className="relative inline-flex">
+            <span className="relative inline-flex flex-shrink-0">
               <img
                 src="/favicon.svg"
                 alt=""
@@ -189,11 +198,12 @@ export default function AppHeader({ view, onViewChange }: Props) {
                            group-hover:rotate-[-4deg] transition-transform"
               />
             </span>
-            <span className="flex flex-col items-start leading-none min-w-0">
-              <span className="font-display uppercase text-lg sm:text-2xl tracking-tightest text-cream-50 truncate">
+            <span className={`${view && onViewChange ? 'hidden sm:flex' : 'flex'} flex-col items-start leading-none min-w-0`}>
+              <span className="font-display uppercase text-lg sm:text-xl tracking-tightest text-cream-50 truncate max-w-full">
                 WingKingTony
               </span>
-              <span className="hidden sm:inline text-[9px] uppercase tracking-crowd text-sauce-300 mt-0.5">
+              {/* Tagline only where there's room (pages without the view tabs) */}
+              <span className={`${view && onViewChange ? 'hidden' : 'hidden sm:block'} text-[9px] uppercase tracking-wide text-sauce-300 mt-0.5 truncate max-w-full`}>
                 Ate it. Rated it. Let the people know.
               </span>
             </span>
@@ -201,7 +211,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
 
           {/* View toggle — only when caller provided one */}
           {view && onViewChange && (
-            <div className="flex items-center gap-0.5 bg-night-800 rounded-full p-1 border-2 border-night-900 flex-shrink-0" role="tablist" aria-label="View">
+            <div className="flex items-center gap-0.5 bg-night-800 rounded-full p-0.5 flex-shrink-0" role="tablist" aria-label="View">
               {VIEWS.map(({ key, label }) => {
                 const active = view === key
                 return (
@@ -212,18 +222,39 @@ export default function AppHeader({ view, onViewChange }: Props) {
                     aria-label={label}
                     aria-selected={active}
                     aria-pressed={active}
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
+                    // 44px tall tap target; on phones the label sits under the
+                    // icon so the tabs say what they are without widening them
+                    className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 h-11 min-w-[2.75rem] px-1.5 sm:px-3 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wide leading-none transition-all
                       ${active
                         ? 'bg-cream-50 text-night-900 shadow-sticker-sm'
                         : 'text-cream-100/85 hover:text-cream-50'}`}
                   >
                     <ViewIcon kind={key} />
-                    <span className="hidden sm:inline">{label}</span>
+                    <span>{label}</span>
                   </button>
                 )
               })}
             </div>
           )}
+
+          {/* Events — public (signed-out visitors can browse crawls too) */}
+          <Link
+            to="/events"
+            aria-label="Events"
+            aria-current={location.pathname === '/events' ? 'page' : undefined}
+            className="flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 h-11 min-w-[2.75rem] px-1 sm:px-2 rounded-lg flex-shrink-0
+                       text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wide leading-none
+                       text-cream-100/85 hover:text-cream-50 hover:bg-night-800 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="2" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="8" y1="3" x2="8" y2="7" />
+              <line x1="16" y1="3" x2="16" y2="7" />
+            </svg>
+            {/* icon-only on very narrow phones (<370px) so the header fits */}
+            <span className="hidden min-[370px]:inline">Events</span>
+          </Link>
 
           {/* Notifications + Profile */}
           {/* `relative` on this container (not the bell wrapper) anchors the
@@ -243,13 +274,16 @@ export default function AppHeader({ view, onViewChange }: Props) {
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                 >
-                  {avatar ? (
-                    <img src={avatar} alt={name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-sm font-extrabold uppercase text-cream-50">
-                      {(name || '?').charAt(0).toUpperCase()}
-                    </span>
-                  )}
+                  <AvatarImage
+                    src={avatar}
+                    alt={name}
+                    className="w-full h-full object-cover"
+                    fallback={
+                      <span className="text-sm font-extrabold uppercase text-cream-50">
+                        {(name || '?').charAt(0).toUpperCase()}
+                      </span>
+                    }
+                  />
                 </button>
 
                 {profileOpen && (
@@ -274,8 +308,14 @@ export default function AppHeader({ view, onViewChange }: Props) {
                         )}
                       </div>
 
+                      {profile?.username && (
+                        <MenuItem onClick={() => { setProfileOpen(false); navigate(`/u/${profile.username}`) }}>
+                          My profile
+                        </MenuItem>
+                      )}
+
                       <MenuItem onClick={() => { setProfileOpen(false); setShowProfileModal(true) }}>
-                        Profile
+                        Edit profile
                       </MenuItem>
 
                       {activeEvent && (
@@ -286,11 +326,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       )}
 
                       <MenuItem onClick={() => { setProfileOpen(false); setShowLeaderboard(true) }}>
-                        🏆 The board
-                      </MenuItem>
-
-                      <MenuItem onClick={() => { setProfileOpen(false); navigate('/events') }}>
-                        Events
+                        🏆 Leaderboard
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/?tab=crawls') }}>
@@ -298,7 +334,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); navigate('/lists/new') }}>
-                        + New list
+                        + Create a list
                       </MenuItem>
 
                       <MenuItem onClick={() => { setProfileOpen(false); setShowNotifSettings(true) }}>
@@ -322,7 +358,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="bg-sauce-400 text-cream-50 border-2 border-cream-50 px-3 py-2 rounded-lg text-[11px] font-extrabold uppercase tracking-crowd shadow-sticker-sm hover:bg-sauce-300 transition-colors flex-shrink-0"
+              className="bg-sauce-400 text-cream-50 border-2 border-cream-50 px-3 min-h-11 rounded-lg text-[11px] font-extrabold uppercase tracking-wide sm:tracking-crowd whitespace-nowrap shadow-sticker-sm hover:bg-sauce-300 transition-colors flex-shrink-0"
             >
               Sign in
             </button>
@@ -356,7 +392,9 @@ export default function AppHeader({ view, onViewChange }: Props) {
         </button>
       )}
 
-      {/* Modals owned by the header */}
+      {/* Modals owned by the header (lazy — fallback null: they open over
+          the page, so a blank frame while the chunk loads is fine) */}
+      <Suspense fallback={null}>
       {showProfileModal && auth && (
         <ProfileModal
           auth={auth}
@@ -375,6 +413,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
           onClose={() => setShowNotifSettings(false)}
         />
       )}
+      </Suspense>
     </>
   )
 }

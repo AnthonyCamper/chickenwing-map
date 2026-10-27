@@ -46,82 +46,67 @@ export default function LiveScene({ spots, loading }: Props) {
     const dateSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
     const dailyOnion = seededShuffle(ONION, dateSeed).slice(0, 30)
 
-    const fetchSub = (sub: string): Promise<SceneItem[]> =>
-      fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=10&raw_json=1`, {
-        headers: { Accept: 'application/json' },
-      })
-        .then(r => r.json())
-        .then(json =>
-          ((json?.data?.children ?? []) as any[])
-            .map(c => c?.data)
-            .filter(d => d?.title && d.title.length > 10 && d.title.length < 120)
-            .slice(0, 6)
-            .map(d => ({
-              emoji:   '📡',
-              eyebrow: `r/${sub}`,
-              body:    d.title as string,
-              type:    'internet' as ChipType,
-              url:     `https://www.reddit.com${d.permalink}`,
-            }))
-        )
-        .catch(() => [] as SceneItem[])
-
-    const redditPromise = Promise.all([
-      fetchSub('wings'),
-      fetchSub('chickenwings'),
-    ]).then(([a, b]) => [...a, ...b])
-
+    // AI headlines are a nice-to-have: cap the wait so a slow network never
+    // holds the whole ticker back. (Reddit used to be fetched here too, but
+    // Reddit blocks browser requests (403 + no CORS), so every page load
+    // logged errors and wasted requests on slow connections.)
     const timeout: Promise<SceneItem[]> = new Promise(res =>
       setTimeout(() => res([]), 2500)
     )
 
-    Promise.all([
-      Promise.race([redditPromise, timeout]),
-      fetchAiHeadlines(),
-    ]).then(([redditItems, aiItems]) => {
-      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...dailyOnion, ...redditItems, ...aiItems])
+    Promise.race([fetchAiHeadlines(), timeout]).then(aiItems => {
+      const all = shuffle([...dataItems, ...timeItems, ...EVERGREEN, ...dailyOnion, ...aiItems])
       setPool(all)
       setDuration(Math.max(32, all.length * 6.4))
     })
   }, [spots, loading])
 
-  if (pool.length === 0) return null
+  // Same count as the Spots list and the map: only spots with at least one
+  // review are on the board (the table also holds spots whose reviews were
+  // deleted or that only appear in lists).
+  const ratedCount = countRatedSpots(spots)
 
-  const track = [...pool, ...pool]
+  // Render the bar straight away with a static placeholder line so it
+  // reserves its height: mounting it late pushed the whole page down ~38px
+  // while people were already tapping on slow connections.
+  const ready = pool.length > 0
+  const track = ready ? [...pool, ...pool] : [LOADING_ITEM]
 
   return (
     <div
-      className="relative bg-night-900 text-cream-50 border-b-2 border-night-900 overflow-hidden select-none"
+      className="relative flex bg-night-900 text-cream-50 border-b-2 border-night-900 overflow-hidden select-none"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
       <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-20" aria-hidden="true" />
 
-      {/* LIVE badge */}
-      <div className="hidden sm:flex absolute left-0 top-0 bottom-0 z-10 px-4 items-center gap-2
+      {/* LIVE badge — an in-flow flex item (not absolute) so its label can
+          say what the number is without overlapping the headlines */}
+      <div className="hidden sm:flex relative z-10 px-4 items-center gap-2
                       bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px]
-                      font-extrabold uppercase tracking-crowd flex-shrink-0">
+                      font-extrabold uppercase tracking-crowd flex-shrink-0 whitespace-nowrap">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cream-50 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-cream-50" />
         </span>
         <span>Live</span>
-        {spots.length > 0 && <span className="opacity-60">· {spots.length}</span>}
+        {ratedCount > 0 && (
+          <span className="opacity-70">· {ratedCount} {ratedCount === 1 ? 'spot rated' : 'spots rated'}</span>
+        )}
       </div>
 
-      {/* Edge fades */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 sm:w-[160px] z-[5]
-                      bg-gradient-to-r from-night-900 to-transparent" aria-hidden="true" />
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 z-[5]
-                      bg-gradient-to-l from-night-900 to-transparent" aria-hidden="true" />
-
-      <div className="overflow-hidden py-1.5 sm:pl-[148px]">
+      <div className="relative flex-1 min-w-0 overflow-hidden py-1.5">
+        {/* Edge fades */}
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-[5]
+                        bg-gradient-to-r from-night-900 to-transparent" aria-hidden="true" />
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 z-[5]
+                        bg-gradient-to-l from-night-900 to-transparent" aria-hidden="true" />
         <div
-          className="marquee-track"
-          style={{
+          className={ready ? 'marquee-track' : 'inline-flex items-center pl-4'}
+          style={ready ? {
             animationDuration: `${duration}s`,
             animationPlayState: paused ? 'paused' : 'running',
-          }}
+          } : undefined}
         >
           {track.map((it, i) => (
             <Chip key={i} item={it} />
@@ -130,6 +115,10 @@ export default function LiveScene({ spots, loading }: Props) {
       </div>
     </div>
   )
+}
+
+const LOADING_ITEM: SceneItem = {
+  emoji: '📡', eyebrow: 'Live', type: 'scene', body: 'Loading wing news…',
 }
 
 function Chip({ item }: { item: SceneItem }) {
@@ -165,14 +154,27 @@ function Chip({ item }: { item: SceneItem }) {
 
 // ─── Data-driven items ────────────────────────────────────────────────────────
 
-function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
+/**
+ * Site-wide "best" / "worst" callouts need a real sample. With a single review
+ * allowed to count, one brand-new account's 10/10 took the 👑 slot for every
+ * visitor. 3 keeps a dozen-plus contenders on the current data (most spots
+ * have 1 review; the established ones have 8+).
+ */
+export const MIN_REVIEWS_FOR_RANKING = 3
+
+export function countRatedSpots(spots: SpotWithReviews[]): number {
+  return spots.reduce((n, s) => n + (s.reviews.length > 0 ? 1 : 0), 0)
+}
+
+export function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
   const rated = spots.filter(s => s.reviews.length > 0)
   if (rated.length === 0) return []
   const items: SceneItem[] = []
+  const ranked = rated.filter(s => s.reviews.length >= MIN_REVIEWS_FOR_RANKING)
 
-  const king = [...rated].sort((a, b) => b.avg_rating - a.avg_rating)[0]
+  const king = [...ranked].sort((a, b) => b.avg_rating - a.avg_rating)[0]
   if (king) items.push({ emoji: '👑', eyebrow: 'King of the house', type: 'scene',
-    body: `${trunc(king.spot.name, 26)} · ${king.avg_rating.toFixed(1)}/10` })
+    body: `${trunc(king.spot.name, 26)} · ${king.avg_rating.toFixed(1)}/10 from ${king.reviews.length} reviews` })
 
   const newest = [...rated].map(s => ({ s, r: s.reviews[0] })).filter(x => !!x.r)
     .sort((a, b) => b.r.visited_at.localeCompare(a.r.visited_at))[0]
@@ -192,13 +194,13 @@ function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
 
   const totalReviews = rated.reduce((s, x) => s + x.reviews.length, 0)
   items.push({ emoji: '📊', eyebrow: 'Scene report', type: 'fact',
-    body: `${spots.length} spots mapped · ${totalReviews} ratings logged` })
+    body: `${plural(rated.length, 'spot')} rated · ${plural(totalReviews, 'review')} posted` })
 
   const rev = topReviewer(rated)
   if (rev) items.push({ emoji: '🥇', eyebrow: 'Top rater', type: 'scene',
     body: `${rev.name} dropped ${rev.count} reviews. Respect.` })
 
-  const bottom = [...rated].filter(s => s.reviews.length >= 2).sort((a, b) => a.avg_rating - b.avg_rating)[0]
+  const bottom = [...ranked].sort((a, b) => a.avg_rating - b.avg_rating)[0]
   if (bottom && bottom.avg_rating < 6) items.push({ emoji: '🫤', eyebrow: 'Tough crowd', type: 'debate',
     body: `${trunc(bottom.spot.name, 24)} catching strays — ${bottom.avg_rating.toFixed(1)}/10` })
 
@@ -532,6 +534,10 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]]
   }
   return a
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${n === 1 ? word : `${word}s`}`
 }
 
 function trunc(s: string, n: number): string {

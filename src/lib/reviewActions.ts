@@ -5,6 +5,13 @@ import { announceNewBadges, snapshotEarnedBadgeIds } from './badgeUnlocks'
 import { invalidateGalleryFeedCache } from '../hooks/useGallery'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
+// Review ids are UUIDs. Anything else can't exist, and sending it to
+// Postgres returns a 400 (invalid uuid), so callers treat it as not-found.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export function isUuid(value: string | null | undefined): value is string {
+  return !!value && UUID_RE.test(value)
+}
+
 export async function compressImage(file: File): Promise<Blob> {
   const MAX_WIDTH = 1200
   const QUALITY = 0.85
@@ -104,19 +111,30 @@ export async function createReview(
   // diff afterwards and celebrate any new unlocks.
   const earnedBefore = await snapshotEarnedBadgeIds()
 
-  const { data: spotData, error: spotErr } = await supabase
+  // Reuse an existing spot by name+address without touching its coordinates.
+  // The old upsert (ignoreDuplicates: false) let any reviewer move an
+  // existing spot just by submitting different lat/lng for the same name.
+  const spotName = data.shop_name.trim()
+  const spotAddress = data.address.trim()
+  const findSpot = () => supabase
     .from('wing_spots')
-    .upsert(
-      {
-        name: data.shop_name.trim(),
-        address: data.address.trim(),
-        lat: parseFloat(data.lat),
-        lng: parseFloat(data.lng),
-      },
-      { onConflict: 'name,address', ignoreDuplicates: false }
-    )
     .select('id')
-    .single()
+    .eq('name', spotName)
+    .eq('address', spotAddress)
+    .maybeSingle()
+
+  let { data: spotData, error: spotErr } = await findSpot()
+  if (!spotErr && !spotData) {
+    const inserted = await supabase
+      .from('wing_spots')
+      .insert({ name: spotName, address: spotAddress, lat: parseFloat(data.lat), lng: parseFloat(data.lng) })
+      .select('id')
+      .single()
+    spotData = inserted.data
+    spotErr = inserted.error
+    // Lost a race with someone adding the same spot: use theirs.
+    if (spotErr?.code === '23505') ({ data: spotData, error: spotErr } = await findSpot())
+  }
 
   if (spotErr || !spotData) {
     return { error: spotErr?.message ?? 'Could not create wing spot' }

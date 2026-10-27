@@ -97,7 +97,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
       .then(({ data, error }) => {
         if (cancelled) return
         if (error) {
-          setCrawlsError("Couldn't load the lists. Give it another shot.")
+          setCrawlsError("Couldn't load the lists. Check your connection and try again.")
           setCrawls([])
           setCrawlsHasMore(false)
         } else {
@@ -179,7 +179,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
               <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load lists</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{crawlsError}</p>
               <button onClick={() => setCrawlsReloadKey(k => k + 1)} className="btn-secondary px-5">
-                Retry
+                Try again
               </button>
             </div>
           ) : crawls.length === 0 ? (
@@ -187,7 +187,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
               <div className="text-5xl mb-4">📋</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">No lists yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
-                Be the first to curate a list. Stake your claim.
+                No one has made a list yet. Make the first one.
               </p>
               <button
                 onClick={() => { if (requireAuth()) navigate('/lists/new') }}
@@ -235,7 +235,7 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
           <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load the feed</h3>
           <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{gallery.error}</p>
           <button onClick={retryFeed} className="btn-secondary px-5">
-            Retry
+            Try again
           </button>
         </div>
       ) : gallery.reviews.length === 0 ? (
@@ -243,31 +243,31 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
           {feed === 'following' ? (
             <>
               <div className="text-5xl mb-4">🍗</div>
-              <h3 className="font-display text-lg text-charcoal-700 mb-2">No takes yet</h3>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">Nothing from people you follow yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
-                Follow some wing heads to see their takes here. Or check out Discover to see what everyone's eating.
+                Reviews from people you follow show here. Your own reviews are on your profile page.
               </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setFeed('people')}
-                  className="btn-primary px-5"
-                >
-                  Find people
-                </button>
+              <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setFeed('discover')}
+                  className="btn-primary px-5"
+                >
+                  Go to Discover
+                </button>
+                <button
+                  onClick={() => setFeed('people')}
                   className="btn-secondary px-5"
                 >
-                  Discover
+                  Find people to follow
                 </button>
               </div>
             </>
           ) : (
             <>
               <div className="text-5xl mb-4">🥁</div>
-              <h3 className="font-display text-lg text-charcoal-700 mb-2">Nothing here yet</h3>
+              <h3 className="font-display text-lg text-charcoal-700 mb-2">No reviews yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
-                Be the first to drop a take. The wing council is waiting.
+                Reviews with photos show here. Tap "Rate wings" to add the first one.
               </p>
             </>
           )}

@@ -1,4 +1,5 @@
 import BadgeIcon from '../badges/BadgeIcon'
+import AvatarImage from '../ui/AvatarImage'
 import type { EventRsvp } from '../../lib/types'
 
 export interface CheckinAttendee {
@@ -48,12 +49,17 @@ export function WhosComing({ rsvps, signedIn, goingCount }: WhosComingProps) {
           >
             {r.is_private ? (
               <span className="w-5 h-5 rounded-full bg-cream-200 flex items-center justify-center text-xs">🔒</span>
-            ) : r.user_avatar ? (
-              <img src={r.user_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
             ) : (
-              <span className="w-5 h-5 rounded-full bg-night-700 flex items-center justify-center text-xs font-bold text-cream-50">
-                {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
-              </span>
+              <AvatarImage
+                src={r.user_avatar}
+                alt=""
+                className="w-5 h-5 flex-shrink-0 rounded-full object-cover"
+                fallback={
+                  <span className="w-5 h-5 flex-shrink-0 rounded-full bg-night-700 flex items-center justify-center text-xs font-bold text-cream-50">
+                    {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
+                  </span>
+                }
+              />
             )}
             <span className="text-xs font-bold text-charcoal-600 truncate">
               {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
@@ -90,13 +96,16 @@ export function CheckedInFeed({
         {attendees.map(a => (
           <li key={a.user_id} className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              {a.avatar_url ? (
-                <img src={a.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-night-900 flex-shrink-0" />
-              ) : (
-                <span className="w-9 h-9 rounded-full bg-night-700 border-2 border-night-900 flex items-center justify-center text-sm font-extrabold text-cream-50 flex-shrink-0">
-                  {a.display_name.charAt(0).toUpperCase()}
-                </span>
-              )}
+              <AvatarImage
+                src={a.avatar_url}
+                alt=""
+                className="w-9 h-9 rounded-full object-cover border-2 border-night-900 flex-shrink-0"
+                fallback={
+                  <span className="w-9 h-9 rounded-full bg-night-700 border-2 border-night-900 flex items-center justify-center text-sm font-extrabold text-cream-50 flex-shrink-0">
+                    {a.display_name.charAt(0).toUpperCase()}
+                  </span>
+                }
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-night-900 truncate">{a.display_name}</p>
                 <p className="text-xs text-charcoal-500">

@@ -1,6 +1,10 @@
 import { ReactNode, useEffect, useState } from 'react'
 import type { AuthState } from '../hooks/useAuth'
+import { Link } from 'react-router-dom'
 import AppHeader from './AppHeader'
+
+// Same inbox as the "Contact admin" button on App's status screens.
+const CONTACT_EMAIL = 'anthonycap949@gmail.com'
 
 /**
  * True while a text field has focus. The FAB hides during typing so it can't
@@ -45,6 +49,7 @@ export default function Layout({
 }: Props) {
   const user = auth.user
   const typing = useTypingFocus()
+  const showFab = !readOnly && !!user
 
   return (
     <div className="min-h-dvh flex flex-col bg-cream-50">
@@ -56,59 +61,92 @@ export default function Layout({
         {children}
       </main>
 
-      <footer
-        className="relative border-t-2 border-night-900 bg-night-900 text-cream-100 px-4 py-6 text-center grain-overlay"
-        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
-      >
-        <p className="font-display uppercase tracking-tightest text-2xl text-cream-50 leading-none">
-          Wing culture lives here
-        </p>
-        <p className="mt-2 text-[11px] uppercase tracking-crowd text-cream-100/60">
-          A WingKingTony joint
-          <span aria-hidden="true" className="mx-2 text-sauce-400">·</span>
-          <a
-            href="https://winkingtony.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-extrabold text-sauce-300 hover:text-sauce-200 inline-flex items-center gap-0.5"
-          >
-            Winking Tony
-            <svg
-              className="w-3 h-3"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+      {/* The map fills the screen exactly; a footer under it made the page
+          scroll, sliding the map's zoom buttons under the sticky header. */}
+      {view !== 'map' && (
+        <footer
+          className="relative border-t-2 border-night-900 bg-night-900 text-cream-100 px-4 py-6 text-center grain-overlay"
+          style={{
+            // While the floating "Rate wings" button is on screen, leave room
+            // under the footer so the button never sits on top of its links.
+            paddingBottom: showFab
+              ? 'calc(6.5rem + env(safe-area-inset-bottom))'
+              : 'calc(1.5rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <p className="font-display uppercase tracking-tightest text-2xl text-cream-50 leading-none">
+            Wing culture lives here
+          </p>
+          <nav aria-label="Site" className="relative z-[1] mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs font-bold text-cream-100/80">
+            <FooterLink to="/events">Events</FooterLink>
+            <FooterLink to="/privacy">Privacy</FooterLink>
+            <FooterLink to="/terms">Terms</FooterLink>
+            <a
+              href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('WingKingTony')}`}
+              className="inline-flex items-center min-h-11 px-2.5 hover:text-cream-50 underline underline-offset-2 decoration-cream-50/30"
             >
-              <path d="M7 17L17 7" />
-              <path d="M8 7h9v9" />
-            </svg>
-          </a>
-        </p>
-      </footer>
+              Contact
+            </a>
+          </nav>
+          <p className="relative z-[1] mt-1 text-[11px] uppercase tracking-crowd text-cream-100/60">
+            A WingKingTony joint
+            <span aria-hidden="true" className="mx-2 text-sauce-400">·</span>
+            {/* Brand easter egg, kept on purpose; the real site links are above */}
+            <a
+              href="https://winkingtony.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-extrabold text-sauce-300 hover:text-sauce-200 inline-flex items-center gap-0.5 min-h-11"
+            >
+              Winking Tony
+              <svg
+                className="w-3 h-3"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7 17L17 7" />
+                <path d="M8 7h9v9" />
+              </svg>
+            </a>
+          </p>
+        </footer>
+      )}
 
       {/* Floating add button */}
-      {!readOnly && user && !typing && (
+      {showFab && !typing && (
         <button
           onClick={onAddReview}
           className="fixed right-4 z-30 group flex items-center gap-2
                      bg-sauce-400 text-cream-50 border-2 border-night-900
-                     px-4 h-14 rounded-full shadow-sticker
+                     pl-4 pr-5 h-14 rounded-full shadow-sticker
                      hover:bg-sauce-300 hover:shadow-sticker-sauce
                      active:translate-x-[2px] active:translate-y-[2px] active:shadow-none
                      transition-all"
           style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
-          aria-label="Drop a rating"
+          aria-label="Rate wings"
         >
-          <span className="text-2xl font-extrabold leading-none">+</span>
-          <span className="hidden sm:inline text-xs font-extrabold uppercase tracking-crowd">
-            Drop a take
+          <span className="text-2xl font-extrabold leading-none" aria-hidden="true">+</span>
+          <span className="text-xs font-extrabold uppercase tracking-crowd">
+            Rate wings
           </span>
         </button>
       )}
     </div>
+  )
+}
+
+function FooterLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center min-h-11 px-2.5 hover:text-cream-50 underline underline-offset-2 decoration-cream-50/30"
+    >
+      {children}
+    </Link>
   )
 }

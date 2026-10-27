@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-
-const MAX_MB = 50
+import { MAX_IMAGE_MB, validateImageFile } from '../../lib/imageValidation'
 
 interface Props {
   files: File[]
@@ -9,28 +8,34 @@ interface Props {
   max?: number   // max total files allowed (default 5)
 }
 
-function validateFile(file: File): string | null {
-  if (!file.type.startsWith('image/')) return `${file.name} is not an image.`
-  if (file.size > MAX_MB * 1024 * 1024) return `${file.name} exceeds ${MAX_MB}MB.`
-  return null
-}
-
 export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
+  const [checking, setChecking] = useState(false)
+  // Validation decodes each image (async), so read the latest list from a
+  // ref when merging — a second pick during the check must not drop the first.
+  const filesRef = useRef(files)
+  filesRef.current = files
 
-  const addFiles = (incoming: FileList | File[]) => {
+  const addFiles = async (incoming: FileList | File[]) => {
+    const list = Array.from(incoming)
+    if (!list.length) return
+    setChecking(true)
+    const results = await Promise.all(list.map(f => validateImageFile(f)))
+    setChecking(false)
     const valid: File[] = []
     const errors: string[] = []
-    for (const f of Array.from(incoming)) {
-      const err = validateFile(f)
-      if (err) { errors.push(err); continue }
-      valid.push(f)
-    }
-    if (errors.length) toast.error(errors.join(' · '))
-    const merged = [...files, ...valid].slice(0, max)
-    if (merged.length < files.length + valid.length) {
-      toast.error(`Up to ${max} photos.`)
+    list.forEach((f, i) => {
+      const err = results[i]
+      if (err) errors.push(err)
+      else valid.push(f)
+    })
+    if (errors.length) toast.error(errors.join(' '), { duration: 6000 })
+    if (!valid.length) return
+    const current = filesRef.current
+    const merged = [...current, ...valid].slice(0, max)
+    if (merged.length < current.length + valid.length) {
+      toast.error(`You can add up to ${max} photos.`)
     }
     onChange(merged)
   }
@@ -55,7 +60,7 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
         onDrop={e => {
           e.preventDefault()
           setDragging(false)
-          addFiles(e.dataTransfer.files)
+          void addFiles(e.dataTransfer.files)
         }}
         onClick={() => inputRef.current?.click()}
         className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 min-h-[120px] cursor-pointer transition-colors ${
@@ -66,10 +71,10 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
       >
         <span className="text-2xl">📷</span>
         <p className="text-sm font-bold text-night-800">
-          {dragging ? 'Drop to add' : 'Add photos'}
+          {checking ? 'Checking photos…' : dragging ? 'Drop to add' : 'Add photos'}
         </p>
         <p className="text-xs text-charcoal-500">
-          Drag &amp; drop or tap · up to {max} photos · {MAX_MB}MB each
+          Tap to choose, or drag photos here · up to {max} photos · {MAX_IMAGE_MB} MB each
         </p>
         <input
           ref={inputRef}
@@ -77,7 +82,11 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
           accept="image/*"
           multiple
           className="sr-only"
-          onChange={e => e.target.files && addFiles(e.target.files)}
+          onChange={e => {
+            if (e.target.files) void addFiles(e.target.files)
+            // Reset so picking the same file again (after removing it) fires onChange
+            e.target.value = ''
+          }}
         />
       </div>
 

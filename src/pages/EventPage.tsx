@@ -165,6 +165,36 @@ export default function EventPage({ auth }: Props) {
     )
   }
 
+  if (!evt.event && evt.error) {
+    return (
+      <PageStateShell>
+        <h1 className="font-display uppercase text-3xl text-night-900">Couldn't load this event</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">Check your connection and try again.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button onClick={() => evt.refresh()} className="btn-primary">Try again</button>
+          <button onClick={() => navigate('/')} className="btn-secondary">Back home</button>
+        </div>
+      </PageStateShell>
+    )
+  }
+
+  if (!evt.event && slug) {
+    // A specific event was asked for and doesn't exist — a 404, not "no crawl".
+    return (
+      <PageStateShell>
+        <p className="eyebrow">404</p>
+        <h1 className="font-display uppercase text-3xl text-night-900">Event not found</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          This event doesn't exist or was removed. See all events instead.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button onClick={() => navigate('/events')} className="btn-primary">See all events</button>
+          <button onClick={() => navigate('/')} className="btn-secondary">Back home</button>
+        </div>
+      </PageStateShell>
+    )
+  }
+
   if (!evt.event) {
     return (
       <PageStateShell>

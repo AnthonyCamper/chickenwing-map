@@ -78,30 +78,66 @@ export default function RatingPicker({
     [value, onChange, clamp]
   )
 
+  // Star i (0-based) covers [i, i+1] of the value range, so map the track
+  // the same way the stars are filled: the finger is always at the fill edge.
+  const pctFromX = useCallback((clientX: number): number | null => {
+    const rect = trackRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return null
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  }, [])
+
+  // Dragging gives fine (0.1) control.
   const valueFromX = useCallback(
     (clientX: number): number => {
-      const rect = trackRef.current?.getBoundingClientRect()
-      if (!rect) return value
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-      // Map [0,1] → [min, max] in 0.1 steps, biased so dragging to the start
-      // hits min (1.0) cleanly even when finger is slightly off the edge.
-      return round1(min + pct * (max - min))
+      const pct = pctFromX(clientX)
+      return pct === null ? value : round1(pct * max)
     },
-    [value, min, max]
+    [pctFromX, value, max]
   )
 
-  // Pointer handlers — capture so dragging continues outside the track
+  // A tap snaps to the whole star under the finger: the 8th star is 8.
+  // Uses the stars' real positions (they're spread with gaps between them),
+  // falling back to the track width if they can't be measured.
+  const wholeFromX = useCallback(
+    (clientX: number): number => {
+      const stars = trackRef.current?.querySelectorAll<HTMLElement>('[data-star]')
+      let best = -1
+      let bestDist = Infinity
+      stars?.forEach((el, i) => {
+        const r = el.getBoundingClientRect()
+        if (r.width === 0) return
+        const d = Math.abs(clientX - (r.left + r.width / 2))
+        if (d < bestDist) { bestDist = d; best = i }
+      })
+      if (best >= 0) return best + 1
+      const pct = pctFromX(clientX)
+      return pct === null ? value : Math.ceil(pct * max)
+    },
+    [pctFromX, value, max]
+  )
+
+  // Pointer handlers — capture so dragging continues outside the track.
+  // A press counts as a drag only once it moves a few pixels; until then
+  // it's a tap and sets a whole number.
+  const dragStartXRef = useRef<number | null>(null)
+  const DRAG_THRESHOLD_PX = 6
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
-    e.currentTarget.setPointerCapture(e.pointerId)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    dragStartXRef.current = e.clientX
     setDragging(true)
-    setVal(valueFromX(e.clientX))
+    setVal(wholeFromX(e.clientX))
   }
   const onPointerMove = (e: React.PointerEvent) => {
     if (disabled || !dragging) return
+    const startX = dragStartXRef.current
+    if (startX !== null) {
+      if (Math.abs(e.clientX - startX) < DRAG_THRESHOLD_PX) return
+      dragStartXRef.current = null
+    }
     setVal(valueFromX(e.clientX))
   }
-  const endDrag = () => setDragging(false)
+  const endDrag = () => { setDragging(false); dragStartXRef.current = null }
 
   // Keyboard
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -190,7 +226,7 @@ export default function RatingPicker({
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={value > 0 ? `${value.toFixed(1)} out of ${max}` : 'No rating'}
-        aria-label={label ? `${label} rating` : 'Rating'}
+        aria-label={label ?? 'Rating'}
         aria-disabled={disabled}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -199,7 +235,7 @@ export default function RatingPicker({
         onLostPointerCapture={endDrag}
         onKeyDown={onKeyDown}
         className={`relative flex items-center justify-between w-full
-                    py-2 px-1 rounded-xl
+                    py-2.5 px-1 rounded-xl
                     ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer touch-none'}
                     focus:outline-none ${colors.ring} focus-visible:ring-2`}
         style={{ touchAction: 'none' }}
@@ -227,22 +263,22 @@ export default function RatingPicker({
         ))}
       </div>
 
-      {/* Stepper chips */}
+      {/* Stepper buttons for fine adjustment */}
       <div className="mt-2 flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
           <Stepper colors={colors} disabled={disabled || value <= min} onClick={step(-1)} aria-label="Decrease by 1">−1</Stepper>
-          <Stepper colors={colors} disabled={disabled || value <= min} onClick={step(-0.1)} aria-label="Decrease by 0.1">−.1</Stepper>
+          <Stepper colors={colors} disabled={disabled || value <= min} onClick={step(-0.1)} aria-label="Decrease by 0.1">−0.1</Stepper>
         </div>
-        <p className={`text-[10px] font-medium tabular-nums ${
-          accent === 'rose' ? 'text-espresso-300' : 'text-charcoal-300'
-        }`}>
-          drag • tap • ← →
-        </p>
         <div className="flex items-center gap-1.5">
-          <Stepper colors={colors} disabled={disabled || value >= max} onClick={step(0.1)} aria-label="Increase by 0.1">+.1</Stepper>
+          <Stepper colors={colors} disabled={disabled || value >= max} onClick={step(0.1)} aria-label="Increase by 0.1">+0.1</Stepper>
           <Stepper colors={colors} disabled={disabled || value >= max} onClick={step(1)} aria-label="Increase by 1">+1</Stepper>
         </div>
       </div>
+      <p className={`mt-1.5 text-xs ${
+        accent === 'rose' ? 'text-espresso-400' : 'text-charcoal-500'
+      }`}>
+        1 = bad, {max} = best. Tap a star to choose a whole number. Slide along the stars or use the buttons for decimals.
+      </p>
     </div>
   )
 }
@@ -263,6 +299,7 @@ function ProportionalStar({
   const emptyColor = accent === 'rose' ? 'text-cream-300' : 'text-warmgray-300'
   return (
     <span
+      data-star
       className={`relative inline-block leading-none text-2xl sm:text-[26px] transition-transform ${
         active ? 'scale-110' : ''
       }`}
@@ -296,7 +333,7 @@ function Stepper({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums
+      className={`min-w-[44px] min-h-[44px] px-2.5 rounded-lg text-sm font-semibold tabular-nums
                   transition-colors disabled:opacity-30 disabled:cursor-not-allowed
                   ${colors.chip}`}
       {...rest}

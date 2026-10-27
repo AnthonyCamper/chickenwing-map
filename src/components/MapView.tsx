@@ -202,7 +202,8 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
           if (props.cluster) {
             // Cluster badge — click zooms to the expansion zoom for that cluster
             const icon = createClusterIcon(L, props.point_count as number)
-            const marker = L.marker([lat, lng], { icon })
+            const n = props.point_count as number
+            const marker = L.marker([lat, lng], { icon, title: `${n} spots here. Tap to zoom in.` })
               .on('click', () => {
                 const z = Math.min(sc.getClusterExpansionZoom(props.cluster_id as number), 18)
                 map.flyTo([lat, lng], z, { duration: 0.35 })
@@ -214,7 +215,10 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
             const spotData = shopsWithReviews.find(s => s.spot.id === props.id)
             if (!spotData) return
             const icon = createPinIcon(L, spotData.avg_rating, spotData.photos[0]?.url ?? null)
-            const marker = L.marker([lat, lng], { icon })
+            const marker = L.marker([lat, lng], {
+              icon,
+              title: `${spotData.spot.name}: rated ${spotData.avg_rating.toFixed(1)} out of 10`,
+            })
               .on('click', () => setSelectedShop(spotData))
             marker.addTo(map)
             markersRef.current.push(marker)
@@ -432,9 +436,11 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClusterIcon(L: any, count: number) {
-  // Scale the badge size slightly with count so large clusters feel distinct
-  const size = count < 10 ? 42 : count < 50 ? 48 : 56
-  const fontSize = count < 10 ? 13 : count < 100 ? 12 : 11
+  // Deliberately unlike a rating pin (cream tag with "🍗 7.5" and a pointer):
+  // a dark round badge with a white ring, the count and the word "spots", so
+  // nobody reads "12" as a score.
+  const size = count < 10 ? 48 : count < 100 ? 54 : 60
+  const fontSize = count < 100 ? 16 : 14
 
   return L.divIcon({
     className: '',
@@ -444,22 +450,23 @@ function createClusterIcon(L: any, count: number) {
       <div style="
         width: ${size}px;
         height: ${size}px;
-        background: #fa5a2e;
-        border: 2.5px solid #04050e;
+        background: #0d122a;
+        border: 3px solid #fdfaf2;
+        outline: 2px solid #04050e;
         border-radius: 50%;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 1px;
         filter: drop-shadow(0 4px 10px rgba(4,5,14,0.32));
+        font-family: Inter, system-ui, sans-serif;
+        color: #fdfaf2;
+        line-height: 1;
+        white-space: nowrap;
       ">
-        <span style="
-          font-family: Inter, system-ui, sans-serif;
-          font-weight: 800;
-          font-size: ${fontSize}px;
-          color: #fdfaf2;
-          line-height: 1;
-          white-space: nowrap;
-        ">🍗 ${count}</span>
+        <span style="font-weight: 800; font-size: ${fontSize}px;">${count}</span>
+        <span style="font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85;">spots</span>
       </div>
     `,
   })

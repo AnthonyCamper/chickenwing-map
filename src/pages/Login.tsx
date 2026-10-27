@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabase'
 import { friendlyAuthError } from '../lib/authErrors'
+import { LegalLinks } from './Register'
 
 interface Props {
   onSignInGoogle: () => Promise<void>
@@ -111,7 +112,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                   Reset your password
                 </p>
                 <p className="text-sm text-charcoal-600 leading-relaxed">
-                  Drop your email and we'll send you a link to set a new one.
+                  Enter your email and we'll send you a link to set a new password.
                 </p>
 
                 {error && (
@@ -119,8 +120,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                 )}
 
                 <div>
-                  <label className="label">Email</label>
+                  <label className="label" htmlFor="reset-email">Email</label>
                   <input
+                    id="reset-email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
@@ -145,7 +147,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                 <button
                   type="button"
                   onClick={exitForgotMode}
-                  className="w-full text-xs text-charcoal-600 hover:text-night-900 transition-colors py-1 font-bold uppercase tracking-crowd"
+                  className="w-full min-h-[44px] text-xs text-charcoal-600 hover:text-night-900 transition-colors py-1 font-bold uppercase tracking-crowd"
                 >
                   ← Back to sign in
                 </button>
@@ -154,7 +156,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           ) : (
             <>
               <p className="text-center text-[11px] uppercase tracking-crowd font-extrabold text-charcoal-600">
-                Sign in to pull up a chair
+                Sign in to rate wings and comment
               </p>
 
               {error && (
@@ -185,8 +187,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
               {/* Email / password */}
               <form onSubmit={handleEmailSignIn} className="space-y-3">
                 <div>
-                  <label className="label">Email</label>
+                  <label className="label" htmlFor="login-email">Email</label>
                   <input
+                    id="login-email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
@@ -197,21 +200,21 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                   />
                 </div>
                 <div>
-                  <label className="label">Password</label>
+                  <label className="label" htmlFor="login-password">Password</label>
                   <input
+                    id="login-password"
                     type="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
                     className="input"
                     autoComplete="current-password"
                     disabled={emailLoading || googleLoading}
                   />
-                  <div className="flex justify-end mt-1.5">
+                  <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={() => { setForgotMode(true); setError(null) }}
-                      className="text-xs text-sauce-500 font-bold hover:underline"
+                      className="min-h-[44px] px-1 -mr-1 text-xs text-sauce-500 font-bold hover:underline"
                     >
                       Forgot password?
                     </button>
@@ -231,16 +234,19 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
               </form>
 
               <p className="text-center text-xs text-charcoal-600">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-sauce-500 font-bold hover:underline">
-                  Request access
+                New here?{' '}
+                <Link
+                  to="/register"
+                  className="inline-flex items-center min-h-[44px] px-1 text-sauce-500 font-bold hover:underline"
+                >
+                  Create a free account
                 </Link>
               </p>
 
               {isPublic && onBrowse && (
                 <button
                   onClick={onBrowse}
-                  className="w-full text-xs text-charcoal-600 hover:text-night-900 transition-colors py-1 font-bold uppercase tracking-crowd"
+                  className="w-full min-h-[44px] text-xs text-charcoal-600 hover:text-night-900 transition-colors py-1 font-bold uppercase tracking-crowd"
                 >
                   Browse without signing in →
                 </button>
@@ -249,9 +255,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
           )}
         </div>
 
-        <p className="mt-8 text-center text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-400">
-          WingKingTony — official wing business
-        </p>
+        <LegalLinks />
       </div>
     </div>
   )

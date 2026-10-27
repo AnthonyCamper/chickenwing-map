@@ -51,7 +51,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
 describe('ReviewEditModal', () => {
   it('populates fields from a complete review', () => {
     render(<ReviewEditModal review={makeReview()} onClose={vi.fn()} onSubmit={vi.fn()} />)
-    expect(screen.getByText('Edit Review')).toBeInTheDocument()
+    expect(screen.getByText('Edit your review')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Hot and crispy')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2026-05-01')).toBeInTheDocument()
   })

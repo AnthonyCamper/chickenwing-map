@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
@@ -22,6 +22,8 @@ interface SpotDetail {
   spot: WingSpot
   reviews: Review[]
   avgRating: number | null
+  /** review_id → total comments (top-level + replies), same as ReviewPage */
+  commentCounts: Record<string, number>
 }
 
 function SpotMap({ lat, lng, name }: { lat: number; lng: number; name: string }) {
@@ -70,13 +72,22 @@ export default function SpotPage() {
   // Same gate Home uses for its FAB — signed-in users still need the
   // can_leave_reviews flag before the form opens.
   const handleLogWing = () => {
-    if (!requireAuth()) return
+    // After sign-in, come back with the form already open (?review=1).
+    if (!requireAuth(`/spots/${slug}?review=1`)) return
     if (!auth?.canLeaveReviews) {
-      toast.error("the admin hasn't enabled reviews for your account yet.")
+      toast.error("Your account can't add reviews yet. An admin needs to turn this on.")
       return
     }
     setShowLogModal(true)
   }
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const wantsReview = searchParams.get('review') === '1'
+  useEffect(() => {
+    if (!wantsReview || status !== 'ready' || auth?.status !== 'authorized') return
+    setSearchParams(prev => { prev.delete('review'); return prev }, { replace: true })
+    if (auth.canLeaveReviews) setShowLogModal(true)
+  }, [wantsReview, status, auth?.status, auth?.canLeaveReviews, setSearchParams])
 
   const load = useCallback(async () => {
     if (!slug) return
@@ -90,7 +101,10 @@ export default function SpotPage() {
     if (spotErr) { setStatus('error'); return }
     if (!spot) { setStatus('not-found'); return }
 
-    const [{ data: reviewsRaw }, { data: photos }, { data: { session } }] = await Promise.all([
+    const reviewIds =
+      (await supabase.from('reviews').select('id').eq('wing_spot_id', spot.id)).data?.map(r => r.id) ?? []
+
+    const [{ data: reviewsRaw }, { data: photos }, { data: { session } }, { data: commentRows }] = await Promise.all([
       supabase
         .from('reviews_with_profiles')
         .select('*')
@@ -99,12 +113,21 @@ export default function SpotPage() {
       supabase
         .from('review_photos')
         .select('*')
-        .in('review_id',
-          (await supabase.from('reviews').select('id').eq('wing_spot_id', spot.id)).data?.map(r => r.id) ?? []
-        )
+        .in('review_id', reviewIds)
         .order('display_order'),
       supabase.auth.getSession(),
+      // One row per comment (replies included) so the card label matches
+      // the thread — without this every card started at "0 comments".
+      supabase
+        .from('review_comments')
+        .select('review_id')
+        .in('review_id', reviewIds),
     ])
+
+    const commentCounts: Record<string, number> = {}
+    for (const c of (commentRows ?? []) as { review_id: string }[]) {
+      commentCounts[c.review_id] = (commentCounts[c.review_id] ?? 0) + 1
+    }
 
     const photosByReview = new Map<string, ReviewPhoto[]>()
     for (const p of (photos ?? []) as ReviewPhoto[]) {
@@ -122,7 +145,7 @@ export default function SpotPage() {
     const avg = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
 
     setCurrentUserId(session?.user?.id ?? '')
-    setData({ spot: spot as WingSpot, reviews, avgRating: avg })
+    setData({ spot: spot as WingSpot, reviews, avgRating: avg, commentCounts })
     setStatus('ready')
   }, [slug])
 
@@ -155,7 +178,10 @@ export default function SpotPage() {
     return (
       <PageStateShell>
         <p className="eyebrow">404</p>
-        <h1 className="font-display uppercase text-3xl text-night-900">No spot here</h1>
+        <h1 className="font-display uppercase text-3xl text-night-900">Spot not found</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          This spot doesn't exist or was removed. Check the link, or find spots on the map.
+        </p>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -164,13 +190,19 @@ export default function SpotPage() {
   if (status === 'error' || !data) {
     return (
       <PageStateShell>
-        <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back home</Link>
+        <h1 className="font-display uppercase text-3xl text-night-900">Couldn't load this spot</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          Check your connection and try again.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => { setStatus('loading'); load() }} className="btn-primary">Try again</button>
+          <Link to="/" className="btn-secondary">Back home</Link>
+        </div>
       </PageStateShell>
     )
   }
 
-  const { spot, reviews, avgRating } = data
+  const { spot, reviews, avgRating, commentCounts } = data
   const coverPhoto = reviews.flatMap(r => r.photos ?? [])[0]?.url
   const description = avgRating
     ? `${avgRating.toFixed(1)}/10 from ${reviews.length} wing ${reviews.length === 1 ? 'review' : 'reviews'} on WingKingTony.`
@@ -192,10 +224,10 @@ export default function SpotPage() {
 
       <header className="border-b-2 border-night-900 bg-cream-100">
         <div className="max-w-3xl mx-auto px-5 py-6">
-          <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest">
+          <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest break-words [overflow-wrap:anywhere]">
             {spot.name}
           </h1>
-          <p className="text-sm text-charcoal-600 mt-2">{spot.address}</p>
+          <p className="text-sm text-charcoal-600 mt-2 break-words [overflow-wrap:anywhere]">{spot.address}</p>
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             {avgRating != null && (
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-sauce-400 border-2 border-night-900 rounded-lg shadow-sticker">
@@ -208,7 +240,7 @@ export default function SpotPage() {
               onClick={handleLogWing}
               className="btn-primary px-4 py-1.5 text-xs"
             >
-              Log a wing here
+              Rate wings here
             </button>
             <ShareButton
               title={`${spot.name} — WingKingTony`}
@@ -234,13 +266,13 @@ export default function SpotPage() {
                 No reviews here yet
               </h3>
               <p className="text-sm text-charcoal-600 max-w-xs mx-auto leading-relaxed mb-4">
-                Be the first to log a wing at <span className="font-bold text-night-800">{spot.name}</span>.
+                Be the first to rate the wings at <span className="font-bold text-night-800">{spot.name}</span>.
               </p>
               <button
                 onClick={handleLogWing}
                 className="btn-primary"
               >
-                Log a wing here
+                Rate wings here
               </button>
             </div>
           </div>
@@ -252,6 +284,7 @@ export default function SpotPage() {
                   review={r}
                   currentUserId={currentUserId}
                   isAdmin={auth?.isAdmin ?? false}
+                  commentCount={commentCounts[r.id] ?? 0}
                   onUpdate={handleUpdate}
                   onDelete={async (id) => {
                     const res = await handleDelete(id)
@@ -266,6 +299,7 @@ export default function SpotPage() {
                         key={p.id}
                         type="button"
                         onClick={() => setLightbox({ photos: r.photos!, index: i })}
+                        aria-label={`View photo ${i + 1} of ${r.photos!.length} full size`}
                         className="aspect-square overflow-hidden rounded-lg border-2 border-night-900 hover:border-sauce-400 transition-colors"
                       >
                         <img
@@ -279,8 +313,8 @@ export default function SpotPage() {
                   </div>
                 )}
                 <div className="pb-3">
-                  <Link to={`/reviews/${r.id}`} className="text-xs text-sauce-500 hover:underline">
-                    Permalink →
+                  <Link to={`/reviews/${r.id}`} className="inline-flex items-center min-h-[44px] text-xs text-sauce-500 hover:underline">
+                    Open this review →
                   </Link>
                 </div>
               </div>

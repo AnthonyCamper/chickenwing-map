@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import ShareButton from './ShareButton'
 
 vi.mock('react-hot-toast', () => ({
-  default: { success: vi.fn(), error: vi.fn() },
+  default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }))
 
 const PROPS = {
@@ -67,19 +67,31 @@ describe('ShareButton', () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(PROPS.url)
-      expect(toast.success).toHaveBeenCalledWith('Link copied!')
+      expect(toast.success).toHaveBeenCalledWith('Link copied')
     })
   })
 
-  it('shows an error toast when the clipboard copy fails', async () => {
+  it('shows the link in a selectable field when the clipboard copy fails', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     setNavigatorProp('clipboard', { writeText })
 
     render(<ShareButton {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'Share Wing Crawl' }))
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Could not copy link')
-    })
+    const field = await screen.findByRole('textbox', { name: 'Link to share' })
+    expect(field).toHaveValue(PROPS.url)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows the link field when neither share nor clipboard exists', async () => {
+    render(<ShareButton {...PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Share Wing Crawl' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Link to share' })).toHaveValue(PROPS.url)
+  })
+
+  it('shows a visible Share label', () => {
+    render(<ShareButton {...PROPS} />)
+    expect(screen.getByText('Share')).toBeInTheDocument()
   })
 })

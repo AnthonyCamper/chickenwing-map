@@ -1,6 +1,10 @@
 import { useLeaderboard, type LeaderboardCategory } from '../hooks/useLeaderboard'
 import { useUserProfile } from './UserProfileContext'
 import type { LeaderboardRow } from '../lib/types'
+import AvatarImage from './ui/AvatarImage'
+import { MIN_REVIEWS_FOR_AVG_RANK } from '../hooks/useLeaderboard'
+
+const n = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`
 
 interface Props {
   currentUserId: string
@@ -8,12 +12,12 @@ interface Props {
 }
 
 const CATEGORIES: { key: LeaderboardCategory; label: string; emoji: string; stat: (r: LeaderboardRow) => string }[] = [
-  { key: 'reviews',  label: 'Ratings',  emoji: '🍗', stat: r => `${r.review_count} reviews` },
-  { key: 'spots',    label: 'Spots',    emoji: '📍', stat: r => `${r.unique_spots} spots` },
-  { key: 'heat',     label: 'Heat',     emoji: '🔥', stat: r => r.avg_rating != null ? `${r.avg_rating} avg` : '—' },
-  { key: 'comments', label: 'Mouth',    emoji: '💬', stat: r => `${r.comment_count} comments` },
-  { key: 'badges',   label: 'Badges',   emoji: '🏅', stat: r => `${r.badge_count} badges` },
-  { key: 'likes',    label: 'Likes',    emoji: '❤️', stat: r => `${r.total_likes_received} likes` },
+  { key: 'reviews',  label: 'Reviews',        emoji: '🍗', stat: r => n(r.review_count, 'review') },
+  { key: 'spots',    label: 'Spots',          emoji: '📍', stat: r => `${n(r.unique_spots, 'spot')} rated` },
+  { key: 'heat',     label: 'Average rating', emoji: '🔥', stat: r => r.avg_rating != null ? `${r.avg_rating} average from ${n(r.review_count, 'review')}` : '—' },
+  { key: 'comments', label: 'Comments',       emoji: '💬', stat: r => n(r.comment_count, 'comment') },
+  { key: 'badges',   label: 'Badges',         emoji: '🏅', stat: r => n(r.badge_count, 'badge') },
+  { key: 'likes',    label: 'Likes',          emoji: '❤️', stat: r => `${n(r.total_likes_received, 'like')} received` },
 ]
 
 export default function LeaderboardModal({ currentUserId, onClose }: Props) {
@@ -36,7 +40,7 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
               <div>
                 <p className="eyebrow text-sauce-300 mb-1">Community</p>
                 <h2 className="font-display uppercase tracking-wide text-3xl text-cream-50 leading-tight">
-                  The board
+                  Leaderboard
                 </h2>
                 {myRank && (
                   <p className="text-[11px] font-bold uppercase tracking-crowd text-cream-100/70 mt-1">
@@ -46,7 +50,7 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
               </div>
               <button
                 onClick={onClose}
-                className="mt-1 w-8 h-8 rounded-lg bg-night-700 text-cream-50 flex items-center justify-center text-lg hover:bg-sauce-500 transition-colors border border-night-500 flex-shrink-0"
+                className="-mt-1 -mr-1 w-11 h-11 rounded-lg bg-night-700 text-cream-50 flex items-center justify-center text-lg hover:bg-sauce-500 transition-colors border border-night-500 flex-shrink-0"
                 aria-label="Close"
               >×</button>
             </div>
@@ -57,7 +61,8 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
                 <button
                   key={c.key}
                   onClick={() => setCategory(c.key)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
+                  aria-pressed={category === c.key}
+                  className={`flex-shrink-0 min-h-11 px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-crowd transition-all
                     ${category === c.key
                       ? 'bg-sauce-400 text-cream-50 border-2 border-cream-50/30'
                       : 'bg-night-700 text-cream-200/70 hover:text-cream-50 border-2 border-transparent'}`}
@@ -82,6 +87,11 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
               </div>
             ) : (
               <ul>
+                {category === 'heat' && (
+                  <li className="px-4 py-2 text-[11px] text-charcoal-500 border-b border-night-900/10">
+                    Only people with {MIN_REVIEWS_FOR_AVG_RANK}+ reviews are ranked here.
+                  </li>
+                )}
                 {rows.map((row, idx) => {
                   const rank = idx + 1
                   const isMe = row.user_id === currentUserId
@@ -102,13 +112,16 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
 
                       {/* Avatar */}
                       <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-night-900 flex-shrink-0 bg-night-700 flex items-center justify-center shadow-sticker-sm">
-                        {row.avatar_url ? (
-                          <img src={row.avatar_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-extrabold text-cream-50 uppercase">
-                            {(row.display_name ?? '?').charAt(0)}
-                          </span>
-                        )}
+                        <AvatarImage
+                          src={row.avatar_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          fallback={
+                            <span className="text-sm font-extrabold text-cream-50 uppercase">
+                              {(row.display_name ?? '?').charAt(0)}
+                            </span>
+                          }
+                        />
                       </div>
 
                       {/* Name + stat */}

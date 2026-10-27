@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
 import type { ReactionUser } from '../../lib/reactionDetails'
+import AvatarImage from '../ui/AvatarImage'
 
 interface Props {
   fetchUsers: () => Promise<ReactionUser[]>
@@ -248,13 +249,16 @@ function UserRow({ user }: { user: ReactionUser }) {
   return (
     <div className="flex items-center gap-3">
       <div className="w-8 h-8 rounded-full bg-warmgray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
-        {user.avatar ? (
-          <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-xs font-semibold text-charcoal-500">
-            {user.name.charAt(0).toUpperCase()}
-          </span>
-        )}
+        <AvatarImage
+          src={user.avatar}
+          alt=""
+          className="w-full h-full object-cover"
+          fallback={
+            <span className="text-xs font-semibold text-charcoal-500">
+              {user.name.charAt(0).toUpperCase()}
+            </span>
+          }
+        />
       </div>
       <p className="text-sm font-medium text-charcoal-700 truncate flex-1 min-w-0">
         {user.name}

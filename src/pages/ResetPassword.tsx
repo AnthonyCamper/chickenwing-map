@@ -94,8 +94,8 @@ export default function ResetPassword() {
             <span className="eyebrow">Link expired</span>
             <h1 className="h-poster-sm mt-2">That link's cold</h1>
             <p className="text-sm text-charcoal-600 leading-relaxed mt-4 mb-6">
-              This reset link is invalid or has expired. Head back to the sign-in
-              page and request a fresh one.
+              This reset link is not valid or has expired. Go back to the sign-in
+              page, tap “Forgot password?” and ask for a new link.
             </p>
             <Link to="/login" className="btn-primary">Back to sign in</Link>
           </>

@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { friendlyAuthError } from '../lib/authErrors'
+import {
+  EMAIL_FORMAT_MESSAGE,
+  MIN_PASSWORD_LENGTH,
+  friendlyAuthError,
+  isValidEmail,
+  passwordProblem,
+  signUpProblem,
+} from '../lib/authErrors'
+import { validateImageFile } from '../lib/imageValidation'
 
 function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
   if (!pw) return { score: 0, label: '' }
@@ -21,9 +29,12 @@ interface Props {
     displayName: string,
     avatar?: File
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
+  /** Public site: accounts work straight away. Private site: an admin
+   *  approves each new account first, and the copy has to say so. */
+  isPublic?: boolean
 }
 
-export default function Register({ onSignUp }: Props) {
+export default function Register({ onSignUp, isPublic = true }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -33,6 +44,7 @@ export default function Register({ onSignUp }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [needsEmail, setNeedsEmail] = useState(false)
+  const [emailTouched, setEmailTouched] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Revoke any previously-created object URL when the preview changes or unmounts.
@@ -41,29 +53,37 @@ export default function Register({ onSignUp }: Props) {
     return () => URL.revokeObjectURL(avatarPreview)
   }, [avatarPreview])
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = '' // let the same file be picked again after an error
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Photo must be under 5 MB')
+    // Decode it: a renamed non-image passes the type/extension check and
+    // would be saved as a broken avatar.
+    const problem = await validateImageFile(file, 5)
+    if (problem) {
+      setError(problem)
       return
     }
+    setError(null)
     setAvatar(file)
     setAvatarPreview(URL.createObjectURL(file))
   }
 
   const pwStrength = useMemo(() => scorePassword(password), [password])
+  const formProblem = signUpProblem({ displayName, email, password })
+  const pwProblem = password ? passwordProblem(password) : null
+  const showEmailError = emailTouched && email.trim() !== '' && !isValidEmail(email)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password || !displayName) return
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+    if (formProblem) {
+      setEmailTouched(true)
+      setError(formProblem)
       return
     }
     setError(null)
     setLoading(true)
-    const result = await onSignUp(email, password, displayName, avatar ?? undefined)
+    const result = await onSignUp(email.trim(), password, displayName.trim(), avatar ?? undefined)
     setLoading(false)
 
     if (result.error) {
@@ -91,10 +111,10 @@ export default function Register({ onSignUp }: Props) {
           <h2 className="h-poster-sm mt-2 mb-4">Check your email</h2>
           <p className="text-sm text-charcoal-600 leading-relaxed mb-6 break-words">
             We sent a confirmation link to <strong className="text-night-900">{email}</strong>.
-            Click it to verify your address, then come back here — the admin will
-            review your request.
+            Click it to confirm your address, then sign in.
+            {!isPublic && ' An admin approves new accounts before you can see the site.'}
           </p>
-          <Link to="/" className="btn-secondary inline-flex">
+          <Link to="/login" className="btn-secondary inline-flex">
             Back to sign in
           </Link>
         </div>
@@ -109,7 +129,7 @@ export default function Register({ onSignUp }: Props) {
   return (
     <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
       <Helmet>
-        <title>Request access — WingKingTony</title>
+        <title>Create account — WingKingTony</title>
       </Helmet>
 
       <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.08]" />
@@ -123,8 +143,12 @@ export default function Register({ onSignUp }: Props) {
             className="w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5"
           />
           <span className="eyebrow">Join the wing council</span>
-          <h1 className="h-poster-sm mt-1">Request access</h1>
-          <p className="h-hand text-xl -rotate-2 mt-1">get in on the sauce</p>
+          <h1 className="h-poster-sm mt-1">Create account</h1>
+          <p className="text-sm text-charcoal-600 mt-3 leading-relaxed">
+            {isPublic
+              ? 'It’s free, and your account works right away. Then you can rate wing spots, post photos and comment.'
+              : 'It’s free. An admin approves new accounts before you can see the site.'}
+          </p>
         </div>
 
         <div className="card px-6 py-7">
@@ -145,7 +169,7 @@ export default function Register({ onSignUp }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="text-xs text-sauce-500 font-bold hover:underline"
+                className="min-h-[44px] px-2 text-xs text-sauce-500 font-bold hover:underline"
               >
                 {avatarPreview ? 'Change photo' : 'Add profile photo (optional)'}
               </button>
@@ -159,8 +183,9 @@ export default function Register({ onSignUp }: Props) {
             </div>
 
             <div>
-              <label className="label">Display name</label>
+              <label className="label" htmlFor="register-name">Display name</label>
               <input
+                id="register-name"
                 type="text"
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
@@ -169,21 +194,32 @@ export default function Register({ onSignUp }: Props) {
                 autoComplete="name"
                 disabled={loading}
                 required
+                maxLength={60}
               />
+              <p className="text-[11px] text-charcoal-500 mt-1">Shown publicly next to your reviews.</p>
             </div>
 
             <div>
-              <label className="label">Email</label>
+              <label className="label" htmlFor="register-email">Email</label>
               <input
+                id="register-email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                onBlur={() => setEmailTouched(true)}
                 placeholder="you@example.com"
                 className="input"
                 autoComplete="email"
                 disabled={loading}
                 required
+                aria-invalid={showEmailError || undefined}
+                aria-describedby={showEmailError ? 'email-error' : undefined}
               />
+              {showEmailError ? (
+                <p id="email-error" className="text-[11px] font-bold text-sauce-600 mt-1">{EMAIL_FORMAT_MESSAGE}</p>
+              ) : (
+                <p className="text-[11px] text-charcoal-500 mt-1">Never shown to other people.</p>
+              )}
             </div>
 
             <div>
@@ -193,14 +229,20 @@ export default function Register({ onSignUp }: Props) {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
                 className="input"
                 autoComplete="new-password"
                 disabled={loading}
                 required
-                minLength={8}
-                aria-describedby="pw-strength"
+                minLength={MIN_PASSWORD_LENGTH}
+                aria-invalid={pwProblem ? true : undefined}
+                aria-describedby="pw-help pw-strength"
               />
+              <p
+                id="pw-help"
+                className={`text-[11px] mt-1 ${pwProblem ? 'font-bold text-sauce-600' : 'text-charcoal-500'}`}
+              >
+                {pwProblem ?? `At least ${MIN_PASSWORD_LENGTH} characters.`}
+              </p>
               {password && (
                 <div id="pw-strength" className="mt-2 flex items-center gap-2">
                   <div className="flex-1 flex gap-0.5 h-1.5">
@@ -231,28 +273,54 @@ export default function Register({ onSignUp }: Props) {
 
             <button
               type="submit"
-              disabled={loading || !email || !password || !displayName}
+              disabled={loading || !!formProblem}
+              aria-describedby={formProblem ? 'register-blocker' : undefined}
               className="btn-primary w-full py-3.5"
             >
               {loading ? (
                 <span className="w-5 h-5 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />
               ) : null}
-              {loading ? 'Submitting…' : 'Request access'}
+              {loading ? 'Creating account…' : 'Create account'}
             </button>
+            {formProblem && formProblem !== error && (
+              <p id="register-blocker" className="-mt-2 text-center text-[11px] text-charcoal-500">
+                {formProblem}
+              </p>
+            )}
+
+            <div className="text-[11px] text-charcoal-500 leading-relaxed text-center space-y-1">
+              <p>
+                By creating an account you agree to the{' '}
+                <Link to="/terms" target="_blank" className="text-sauce-500 font-bold hover:underline">Terms</Link>
+                {' '}and{' '}
+                <Link to="/privacy" target="_blank" className="text-sauce-500 font-bold hover:underline">Privacy Policy</Link>.
+              </p>
+              <p>Your name, profile photo, reviews, photos and comments are public. Your email is not.</p>
+            </div>
           </form>
 
-          <p className="mt-5 text-center text-xs text-charcoal-600">
+          <p className="mt-4 text-center text-xs text-charcoal-600">
             Already have an account?{' '}
-            <Link to="/" className="text-sauce-500 font-bold hover:underline">
+            <Link to="/login" className="inline-flex items-center min-h-[44px] px-1 text-sauce-500 font-bold hover:underline">
               Sign in
             </Link>
           </p>
         </div>
 
-        <p className="mt-8 text-center text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-400">
-          WingKingTony — official wing business
-        </p>
+        <LegalLinks />
       </div>
     </div>
+  )
+}
+
+export function LegalLinks() {
+  return (
+    <p className="mt-6 flex items-center justify-center gap-1 text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-400">
+      <span>WingKingTony</span>
+      <span aria-hidden>·</span>
+      <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-1 hover:text-night-900">Privacy</Link>
+      <span aria-hidden>·</span>
+      <Link to="/terms" className="inline-flex items-center min-h-[44px] px-1 hover:text-night-900">Terms</Link>
+    </p>
   )
 }

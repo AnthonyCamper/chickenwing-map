@@ -29,7 +29,9 @@ export function useFollow(currentUserId: string, targetUserId: string): UseFollo
     async function load() {
       setLoading(true)
       const [followCheck, followerRes, followingRes] = await Promise.all([
-        isSelf
+        // Signed out (no currentUserId) there's no follow to check; an empty
+        // follower_id makes PostgREST answer 400.
+        isSelf || !currentUserId
           ? Promise.resolve({ data: null })
           : supabase.from('follows').select('id').match({ follower_id: currentUserId, following_id: targetUserId }).maybeSingle(),
         supabase.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', targetUserId),

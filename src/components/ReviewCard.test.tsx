@@ -30,6 +30,18 @@ vi.mock('./ReviewCommentThread', () => ({
   default: () => null,
 }))
 
+// Head-only comment count query used when no commentCount prop is passed.
+const commentCountMock = vi.fn(async () => ({ count: 2, error: null }))
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({ then: (cb: (r: { count: number; error: null }) => void) => commentCountMock().then(cb) }),
+      }),
+    }),
+  },
+}))
+
 const UNDO_WINDOW_MS = 5000
 
 function makeReview(overrides: Partial<Review> = {}): Review {
@@ -170,7 +182,40 @@ describe('ReviewCard layout', () => {
 
   it('keeps the comment toggle and options menu in the footer (after the text)', () => {
     renderCard(vi.fn(async () => ({ error: null as string | null })))
-    expect(screen.getByLabelText(/comment/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /comment/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Review options')).toBeInTheDocument()
+  })
+
+  it('shows the visit date as a local calendar date (no UTC shift)', () => {
+    renderCard(vi.fn(async () => ({ error: null as string | null })))
+    // makeReview's visited_at is the date-only string 2026-05-01
+    expect(screen.getByText('May 1, 2026')).toBeInTheDocument()
+  })
+
+  it('shows the wing size when set', () => {
+    renderCard(vi.fn(async () => ({ error: null as string | null })))
+    expect(screen.getByText('Wing size')).toBeInTheDocument()
+    expect(screen.getByText('large')).toBeInTheDocument()
+  })
+})
+
+describe('ReviewCard comment count', () => {
+  it('uses the count passed by the page, including one that arrives late', () => {
+    const props = {
+      review: makeReview(),
+      currentUserId: 'u1',
+      isAdmin: false,
+      onUpdate: vi.fn(async () => ({ error: null })),
+      onDelete: vi.fn(async () => ({ error: null as string | null })),
+    }
+    const { rerender } = render(<MemoryRouter><ReviewCard {...props} commentCount={0} /></MemoryRouter>)
+    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument()
+    rerender(<MemoryRouter><ReviewCard {...props} commentCount={1} /></MemoryRouter>)
+    expect(screen.getByRole('button', { name: '1 comment' })).toBeInTheDocument()
+  })
+
+  it('fetches the real count when the page passes none', async () => {
+    renderCard(vi.fn(async () => ({ error: null as string | null })))
+    expect(await screen.findByRole('button', { name: '2 comments' })).toBeInTheDocument()
   })
 })

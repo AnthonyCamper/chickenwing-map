@@ -11,6 +11,11 @@ const FLAVOR_CATEGORIES: Record<string, string[]> = {
 
 const ALL_FLAVORS = Object.values(FLAVOR_CATEGORIES).flat()
 
+// The full list is 40+ chips. Rather than a scroll box inside the already
+// scrolling sheet (swipes get stuck in it on touch), show the first few and
+// let the user expand.
+const COLLAPSED_COUNT = 12
+
 interface Props {
   value: string
   onChange: (v: string) => void
@@ -19,6 +24,7 @@ interface Props {
 export default function WingFlavorPicker({ value, onChange }: Props) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
   const categories = Object.keys(FLAVOR_CATEGORIES)
 
@@ -28,7 +34,9 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
     return ALL_FLAVORS.filter(f => f.toLowerCase().includes(q))
   }, [search])
 
-  const displayFlavors = filtered ?? (activeCategory ? FLAVOR_CATEGORIES[activeCategory] : ALL_FLAVORS)
+  const allFlavors = filtered ?? (activeCategory ? FLAVOR_CATEGORIES[activeCategory] : ALL_FLAVORS)
+  const collapsible = !filtered && !activeCategory && allFlavors.length > COLLAPSED_COUNT
+  const displayFlavors = collapsible && !showAll ? allFlavors.slice(0, COLLAPSED_COUNT) : allFlavors
   const exactMatch = ALL_FLAVORS.find(f => f.toLowerCase() === search.toLowerCase())
   const showCustomOption = search.trim() && !exactMatch
 
@@ -57,7 +65,8 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
         <input
           type="text"
           className="input pr-10"
-          placeholder="Search flavors or type a custom one…"
+          placeholder="Search flavors or type your own…"
+          aria-label="Search flavors"
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => {
@@ -82,7 +91,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
           <button
             type="button"
             onClick={() => setActiveCategory(null)}
-            className={`shrink-0 px-3 py-1.5 min-h-[32px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
+            className={`shrink-0 px-3 py-1.5 min-h-[44px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
               !activeCategory
                 ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
                 : 'border-night-900/20 text-charcoal-500 hover:border-sauce-300 hover:text-night-800'
@@ -93,7 +102,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
               key={cat}
               type="button"
               onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-              className={`shrink-0 px-3 py-1.5 min-h-[32px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
+              className={`shrink-0 px-3 py-1.5 min-h-[44px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
                 activeCategory === cat
                   ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
                   : 'border-night-900/20 text-charcoal-500 hover:border-sauce-300 hover:text-night-800'
@@ -103,12 +112,12 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto overscroll-contain">
+      <div className="flex flex-wrap gap-1.5">
         {showCustomOption && (
           <button
             type="button"
             onClick={() => select(search.trim())}
-            className="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-bold border-2 border-dashed border-sauce-400 text-sauce-600 hover:bg-sauce-50 transition-colors"
+            className="px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold border-2 border-dashed border-sauce-400 text-sauce-600 hover:bg-sauce-50 transition-colors"
           >Use "{search.trim()}"</button>
         )}
         {displayFlavors.map(flavor => (
@@ -116,13 +125,20 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
             key={flavor}
             type="button"
             onClick={() => select(flavor)}
-            className={`px-3 py-1.5 min-h-[32px] rounded-full text-xs font-bold border-2 transition-colors ${
+            className={`px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold border-2 transition-colors ${
               value === flavor
                 ? 'bg-sauce-400 border-night-900 text-cream-50 shadow-sticker-sm'
                 : 'bg-cream-100 border-night-900/15 text-night-700 hover:border-sauce-300 hover:bg-sauce-50'
             }`}
           >{flavor}</button>
         ))}
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setShowAll(v => !v)}
+            className="px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold text-sauce-600 hover:text-sauce-700 underline underline-offset-2"
+          >{showAll ? 'Show fewer flavors' : `Show all ${allFlavors.length} flavors`}</button>
+        )}
       </div>
     </div>
   )

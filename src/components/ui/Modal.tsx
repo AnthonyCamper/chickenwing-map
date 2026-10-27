@@ -8,13 +8,17 @@ interface Props {
   onClose: () => void
   children: ReactNode
   size?: 'sm' | 'md' | 'lg'
+  /** Pinned below the scroll area (e.g. a form's Cancel / Submit row) so the
+   *  primary action is always on screen. Submit buttons here reach their
+   *  form with the `form="<form id>"` attribute. */
+  footer?: ReactNode
 }
 
 // Module-level stack of open modals so Escape only dismisses the topmost one
 // when modals are nested (e.g. edit modal above a detail sheet).
 const modalStack: symbol[] = []
 
-export default function Modal({ title, onClose, children, size = 'md' }: Props) {
+export default function Modal({ title, onClose, children, size = 'md', footer }: Props) {
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({ onDismiss: onClose })
   const panelRef = useFocusTrap<HTMLDivElement>()
   const titleId = useId()
@@ -132,10 +136,19 @@ export default function Modal({ title, onClose, children, size = 'md' }: Props) 
         {/* Scrollable content — safe-area bottom inset */}
         <div
           className="overflow-y-auto flex-1 overscroll-contain"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          style={footer ? undefined : { paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {children}
         </div>
+
+        {footer && (
+          <div
+            className="flex-shrink-0 border-t border-night-900/10 bg-cream-50 px-6 pt-3 pb-3 rounded-b-none sm:rounded-b-3xl"
+            style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body

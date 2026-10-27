@@ -1,20 +1,16 @@
-import { Suspense, lazy, useEffect } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
 import Home from './pages/Home'
-import Register from './pages/Register'
-import PendingApproval from './pages/PendingApproval'
-import SpotPage from './pages/SpotPage'
-import UserProfilePage from './pages/UserProfilePage'
-import ReviewPage from './pages/ReviewPage'
-import CrawlPage from './pages/CrawlPage'
 import NotFound from './pages/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
 import BadgeUnlockOverlay from './components/badges/BadgeUnlockOverlay'
+import { DefaultTitle, ScrollToTop } from './components/RouteChrome'
+import { clearReturnTo, isAuthPath, peekReturnTo, takeReturnTo } from './lib/authReturn'
 
 // ── Lazy-loaded routes — off the main path / heavy deps ──────────────────
 // AdminDashboard / EventPage / EventsIndex: admin or event-specific paths
@@ -24,6 +20,16 @@ const EventPage = lazy(() => import('./pages/EventPage'))
 const EventsIndex = lazy(() => import('./pages/EventsIndex'))
 const CrawlEditor = lazy(() => import('./pages/CrawlEditor'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const Terms = lazy(() => import('./pages/Terms'))
+// Content pages and the sign-up/pending screens aren't on the landing path
+// either; keeping them out of the first bundle matters on slow 3G.
+const Register = lazy(() => import('./pages/Register'))
+const PendingApproval = lazy(() => import('./pages/PendingApproval'))
+const SpotPage = lazy(() => import('./pages/SpotPage'))
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const CrawlPage = lazy(() => import('./pages/CrawlPage'))
 
 function LazyFallback() {
   return (
@@ -34,6 +40,15 @@ function LazyFallback() {
 }
 
 const ADMIN_EMAIL = 'anthonycap949@gmail.com'
+
+// Where /login and /register send someone once they're signed in: the page
+// they were on before the auth wall, else home. Rendering the destination
+// directly (rather than "/" and then a second hop from App's effect) means
+// the two redirects can't race each other.
+function AfterAuthRedirect() {
+  const [dest] = useState(() => peekReturnTo() ?? '/')
+  return <Navigate to={dest} replace />
+}
 
 function StatusScreen({ title, message, onSignOut }: { title: string; message: string; onSignOut: () => void }) {
   return (
@@ -71,23 +86,31 @@ export default function App() {
   const auth = useAuth()
   const navigate = useNavigate()
 
+  const location = useLocation()
+  const isPublic = auth.siteSettings?.is_public ?? false
+
   // Return the user to where they were headed before an auth wall (set by
   // CrawlEditor's login bounce and AuthGateModal). Survives the Google OAuth
-  // full-page round-trip because it lives in sessionStorage.
+  // full-page round-trip because it lives in sessionStorage; entries older
+  // than 15 minutes are ignored (see lib/authReturn).
   useEffect(() => {
     if (auth.status !== 'authorized') return
-    let dest: string | null = null
-    try {
-      dest = sessionStorage.getItem('auth-return-to')
-      if (dest) sessionStorage.removeItem('auth-return-to')
-    } catch { /* ignore */ }
-    if (
-      dest && dest.startsWith('/') && !dest.startsWith('//')
-      && !dest.startsWith('/login') && !dest.startsWith('/register')
-    ) {
-      navigate(dest, { replace: true })
-    }
+    const dest = takeReturnTo()
+    if (dest) navigate(dest, { replace: true })
   }, [auth.status, navigate])
+
+  // A signed-out visitor who wanders off to some other page has given up on
+  // that sign-in, so forget it — otherwise a later, unrelated sign-up lands on
+  // a page from long ago (e.g. "Start a new list"). Auth pages keep it, and so
+  // does the page that set it (CrawlEditor stores it during its own mount).
+  // On a private site "/" is the sign-in screen, so it keeps it too.
+  useEffect(() => {
+    if (auth.status !== 'unauthenticated') return
+    const here = location.pathname
+    if (isAuthPath(here) || (here === '/' && !isPublic)) return
+    const stored = peekReturnTo()
+    if (stored && stored.split('?')[0] !== here) clearReturnTo()
+  }, [auth.status, location.pathname, location.search, isPublic])
 
   if (auth.status === 'loading') {
     return (
@@ -101,7 +124,6 @@ export default function App() {
     )
   }
 
-  const isPublic = auth.siteSettings?.is_public ?? false
   const isAuthenticated = auth.status === 'authorized'
 
   return (
@@ -144,6 +166,9 @@ export default function App() {
         }}
       />
 
+      <DefaultTitle />
+      <ScrollToTop />
+
       <ErrorBoundary>
       <Suspense fallback={<LazyFallback />}>
       <Routes>
@@ -157,15 +182,15 @@ export default function App() {
               authError={auth.authError}
             />
           ) : (
-            <Navigate to="/" replace />
+            <AfterAuthRedirect />
           )
         } />
 
         <Route path="/register" element={
           auth.status === 'unauthenticated' ? (
-            <Register onSignUp={auth.signUpWithEmail} />
+            <Register onSignUp={auth.signUpWithEmail} isPublic={isPublic} />
           ) : (
-            <Navigate to="/" replace />
+            <AfterAuthRedirect />
           )
         } />
 
@@ -239,6 +264,9 @@ export default function App() {
         {/* Reachable in any auth state: the recovery link signs the user in
             with a temporary session as it lands, so no auth gating here. */}
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         <Route path="/spots/:slug" element={<SpotPage />} />
         <Route path="/u/:username" element={<UserProfilePage />} />

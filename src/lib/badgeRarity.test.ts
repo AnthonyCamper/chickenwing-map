@@ -15,10 +15,18 @@ describe('badgeRarity', () => {
   })
 
   it('tiers by share of members', () => {
-    expect(badgeRarity(3, 34)?.tier).toBe('legendary')   // ~9%
-    expect(badgeRarity(8, 34)?.tier).toBe('rare')        // ~24%
-    expect(badgeRarity(17, 34)?.tier).toBe('uncommon')   // 50%
+    expect(badgeRarity(4, 100)?.tier).toBe('legendary')  // 4%
+    expect(badgeRarity(3, 34)?.tier).toBe('rare')        // ~9%
+    expect(badgeRarity(8, 34)?.tier).toBe('uncommon')    // ~24%
+    expect(badgeRarity(17, 34)?.tier).toBe('common')     // 50%
     expect(badgeRarity(30, 34)?.tier).toBe('common')     // ~88%
+  })
+
+  it('never calls a badge that ~half of members hold uncommon', () => {
+    // QA F35: "UNCOMMON — 49% of members have this"
+    expect(badgeRarity(49, 100)?.tier).toBe('common')
+    expect(badgeRarity(36, 100)?.tier).toBe('common')
+    expect(badgeRarity(35, 100)?.tier).toBe('uncommon')
   })
 
   it('reports a whole percent, never rounding a nonzero count to 0%', () => {

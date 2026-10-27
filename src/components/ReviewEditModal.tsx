@@ -3,21 +3,14 @@ import Modal from './ui/Modal'
 import RatingPicker from './ui/RatingPicker'
 import PhotoUpload from './ui/PhotoUpload'
 import WingFlavorPicker from './ui/WingFlavorPicker'
+import { localDateString } from '../lib/dates'
+import { MIN_VISIT_DATE } from './ReviewFormModal'
 import type { Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
 
 interface Props {
   review: Review
   onClose: () => void
   onSubmit: (data: ReviewUpdateData) => Promise<void>
-}
-
-// Local date, not toISOString(): west of UTC the ISO date rolls over in the
-// evening, which would let the picker accept tomorrow. Same reasoning as
-// ReviewFormModal — worth hoisting into a shared helper once the crawl is over.
-function todayLocal(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
@@ -28,8 +21,10 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const [takeoutContainer, setTakeoutContainer] = useState(review.takeout_container ?? '')
   const [reviewText, setReviewText] = useState(review.review_text ?? '')
   const [visitedAt, setVisitedAt] = useState(
-    review.visited_at ? review.visited_at.split('T')[0] : todayLocal()
+    review.visited_at ? review.visited_at.split('T')[0] : localDateString()
   )
+  // Local date, not toISOString() — see lib/dates.
+  const [today] = useState(() => localDateString())
 
   // Photo editing state — `deletedPhotoIds` is the ground truth for what will
   // be removed on save; UI marks photos with `pendingRemoval` so the user can
@@ -40,6 +35,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const [newPhotos, setNewPhotos] = useState<File[]>([])
 
   const [submitting, setSubmitting] = useState(false)
+  const [dateError, setDateError] = useState<string | null>(null)
 
   const remainingExisting = existingPhotos.filter(p => !deletedPhotoIds.includes(p.id))
   const totalPhotos = remainingExisting.length + newPhotos.length
@@ -52,6 +48,11 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting) return
+    if (!visitedAt || visitedAt < MIN_VISIT_DATE || visitedAt > today) {
+      setDateError('Choose a date between Jan 1, 2000 and today.')
+      return
+    }
     setSubmitting(true)
     await onSubmit({
       overall_rating: overallRating > 0 ? overallRating : 5,
@@ -68,26 +69,40 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   }
 
   return (
-    <Modal title="Edit Review" onClose={onClose} size="md">
-      <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+    <Modal
+      title="Edit your review"
+      onClose={onClose}
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary px-5">
+            Cancel
+          </button>
+          <button type="submit" form="review-edit-form" disabled={submitting} className="btn-primary flex-1 whitespace-nowrap">
+            {submitting ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      }
+    >
+      <form id="review-edit-form" onSubmit={handleSubmit} noValidate className="px-6 py-5 space-y-5">
         <RatingPicker
           value={overallRating}
           onChange={setOverallRating}
           accent="amber"
           icon="🍗"
-          label="Wing Rating"
+          label="Wing rating"
         />
 
 
         <div>
-          <label className="label" htmlFor="edit-wing-size">Wing Size (optional)</label>
+          <label className="label" htmlFor="edit-wing-size">Wing size (optional)</label>
           <select
             id="edit-wing-size"
             className="input"
             value={wingSize}
             onChange={e => setWingSize(e.target.value)}
           >
-            <option value="">Select size…</option>
+            <option value="">Choose a size…</option>
             <option value="small">Small</option>
             <option value="medium">Medium</option>
             <option value="large">Large</option>
@@ -96,7 +111,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
         </div>
 
         <div>
-          <label className="label">Wing Flavor (optional)</label>
+          <label className="label">Flavor (optional)</label>
           <WingFlavorPicker value={wingFlavor} onChange={setWingFlavor} />
         </div>
 
@@ -112,19 +127,20 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-150 ${isTakeout ? 'translate-x-[22px]' : 'translate-x-0'}`} />
             </div>
             <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-600">Takeout</span>
+            <span className="text-xs text-charcoal-500">I ordered the food to go</span>
           </label>
         </div>
 
         {isTakeout && (
           <div>
-            <label className="label" htmlFor="edit-takeout-container">Container Type (optional)</label>
+            <label className="label" htmlFor="edit-takeout-container">Takeout container (optional)</label>
             <select
               id="edit-takeout-container"
               className="input"
               value={takeoutContainer}
               onChange={e => setTakeoutContainer(e.target.value)}
             >
-              <option value="">Select container…</option>
+              <option value="">Choose a container…</option>
               <option value="styrofoam">Styrofoam</option>
               <option value="cardboard">Cardboard</option>
               <option value="plastic">Plastic</option>
@@ -136,7 +152,7 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
         )}
 
         <div>
-          <label className="label" htmlFor="edit-review-text">Review (optional)</label>
+          <label className="label" htmlFor="edit-review-text">Your review (optional)</label>
           <textarea
             id="edit-review-text"
             className="input resize-none"
@@ -144,21 +160,26 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
             maxLength={500}
             value={reviewText}
             onChange={e => setReviewText(e.target.value)}
-            placeholder="Tell us about the wings..."
+            placeholder="What did you think of the wings?"
           />
         </div>
 
         <div>
-          <label className="label" htmlFor="edit-visited">Date Visited</label>
+          <label className="label" htmlFor="edit-visited">Date you visited</label>
           <input
             id="edit-visited"
             type="date"
             className="input"
             value={visitedAt}
-            onChange={e => setVisitedAt(e.target.value)}
-            max={todayLocal()}
+            onChange={e => { setVisitedAt(e.target.value); setDateError(null) }}
+            min={MIN_VISIT_DATE}
+            max={today}
             required
+            aria-invalid={!!dateError || undefined}
           />
+          {dateError && (
+            <p className="text-xs text-red-600 mt-1" role="alert">{dateError}</p>
+          )}
         </div>
 
         {/* Photos */}
@@ -213,18 +234,9 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
 
           {remainingSlots === 0 && totalPhotos >= 5 && (
             <p className="text-xs text-charcoal-400 mt-1">
-              Maximum 5 photos reached. Remove an existing photo to add a new one.
+              You can have up to 5 photos. Remove one to add another.
             </p>
           )}
-        </div>
-
-        <div className="flex gap-3 pb-2">
-          <button type="button" onClick={onClose} className="btn-secondary flex-1">
-            Cancel
-          </button>
-          <button type="submit" disabled={submitting} className="btn-primary flex-1">
-            {submitting ? 'Saving…' : 'Save'}
-          </button>
         </div>
       </form>
     </Modal>

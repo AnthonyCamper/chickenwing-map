@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { updateReview as updateReviewAction, deleteReview as deleteReviewAction } from '../lib/reviewActions'
+import { formatVisitDate } from '../lib/dates'
+import { updateReview as updateReviewAction, deleteReview as deleteReviewAction, isUuid } from '../lib/reviewActions'
 import ReviewCard from '../components/ReviewCard'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
 import AppHeader from '../components/AppHeader'
@@ -25,6 +25,7 @@ interface ReviewDetail {
   review: Review
   spot: WingSpot | null
   moreByAuthor: OtherReview[]
+  commentCount: number
 }
 
 export default function ReviewPage() {
@@ -37,7 +38,8 @@ export default function ReviewPage() {
   const auth = useAuthContext()
 
   const load = useCallback(async () => {
-    if (!id) return
+    // A malformed id can't match anything — show the 404, not an error.
+    if (!isUuid(id)) { setStatus('not-found'); return }
 
     const { data: review, error } = await supabase
       .from('reviews_with_profiles')
@@ -45,10 +47,11 @@ export default function ReviewPage() {
       .eq('id', id)
       .maybeSingle()
 
-    if (error) { setStatus('error'); return }
+    // 22P02 = invalid text representation (malformed id) → it's a 404, not a crash
+    if (error) { setStatus(error.code === '22P02' ? 'not-found' : 'error'); return }
     if (!review) { setStatus('not-found'); return }
 
-    const [{ data: photos }, { data: spot }, { data: { session } }, { data: otherReviews }] = await Promise.all([
+    const [{ data: photos }, { data: spot }, { data: { session } }, { data: otherReviews }, { count: commentCount }] = await Promise.all([
       supabase.from('review_photos').select('*').eq('review_id', review.id).order('display_order'),
       supabase.from('wing_spots').select('*').eq('id', review.wing_spot_id).maybeSingle(),
       supabase.auth.getSession(),
@@ -59,6 +62,11 @@ export default function ReviewPage() {
         .neq('id', review.id)
         .order('visited_at', { ascending: false })
         .limit(4),
+      // Same source as SpotPage: every comment row, replies included.
+      supabase
+        .from('review_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('review_id', review.id),
     ])
 
     setCurrentUserId(session?.user?.id ?? '')
@@ -66,6 +74,7 @@ export default function ReviewPage() {
       review: { ...(review as Review), photos: (photos ?? []) as ReviewPhoto[] },
       spot: (spot as WingSpot | null) ?? null,
       moreByAuthor: (otherReviews ?? []) as OtherReview[],
+      commentCount: commentCount ?? 0,
     })
     setStatus('ready')
   }, [id])
@@ -99,7 +108,10 @@ export default function ReviewPage() {
     return (
       <PageStateShell>
         <p className="eyebrow">404</p>
-        <h1 className="font-display uppercase text-3xl text-night-900">No review here</h1>
+        <h1 className="font-display uppercase text-3xl text-night-900">Review not found</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          This review doesn't exist or was deleted. Check the link and try again.
+        </p>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -108,14 +120,20 @@ export default function ReviewPage() {
   if (status === 'error' || !data) {
     return (
       <PageStateShell>
-        <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back home</Link>
+        <h1 className="font-display uppercase text-3xl text-night-900">Couldn't load this review</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          Check your connection and try again.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => { setStatus('loading'); load() }} className="btn-primary">Try again</button>
+          <Link to="/" className="btn-secondary">Back home</Link>
+        </div>
       </PageStateShell>
     )
   }
 
-  const { review, spot, moreByAuthor } = data
-  const authorName = review.reviewer_is_private ? 'Private wing-logger' : (review.reviewer_name ?? 'Anonymous')
+  const { review, spot, moreByAuthor, commentCount } = data
+  const authorName = review.reviewer_is_private ? 'Private reviewer' : (review.reviewer_name ?? 'Anonymous')
   const rating = Number(review.overall_rating).toFixed(1)
   const title = spot
     ? `${rating}/10 review of ${spot.name} by ${authorName} — WingKingTony`
@@ -144,16 +162,16 @@ export default function ReviewPage() {
           {spot && (
             <Link
               to={`/spots/${spot.slug ?? ''}`}
-              className="block font-display uppercase text-3xl md:text-4xl text-night-900 leading-none tracking-tightest hover:text-sauce-500"
+              className="block font-display uppercase text-3xl md:text-4xl text-night-900 leading-none tracking-tightest hover:text-sauce-500 break-words [overflow-wrap:anywhere]"
             >
               {spot.name}
             </Link>
           )}
-          {spot?.address && <p className="text-xs text-charcoal-500 mt-1">{spot.address}</p>}
+          {spot?.address && <p className="text-xs text-charcoal-500 mt-1 break-words [overflow-wrap:anywhere]">{spot.address}</p>}
           <div className="mt-3">
             <ShareButton
               title={title}
-              text={spot ? `A ${rating}/10 wing take at ${spot.name}` : 'A wing take on WingKingTony'}
+              text={spot ? `A ${rating}/10 wing review of ${spot.name}` : 'A wing review on WingKingTony'}
               url={window.location.href}
             />
           </div>
@@ -166,6 +184,7 @@ export default function ReviewPage() {
             review={review}
             currentUserId={currentUserId}
             isAdmin={auth?.isAdmin ?? false}
+            commentCount={commentCount}
             onUpdate={handleUpdate}
             onDelete={async (rid) => {
               const res = await handleDelete(rid)
@@ -182,6 +201,7 @@ export default function ReviewPage() {
                 key={p.id}
                 type="button"
                 onClick={() => setLightboxIndex(i)}
+                aria-label={`View photo ${i + 1} of ${review.photos!.length} full size`}
                 className="w-full overflow-hidden rounded-xl border-2 border-night-900 shadow-sticker-sm hover:shadow-sticker transition-shadow"
               >
                 <img src={p.url} alt="" loading="lazy" className="w-full object-cover" />
@@ -190,23 +210,19 @@ export default function ReviewPage() {
           </div>
         )}
 
-        <div className="mt-8 flex flex-wrap gap-2 text-xs">
-          {review.wing_size && (
+        {/* Wing size is shown in the card header (ReviewCard) */}
+        {review.is_takeout && (
+          <div className="mt-8 flex flex-wrap gap-2 text-xs">
             <span className="px-2 py-1 bg-cream-100 border-2 border-night-900 rounded font-bold uppercase tracking-crowd text-night-900">
-              {review.wing_size}
+              Takeout{review.takeout_container ? ` · ${review.takeout_container.replace(/_/g, ' ')}` : ''}
             </span>
-          )}
-          {review.is_takeout && (
-            <span className="px-2 py-1 bg-cream-100 border-2 border-night-900 rounded font-bold uppercase tracking-crowd text-night-900">
-              Takeout{review.takeout_container ? ` · ${review.takeout_container}` : ''}
-            </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {moreByAuthor.length > 0 && !review.reviewer_is_private && (
           <section className="mt-12">
-            <h2 className="eyebrow mb-3">
-              More from {review.reviewer_name ?? 'this wing-logger'}
+            <h2 className="eyebrow mb-3 truncate">
+              More from {review.reviewer_name ?? 'this reviewer'}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {moreByAuthor.map(o => (
@@ -219,7 +235,7 @@ export default function ReviewPage() {
                     <div className="min-w-0">
                       <p className="font-display uppercase text-sm text-night-900 truncate">{o.spot_name ?? 'Unknown spot'}</p>
                       <p className="text-[10px] text-charcoal-500">
-                        {(() => { try { return format(new Date(o.visited_at), 'MMM d, yyyy') } catch { return o.visited_at } })()}
+                        {formatVisitDate(o.visited_at)}
                       </p>
                     </div>
                     <span className="font-display text-lg text-night-900 shrink-0">{Number(o.overall_rating).toFixed(1)}</span>

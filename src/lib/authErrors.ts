@@ -41,3 +41,36 @@ export function friendlyAuthError(message: string): string {
 
   return message
 }
+
+// ── Sign-up form checks ─────────────────────────────────────────────────────
+
+export const MIN_PASSWORD_LENGTH = 8
+
+/** Something@something.tld: the browser's type=email check accepts
+ *  "name@example" (no dot in the domain), which can never receive mail. */
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email.trim())
+}
+
+export const EMAIL_FORMAT_MESSAGE = 'Enter a full email address, for example name@gmail.com.'
+
+export function passwordProblem(password: string): string | null {
+  if (password.length >= MIN_PASSWORD_LENGTH) return null
+  const left = MIN_PASSWORD_LENGTH - password.length
+  return `Password needs at least ${MIN_PASSWORD_LENGTH} characters (${left} more).`
+}
+
+export function displayNameProblem(name: string): string | null {
+  return name.trim() ? null : 'Enter a display name. It can’t be only spaces.'
+}
+
+/** First thing stopping the sign-up form from being sent, in field order, or
+ *  null when it's ready. Shown next to the disabled button so it's never a
+ *  mystery why it won't submit. */
+export function signUpProblem(f: { displayName: string; email: string; password: string }): string | null {
+  if (!f.displayName.trim()) return 'Enter a display name.'
+  if (!f.email.trim()) return 'Enter your email address.'
+  if (!isValidEmail(f.email)) return EMAIL_FORMAT_MESSAGE
+  if (!f.password) return 'Choose a password.'
+  return passwordProblem(f.password)
+}

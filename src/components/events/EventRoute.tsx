@@ -3,6 +3,9 @@ import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { EventCheckin, EventStop } from '../../lib/types'
 import type { EventPhase } from '../../lib/eventPhase'
+import { spreadOverlappingPins } from '../../lib/crawlUtils'
+
+const PIN = 28
 
 function RouteMap({ stops }: { stops: EventStop[] }) {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -37,20 +40,31 @@ function RouteMap({ stops }: { stops: EventStop[] }) {
         L.polyline(latlngs, { color: '#fa5a2e', weight: 3, opacity: 0.75 }).addTo(map)
       }
 
-      latlngs.forEach((ll, idx) => {
-        const icon = L.divIcon({
-          html: `<div style="width:28px;height:28px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-          className: '',
-        })
-        L.marker(ll, { icon }).addTo(map!)
+      const pinIcon = (idx: number, dx = 0, dy = 0) => L.divIcon({
+        html: `<div style="width:${PIN}px;height:${PIN}px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${idx + 1}</div>`,
+        iconSize: [PIN, PIN],
+        // Shifting the anchor moves the pin by (dx, dy) on screen.
+        iconAnchor: [PIN / 2 - dx, PIN / 2 - dy],
+        className: '',
       })
+      const markers = latlngs.map((ll, idx) =>
+        L.marker(ll, { icon: pinIcon(idx), zIndexOffset: idx }).addTo(map!)
+      )
+
+      // Stops a block apart (or at the same address) draw on top of each
+      // other at city zoom — fan them out so every number stays visible.
+      const spreadPins = () => {
+        if (!map) return
+        const pts = latlngs.map(ll => map!.latLngToContainerPoint(ll))
+        spreadOverlappingPins(pts, PIN).forEach((o, idx) => markers[idx].setIcon(pinIcon(idx, o.dx, o.dy)))
+      }
 
       if (latlngs.length === 1) {
         map.setView(latlngs[0], 15)
       } else {
         map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] })
+        spreadPins()
+        map.on('zoomend', spreadPins)
       }
     })
 
@@ -100,7 +114,7 @@ export default function EventRoute({
           <p className="text-3xl mb-2">📍</p>
           <p className="font-display uppercase text-xl text-night-900 tracking-tightest">Route drops soon 👀</p>
           <p className="text-sm text-charcoal-500 mt-2 max-w-xs mx-auto">
-            The stops are being scouted. RSVP so you don't miss the drop.
+            The stops aren't announced yet. RSVP and they'll show here when they're ready.
           </p>
         </div>
       </section>
@@ -122,7 +136,7 @@ export default function EventRoute({
       {stops.length === 0 ? (
         <div className="card px-5 py-8 text-center">
           <p className="font-display uppercase text-xl text-night-900 tracking-tightest">Route drops soon 👀</p>
-          <p className="text-sm text-charcoal-500 mt-2">The stops are being scouted.</p>
+          <p className="text-sm text-charcoal-500 mt-2">The stops aren't announced yet.</p>
         </div>
       ) : (
         <ol className="space-y-3">
@@ -143,7 +157,7 @@ export default function EventRoute({
                     {isCheckedIn ? '✓' : idx + 1}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-extrabold text-night-900">{stop.spot_name}</p>
+                    <p className="font-extrabold text-night-900 break-words [overflow-wrap:anywhere]">{stop.spot_name}</p>
                     <p className="text-xs text-charcoal-500 truncate mt-0.5">{stop.spot_address}</p>
                     {stop.planned_arrival && (
                       <p className="text-xs text-charcoal-500 mt-1">
@@ -167,7 +181,7 @@ export default function EventRoute({
                         {locked ? (
                           <button
                             onClick={() => toast(`Check-ins unlock ${unlockLabel ?? 'on crawl day'} 🍗`)}
-                            className="px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-crowd bg-cream-200 text-charcoal-500 border-2 border-night-900/20"
+                            className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-crowd bg-cream-200 text-charcoal-500 border-2 border-night-900/20"
                           >
                             🔒 Unlocks {unlockLabel ?? 'crawl day'}
                           </button>

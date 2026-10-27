@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { WingSpot } from '../../lib/types'
+import { spreadOverlappingPins } from '../../lib/crawlUtils'
+
+const PIN = 30
 
 interface MapItem {
   spot: WingSpot | null
@@ -23,6 +26,8 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const layerGroupRef = useRef<import('leaflet').LayerGroup | null>(null)
+  // Re-fans overlapping pins after a zoom; replaced on every items change.
+  const spreadRef = useRef<(() => void) | null>(null)
 
   // Init map once
   useEffect(() => {
@@ -45,6 +50,7 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
       }).addTo(map)
       mapRef.current = map
       layerGroupRef.current = L.layerGroup().addTo(map)
+      map.on('zoomend', () => spreadRef.current?.())
     })
 
     return () => {
@@ -84,15 +90,19 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
         L.polyline(latlngs, { color: '#fa5a2e', weight: 3, opacity: 0.75 }).addTo(group)
       }
 
+      const pinIcon = (i: number, clickable: boolean, dx = 0, dy = 0) => L.divIcon({
+        html: `<div style="width:${PIN}px;height:${PIN}px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4)${clickable ? ';cursor:pointer' : ''}">${i + 1}</div>`,
+        iconSize: [PIN, PIN],
+        // Shifting the anchor moves the pin by (dx, dy) on screen.
+        iconAnchor: [PIN / 2 - dx, PIN / 2 - dy],
+        className: '',
+      })
+      const markers: { marker: import('leaflet').Marker; clickable: boolean }[] = []
+
       points.forEach((p, i) => {
         const clickable = !!onSelectSpot && !!p.spot.slug
-        const icon = L.divIcon({
-          html: `<div style="width:30px;height:30px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4)${clickable ? ';cursor:pointer' : ''}">${i + 1}</div>`,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
-          className: '',
-        })
-        const marker = L.marker([p.spot.lat, p.spot.lng], { icon, title: p.spot.name })
+        const marker = L.marker([p.spot.lat, p.spot.lng], { icon: pinIcon(i, clickable), title: p.spot.name, zIndexOffset: i })
+        markers.push({ marker, clickable })
         if (clickable) {
           // Tooltip for discoverability on desktop; click navigates to the spot.
           marker.bindTooltip(`${p.spot.name} — view spot`, { direction: 'top', offset: [0, -16] })
@@ -101,11 +111,21 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
         marker.addTo(group)
       })
 
+      // Spots a block apart (or the same spot listed twice) draw on top of
+      // each other at city zoom — fan them out so every number stays visible.
+      spreadRef.current = () => {
+        const pts = latlngs.map(ll => map.latLngToContainerPoint(ll))
+        spreadOverlappingPins(pts, PIN).forEach((o, i) =>
+          markers[i].marker.setIcon(pinIcon(i, markers[i].clickable, o.dx, o.dy))
+        )
+      }
+
       if (latlngs.length === 1) {
         map.setView(latlngs[0], 14)
       } else {
         map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] })
       }
+      spreadRef.current()
     })
     return () => { cancelled = true }
   }, [items, onSelectSpot])

@@ -22,7 +22,7 @@ describe('NotFound', () => {
 
     expect(screen.getByText('404')).toBeInTheDocument()
     expect(screen.getByText('Nothing on this bone')).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /back to the map/i })
+    const link = screen.getByRole('link', { name: /go to the home page/i })
     expect(link).toHaveAttribute('href', '/')
   })
 })

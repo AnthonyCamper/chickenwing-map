@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { format } from 'date-fns'
+import { formatVisitDate } from '../lib/dates'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { deleteCrawl, toggleCrawlLike } from '../lib/crawlActions'
@@ -10,6 +10,7 @@ import AppHeader from '../components/AppHeader'
 import { useAuthContext } from '../components/AuthProvider'
 import PageStateShell from '../components/ui/PageStateShell'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
+import AvatarImage from '../components/ui/AvatarImage'
 import CrawlRouteMap from '../components/ui/CrawlRouteMap'
 import CrawlOwnerToolbar from '../components/ui/CrawlOwnerToolbar'
 import ShareButton from '../components/ui/ShareButton'
@@ -231,7 +232,10 @@ export default function CrawlPage() {
     return (
       <PageStateShell>
         <p className="eyebrow">404</p>
-        <h1 className="font-display uppercase text-3xl text-night-900">No list here</h1>
+        <h1 className="font-display uppercase text-3xl text-night-900">List not found</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          This list doesn't exist, was deleted, or is private.
+        </p>
         <Link to="/" className="btn-secondary">Back home</Link>
       </PageStateShell>
     )
@@ -240,8 +244,14 @@ export default function CrawlPage() {
   if (status === 'error' || !data) {
     return (
       <PageStateShell>
-        <h1 className="font-display uppercase text-3xl text-night-900">Something broke</h1>
-        <Link to="/" className="btn-secondary">Back home</Link>
+        <h1 className="font-display uppercase text-3xl text-night-900">Couldn't load this list</h1>
+        <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
+          Check your connection and try again.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => load()} className="btn-primary">Try again</button>
+          <Link to="/" className="btn-secondary">Back home</Link>
+        </div>
       </PageStateShell>
     )
   }
@@ -254,7 +264,7 @@ export default function CrawlPage() {
   const authorLinkable = !authorPrivate && crawl.author_username
   const description = crawl.description?.trim()
     ? crawl.description.trim().slice(0, 200)
-    : `${crawl.item_count} wing ${crawl.item_count === 1 ? 'spot' : 'spots'} curated by ${crawl.author_name ?? 'a wing-logger'} on WingKingTony.`
+    : `${crawl.item_count} wing ${crawl.item_count === 1 ? 'spot' : 'spots'} curated by ${crawl.author_name ?? 'a member'} on WingKingTony.`
 
   return (
     <div className="min-h-dvh bg-paper">
@@ -307,38 +317,42 @@ export default function CrawlPage() {
             {crawl.is_ranked ? 'Ranked list' : 'List'}
             {!crawl.is_public && ' · Private'}
           </p>
-          <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest">
+          <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest break-words [overflow-wrap:anywhere]">
             {crawl.title}
           </h1>
           {crawl.description && (
-            <p className="text-sm text-charcoal-700 mt-3 max-w-prose whitespace-pre-wrap">{crawl.description}</p>
+            <p className="text-sm text-charcoal-700 mt-3 max-w-prose whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{crawl.description}</p>
           )}
 
           <div className="flex items-center gap-3 mt-5">
-            {crawl.author_avatar ? (
-              <img src={crawl.author_avatar} alt="" className="w-8 h-8 rounded-full border-2 border-night-900 object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-full border-2 border-night-900 bg-cream-200 flex items-center justify-center text-xs font-bold text-night-900">
-                {(crawl.author_name ?? '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="text-xs">
-              <span className="text-charcoal-500">by </span>
+            <AvatarImage
+              src={crawl.author_avatar}
+              alt=""
+              className="w-8 h-8 flex-shrink-0 rounded-full border-2 border-night-900 object-cover"
+              fallback={
+                <div className="w-8 h-8 flex-shrink-0 rounded-full border-2 border-night-900 bg-cream-200 flex items-center justify-center text-xs font-bold text-night-900">
+                  {(crawl.author_name ?? '?').charAt(0).toUpperCase()}
+                </div>
+              }
+            />
+            {/* min-w-0 + truncate keep long names on one line next to "by" */}
+            <div className="text-xs min-w-0 flex items-center gap-1">
+              <span className="text-charcoal-500 flex-shrink-0">by</span>
               {authorLinkable ? (
-                <Link to={`/u/${crawl.author_username}`} className="inline-flex items-center min-h-[44px] -my-3 font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
-                  {crawl.author_name}
+                <Link to={`/u/${crawl.author_username}`} className="min-w-0 inline-flex items-center min-h-[44px] -my-3 font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
+                  <span className="truncate">{crawl.author_name}</span>
                 </Link>
               ) : (
-                <span className="font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
+                <span className="min-w-0 truncate font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
               )}
-              <span className="text-charcoal-400"> · {crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}</span>
+              <span className="text-charcoal-400 flex-shrink-0 whitespace-nowrap">· {crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}</span>
             </div>
 
             <button
               onClick={handleToggleLike}
               disabled={likeBusy}
               aria-label={crawl.is_liked_by_me ? 'Unlike list' : 'Like list'}
-              className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
+              className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 min-h-[44px] min-w-[44px] justify-center -my-2 px-2 text-charcoal-500 hover:text-sauce-500 transition-colors disabled:opacity-50"
             >
               <HeartIcon filled={crawl.is_liked_by_me} className="w-5 h-5" />
               {crawl.like_count > 0 && (
@@ -350,7 +364,7 @@ export default function CrawlPage() {
                 title={crawl.title}
                 text={description}
                 url={`${window.location.origin}/lists/${crawl.slug}`}
-                className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
+                className="flex-shrink-0 inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
               />
             ) : (
               // Only the owner can see a private list — don't offer a share
@@ -479,7 +493,7 @@ function CrawlItemRow({
           )}
         </div>
         {item.note && (
-          <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap">"{item.note}"</p>
+          <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap break-words [overflow-wrap:anywhere]">"{item.note}"</p>
         )}
       </div>
     </div>
@@ -537,26 +551,28 @@ function CrawlItemRow({
       {reviews.length > 0 && (
         <div className="border-t-2 border-night-900/10 divide-y divide-night-900/8">
           {reviews.map(r => {
-            const dateStr = (() => { try { return format(new Date(r.visited_at), 'MMM d, yyyy') } catch { return r.visited_at } })()
+            const dateStr = formatVisitDate(r.visited_at)
             const name = r.reviewer_name ?? 'Anonymous'
             const initials = name.charAt(0).toUpperCase()
             return (
               <Link key={r.id} to={`/reviews/${r.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-cream-100/50 transition-colors">
                 <div className="flex-shrink-0 w-7 h-7 rounded-full border-2 border-night-900 bg-night-700 flex items-center justify-center overflow-hidden">
-                  {r.reviewer_avatar
-                    ? <img src={r.reviewer_avatar} alt={name} className="w-full h-full object-cover" />
-                    : <span className="text-[10px] font-extrabold text-cream-50 uppercase">{initials}</span>
-                  }
+                  <AvatarImage
+                    src={r.reviewer_avatar}
+                    alt={name}
+                    className="w-full h-full object-cover"
+                    fallback={<span className="text-[10px] font-extrabold text-cream-50 uppercase">{initials}</span>}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-extrabold uppercase tracking-crowd text-night-800">{name}</span>
+                    <span className="min-w-0 max-w-full truncate text-xs font-extrabold uppercase tracking-crowd text-night-800">{name}</span>
                     <span className="font-display text-sm text-sauce-500">{Number(r.overall_rating).toFixed(1)}<span className="text-[10px] text-charcoal-400">/10</span></span>
-                    {r.wing_flavor && <span className="text-[11px] text-charcoal-500">{r.wing_flavor}</span>}
+                    {r.wing_flavor && <span className="min-w-0 max-w-full truncate text-[11px] text-charcoal-500">{r.wing_flavor}</span>}
                     <span className="text-[10px] text-charcoal-400 ml-auto">{dateStr}</span>
                   </div>
                   {r.review_text && (
-                    <p className="text-xs text-charcoal-600 mt-0.5 line-clamp-2 leading-relaxed">{r.review_text}</p>
+                    <p className="text-xs text-charcoal-600 mt-0.5 line-clamp-2 leading-relaxed break-words [overflow-wrap:anywhere]">{r.review_text}</p>
                   )}
                 </div>
               </Link>

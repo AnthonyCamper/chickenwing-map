@@ -1,17 +1,54 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useReviews } from '../hooks/useReviews'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import LiveScene from '../components/LiveScene'
-import ListView from '../components/ListView'
-import MapView from '../components/MapView'
 import GalleryView from '../components/gallery/GalleryView'
 import ReviewFormModal from '../components/ReviewFormModal'
 import { UserProfileProvider } from '../components/UserProfileContext'
 import type { AuthState } from '../hooks/useAuth'
+
+// The landing view is the feed; Spots and Map (Leaflet + supercluster) load
+// on first switch so slow phones don't download them before the feed shows.
+const ListView = lazy(() => import('../components/ListView'))
+const MapView = lazy(() => import('../components/MapView'))
+
+function ViewFallback({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 gap-4" role="status">
+      <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
+      <p className="font-display uppercase tracking-crowd text-sm text-night-700">{label}</p>
+    </div>
+  )
+}
+
+/** One-line "what is this" for signed-out visitors. Kept short so the feed
+ *  still starts above the fold on a phone. */
+function WelcomeIntro() {
+  return (
+    <section
+      aria-label="About WingKingTony"
+      className="max-w-2xl mx-auto px-4 pt-4"
+    >
+      <div className="card px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <p className="text-sm font-bold text-night-900 leading-snug">
+          Find and rate chicken wing spots. Free.
+        </p>
+        <div className="mt-2.5 sm:mt-0 flex items-center gap-2 flex-shrink-0">
+          <Link to="/register" className="btn-primary px-3 py-2 text-xs tracking-wide whitespace-nowrap flex-1 sm:flex-none">
+            Create free account
+          </Link>
+          <Link to="/login" className="btn-secondary px-3 py-2 text-xs tracking-wide whitespace-nowrap">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 type View = 'list' | 'map' | 'gallery'
 type SortKey = 'name' | 'rating'
@@ -169,6 +206,9 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
       readOnly={readOnly}
       liveScene={<LiveScene spots={reviews.spots} loading={reviews.loading} />}
     >
+      {!auth.user && view !== 'map' && <WelcomeIntro />}
+
+      <Suspense fallback={<ViewFallback label={view === 'map' ? 'Loading the map…' : 'Loading spots…'} />}>
       {view === 'list' && (
         <ListView
           shops={reviews.spots}
@@ -195,6 +235,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
           onFocusHandled={() => setFocusShopId(null)}
         />
       )}
+      </Suspense>
       {view === 'gallery' && (
         <GalleryView
           currentUserId={auth.user?.id ?? ''}

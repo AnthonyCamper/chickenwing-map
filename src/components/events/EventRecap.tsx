@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import BadgeIcon from '../badges/BadgeIcon'
+import AvatarImage from '../ui/AvatarImage'
 
 interface RecapReview {
   id: string
@@ -174,23 +175,22 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
                 </div>
                 <div className="flex items-center flex-shrink-0">
                   {w.earners.slice(0, 4).map((e, i) => (
-                    e.avatar_url ? (
-                      <img
-                        key={e.user_id}
+                    <span
+                      key={e.user_id}
+                      className="inline-flex"
+                      style={{ marginLeft: i > 0 ? '-6px' : 0, position: 'relative', zIndex: 4 - i }}
+                    >
+                      <AvatarImage
                         src={e.avatar_url}
                         alt=""
                         className="w-6 h-6 rounded-full object-cover border-2 border-white"
-                        style={{ marginLeft: i > 0 ? '-6px' : 0, position: 'relative', zIndex: 4 - i }}
+                        fallback={
+                          <span className="w-6 h-6 rounded-full bg-night-700 border-2 border-white flex items-center justify-center text-[10px] font-bold text-cream-50">
+                            {e.display_name.charAt(0).toUpperCase()}
+                          </span>
+                        }
                       />
-                    ) : (
-                      <span
-                        key={e.user_id}
-                        className="w-6 h-6 rounded-full bg-night-700 border-2 border-white flex items-center justify-center text-[10px] font-bold text-cream-50"
-                        style={{ marginLeft: i > 0 ? '-6px' : 0, position: 'relative', zIndex: 4 - i }}
-                      >
-                        {e.display_name.charAt(0).toUpperCase()}
-                      </span>
-                    )
+                    </span>
                   ))}
                 </div>
               </li>

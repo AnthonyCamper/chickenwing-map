@@ -31,6 +31,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { WingCrawl, WingCrawlItem, WingSpot } from '../lib/types'
+import { rememberReturnTo } from '../lib/authReturn'
 
 interface ItemWithSpot extends WingCrawlItem {
   spot: WingSpot | null
@@ -76,11 +77,11 @@ export default function CrawlEditor() {
     if (authStatus === 'unauthenticated') {
       const here = window.location.pathname
       if (here.startsWith('/lists')) {
-        try { sessionStorage.setItem('auth-return-to', here) } catch { /* ignore */ }
+        rememberReturnTo(here)
       }
       navigate('/login', { replace: true })
     } else if (authStatus !== 'authorized') {
-      toast.error('Your account needs approval before you can make lists')
+      toast.error("Your account can't make lists yet.")
       navigate('/', { replace: true })
     }
   }, [authStatus, navigate])
@@ -126,7 +127,7 @@ export default function CrawlEditor() {
 
     if (itemsErr) {
       // Don't render a fake-empty list (it invites duplicate re-adds).
-      toast.error('Could not load spots — pull to refresh and try again')
+      toast.error('Could not load spots. Reload the page and try again.')
       setLoading(false)
       return
     }
@@ -215,8 +216,8 @@ export default function CrawlEditor() {
   }, [isNew, metaDirty, saveState])
 
   async function handleCreate() {
-    if (!title.trim()) { toast.error('Title is required'); return }
-    if (!userId) { toast.error('Not signed in'); return }
+    if (!title.trim()) { toast.error('Give your list a title.'); return }
+    if (!userId) { toast.error('Sign in to save your list.'); return }
     setSavingMeta(true)
     try {
       const result = await createCrawl({
@@ -611,7 +612,7 @@ function AddSpotForm({
 
   async function handleCreateAndAdd() {
     if (!newName.trim() || !newAddr.trim() || !newLat || !newLng) {
-      toast.error('Pick from the autocomplete or fill in all fields'); return
+      toast.error('Pick a place from the suggestions, or fill in every field.'); return
     }
     const lat = parseFloat(newLat)
     const lng = parseFloat(newLng)

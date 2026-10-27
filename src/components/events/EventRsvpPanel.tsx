@@ -26,7 +26,7 @@ export default function EventRsvpPanel({ signedIn, myRsvp, submitting, onRsvp, o
           ✋ Sign in to join the crawl
         </button>
         <p className="text-xs text-charcoal-500 text-center mt-2">
-          Takes a minute. The wings are worth it.
+          Sign-up is free and takes a minute.
         </p>
       </section>
     )
@@ -45,12 +45,12 @@ export default function EventRsvpPanel({ signedIn, myRsvp, submitting, onRsvp, o
           </div>
           <button
             onClick={() => {
-              if (!confirm('Drop your RSVP?')) return
+              if (!confirm('Cancel your RSVP? You can join again later.')) return
               onDropOut()
             }}
-            className="text-xs font-bold text-charcoal-500 hover:text-sauce-500 transition-colors"
+            className="min-h-[44px] px-2 -mr-2 text-xs font-bold text-charcoal-500 hover:text-sauce-500 transition-colors"
           >
-            Drop out
+            Cancel RSVP
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -59,7 +59,7 @@ export default function EventRsvpPanel({ signedIn, myRsvp, submitting, onRsvp, o
               key={s}
               onClick={() => onRsvp(s)}
               disabled={submitting !== null}
-              className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
+              className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
             >
               {submitting === s ? '…' : s === 'maybe' ? 'Change to Maybe' : "Can't make it"}
             </button>
@@ -101,14 +101,14 @@ export default function EventRsvpPanel({ signedIn, myRsvp, submitting, onRsvp, o
         <button
           onClick={() => onRsvp('maybe')}
           disabled={submitting !== null}
-          className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
+          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
         >
           🤔 Maybe
         </button>
         <button
           onClick={() => onRsvp('not_going')}
           disabled={submitting !== null}
-          className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
+          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold border-2 bg-cream-50 text-charcoal-600 border-night-900/20 hover:border-sauce-400 disabled:opacity-60 transition-all"
         >
           🙅 Can't make it
         </button>

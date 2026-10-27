@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import ReviewPhotoFan, { groupPhotosByReview } from './ui/ReviewPhotoFan'
@@ -67,23 +68,27 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
         <div className="px-5 pt-3 pb-3 border-b border-night-900/10 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="font-display uppercase tracking-wide text-base text-night-900 leading-snug truncate">
-              {spot.name}
+              {spot.slug ? (
+                <Link to={`/spots/${spot.slug}`} className="hover:text-sauce-600 underline-offset-2 hover:underline">
+                  {spot.name}
+                </Link>
+              ) : spot.name}
             </h3>
             <p className="text-xs text-charcoal-500 mt-0.5 truncate">{spot.address}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {reviews.length > 1 && (
-                <span className="text-xs text-charcoal-400">avg of {reviews.length}</span>
-              )}
               <span className="rating-wing">
                 🍗 <StarRating value={avg_rating} size="sm" />
                 <span className="ml-0.5">{avg_rating.toFixed(1)}</span>
+              </span>
+              <span className="text-xs text-charcoal-500">
+                {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
               </span>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-900 transition-colors text-2xl leading-none flex-shrink-0"
+            className="w-11 h-11 -mr-1 -mt-1 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-900 transition-colors text-2xl leading-none flex-shrink-0"
             aria-label="Close"
           >
             ×
@@ -100,6 +105,18 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
             </div>
           )}
 
+          {/* Spot page — the full details, map and every review */}
+          {spot.slug && (
+            <div className="px-5 pt-3">
+              <Link
+                to={`/spots/${spot.slug}`}
+                className="btn-primary w-full text-xs"
+              >
+                Open spot page →
+              </Link>
+            </div>
+          )}
+
           {/* Reviews — collapsed behind a toggle */}
           {reviews.length > 0 && (
             <div className="px-5 pb-5">
@@ -107,7 +124,7 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
                 type="button"
                 onClick={() => setShowReviews(v => !v)}
                 aria-expanded={showReviews}
-                className="w-full mt-2 py-2.5 rounded-xl border-2 border-night-900 bg-cream-100 hover:bg-cream-200 transition-colors text-xs font-extrabold uppercase tracking-crowd text-night-900"
+                className="w-full mt-2 min-h-11 py-2.5 rounded-xl border-2 border-night-900 bg-cream-100 hover:bg-cream-200 transition-colors text-xs font-extrabold uppercase tracking-crowd text-night-900"
               >
                 {showReviews
                   ? '▴ Hide reviews'

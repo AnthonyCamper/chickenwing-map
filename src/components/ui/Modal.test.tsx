@@ -138,4 +138,17 @@ describe('Modal', () => {
     const scrollContainer = screen.getByTestId('inner').parentElement!
     expect(scrollContainer.className).toContain('overflow-y-auto')
   })
+
+  it('renders a footer outside the scrolling area so the primary action stays visible', () => {
+    render(
+      <Modal title="Test" onClose={vi.fn()} footer={<button>Publish</button>}>
+        <p>Long content</p>
+      </Modal>
+    )
+    const scroller = document.querySelector('.overflow-y-auto')!
+    expect(scroller).toHaveTextContent('Long content')
+    const publish = screen.getByRole('button', { name: 'Publish' })
+    expect(scroller.contains(publish)).toBe(false)
+    expect(screen.getByRole('dialog').contains(publish)).toBe(true)
+  })
 })

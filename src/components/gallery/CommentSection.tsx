@@ -6,6 +6,7 @@ import HeartIcon from './HeartIcon'
 import ReactionPicker from './ReactionPicker'
 import GifPicker from './GifPicker'
 import LikedByOverlay from './LikedByOverlay'
+import AvatarImage from '../ui/AvatarImage'
 import { fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 
 type UserFetcher = (id: string) => Promise<ReactionUser[]>
@@ -401,17 +402,18 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
     <div className={`flex gap-2.5 animate-fade-in ${isTemp ? 'opacity-60' : ''}`}>
       {/* Avatar */}
       <div className={`flex-shrink-0 rounded-full overflow-hidden bg-night-700 border border-night-900/20 flex items-center justify-center ${isReply ? 'w-6 h-6' : 'w-8 h-8'}`}>
-        {comment.commenter_avatar ? (
-          <img src={comment.commenter_avatar} alt={name} className="w-full h-full object-cover" />
-        ) : (
-          <span className={`font-extrabold text-cream-50 uppercase ${isReply ? 'text-[10px]' : 'text-xs'}`}>{name.charAt(0).toUpperCase()}</span>
-        )}
+        <AvatarImage
+          src={comment.commenter_avatar}
+          alt={name}
+          className="w-full h-full object-cover"
+          fallback={<span className={`font-extrabold text-cream-50 uppercase ${isReply ? 'text-[10px]' : 'text-xs'}`}>{name.charAt(0).toUpperCase()}</span>}
+        />
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-night-800">{name}</span>
+          <span className="min-w-0 max-w-full truncate text-xs font-bold text-night-800">{name}</span>
           <span className="text-xs text-charcoal-400">{timeAgo}</span>
           {canDelete && !isTemp && (
             <div ref={menuRef} className="relative inline-flex">

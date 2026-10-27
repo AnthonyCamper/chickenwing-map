@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { friendlyAuthError, isSchemaDriftError } from './authErrors'
+import {
+  displayNameProblem,
+  friendlyAuthError,
+  isSchemaDriftError,
+  isValidEmail,
+  passwordProblem,
+  signUpProblem,
+} from './authErrors'
 
 describe('isSchemaDriftError', () => {
   it('flags the revoked-grant error that broke posting for everyone', () => {
@@ -52,5 +59,40 @@ describe('friendlyAuthError', () => {
 
   it('falls back to a generic message when there is no message', () => {
     expect(friendlyAuthError('')).toMatch(/went wrong/i)
+  })
+})
+
+describe('isValidEmail', () => {
+  it('requires a dot in the domain (F33: "name@example" was accepted)', () => {
+    expect(isValidEmail('nonnative-r1@example')).toBe(false)
+    expect(isValidEmail('a@b')).toBe(false)
+    expect(isValidEmail('a@.com')).toBe(false)
+    expect(isValidEmail('a@example.')).toBe(false)
+  })
+
+  it('accepts normal addresses, including subdomains and surrounding spaces', () => {
+    expect(isValidEmail('name@gmail.com')).toBe(true)
+    expect(isValidEmail('first.last+tag@mail.example.co.uk')).toBe(true)
+    expect(isValidEmail('  name@gmail.com ')).toBe(true)
+  })
+})
+
+describe('sign-up form checks', () => {
+  it('explains a short password and how many characters are missing', () => {
+    expect(passwordProblem('1234567')).toMatch(/at least 8 characters \(1 more\)/)
+    expect(passwordProblem('12345678')).toBeNull()
+  })
+
+  it('rejects a spaces-only display name', () => {
+    expect(displayNameProblem('     ')).toMatch(/only spaces/)
+    expect(displayNameProblem(' Tony ')).toBeNull()
+  })
+
+  it('reports the first blocking problem in field order, or null when ready', () => {
+    const ok = { displayName: 'Tony', email: 'tony@example.com', password: 'longenough' }
+    expect(signUpProblem(ok)).toBeNull()
+    expect(signUpProblem({ ...ok, displayName: '  ' })).toMatch(/display name/i)
+    expect(signUpProblem({ ...ok, email: 'tony@example' })).toMatch(/full email address/i)
+    expect(signUpProblem({ ...ok, password: 'short' })).toMatch(/8 characters/)
   })
 })

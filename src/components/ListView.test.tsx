@@ -24,6 +24,8 @@ import {
   filterShopsBySearch,
   haversineMiles,
   formatMiles,
+  spotCountLabel,
+  shortLabel,
 } from './ListView'
 
 function makeReview(overrides: Partial<Review> = {}): Review {
@@ -189,5 +191,24 @@ describe('haversineMiles / formatMiles', () => {
   it('formats short distances with one decimal and long ones as whole miles', () => {
     expect(formatMiles(0.84)).toBe('0.8 mi')
     expect(formatMiles(12.4)).toBe('12 mi')
+  })
+})
+
+describe('spotCountLabel', () => {
+  it('shows the plain total when nothing is filtered, with correct plurals', () => {
+    expect(spotCountLabel(1, 1)).toBe('1 spot')
+    expect(spotCountLabel(88, 88)).toBe('88 spots')
+  })
+  it('shows "N of total" while a search or filter hides some', () => {
+    expect(spotCountLabel(3, 88)).toBe('3 of 88 spots')
+  })
+})
+
+describe('shortLabel', () => {
+  it('keeps short names as-is and truncates long ones with an ellipsis', () => {
+    expect(shortLabel('Mo Bile')).toBe('Mo Bile')
+    const long = 'x'.repeat(200)
+    expect(shortLabel(long)).toHaveLength(32)
+    expect(shortLabel(long).endsWith('…')).toBe(true)
   })
 })

@@ -11,9 +11,9 @@ export default function NotFound() {
       <p className="eyebrow">404</p>
       <h1 className="font-display uppercase text-3xl text-night-900">Nothing on this bone</h1>
       <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
-        That page doesn't exist — or somebody already ate it.
+        We couldn't find that page. The link may be wrong, or the page was deleted.
       </p>
-      <Link to="/" className="btn-secondary">Back to the map</Link>
+      <Link to="/" className="btn-secondary">Go to the home page</Link>
     </PageStateShell>
   )
 }

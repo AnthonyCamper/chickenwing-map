@@ -157,7 +157,7 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
 
               <ToggleRow
                 label="All notifications"
-                description="Master switch for all notifications"
+                description="Turn every notification on or off"
                 checked={prefs?.enabled ?? true}
                 onChange={(v) => handleTogglePref('enabled', v)}
               />
@@ -225,7 +225,7 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
 
               <ToggleRow
                 label="Quiet mode"
-                description="Record notifications in-app but suppress push alerts"
+                description="Keep notifications in the app, but don't send push alerts"
                 checked={prefs?.quiet_mode ?? false}
                 onChange={(v) => handleTogglePref('quiet_mode', v)}
               />
