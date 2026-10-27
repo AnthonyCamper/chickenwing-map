@@ -17,6 +17,7 @@ import { formatVisitDate } from '../lib/dates'
 import type { Review, ReviewUpdateData } from '../lib/types'
 
 const UNDO_WINDOW_MS = 5000
+const REPORT_EMAIL = 'anthonycap949@gmail.com'
 
 interface Props {
   review: Review
@@ -287,6 +288,15 @@ export default function ReviewCard({
               )}
             </div>
           )}
+          {/* Moderation is by email to the admin (see Terms) */}
+          {!canEdit && (
+            <a
+              href={`mailto:${REPORT_EMAIL}?subject=${encodeURIComponent('Report a review')}&body=${encodeURIComponent(`Review: ${window.location.origin}/reviews/${review.id}\n\nWhat's wrong with it:\n`)}`}
+              className="ml-auto min-h-[44px] px-2 inline-flex items-center text-xs font-bold text-charcoal-400 hover:text-sauce-600 transition-colors"
+            >
+              Report
+            </a>
+          )}
         </div>
 
         {/* Reactions */}
@@ -333,9 +343,8 @@ export default function ReviewCard({
         <Modal title="Delete this review?" onClose={() => setConfirmDelete(false)} size="sm">
           <div className="px-6 py-5 space-y-4">
             <p className="text-sm text-charcoal-700 leading-relaxed">
-              You're about to delete your review
-              {review.wing_flavor ? <> of <span className="font-bold">{review.wing_flavor}</span></> : null}
-              {' '}from <span className="font-bold">{visitedDate}</span>. Photos and comments will be removed.
+              You're about to delete your review from <span className="font-bold">{visitedDate}</span>.
+              {' '}Its photos and comments will be removed too.
             </p>
             <p className="text-xs text-charcoal-500">
               You'll have {Math.round(UNDO_WINDOW_MS / 1000)} seconds to undo.

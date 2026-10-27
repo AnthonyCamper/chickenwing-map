@@ -190,19 +190,21 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
     setView('map')
   }
 
+  const openAddReview = () => {
+    if (!auth.canLeaveReviews) {
+      toast.error("Your account can't add reviews yet. An admin needs to turn this on.")
+      return
+    }
+    setShowAddModal(true)
+  }
+
   return (
     <UserProfileProvider currentUserId={auth.user?.id ?? ''}>
     <Layout
       auth={auth}
       view={view}
       onViewChange={setView}
-      onAddReview={() => {
-          if (!auth.canLeaveReviews) {
-            toast.error("the admin hasn't enabled reviews for your account yet.")
-            return
-          }
-          setShowAddModal(true)
-        }}
+      onAddReview={openAddReview}
       readOnly={readOnly}
       liveScene={<LiveScene spots={reviews.spots} loading={reviews.loading} />}
     >
@@ -241,6 +243,7 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
           currentUserId={auth.user?.id ?? ''}
           isAdmin={auth.isAdmin}
           onViewOnMap={handleViewOnMap}
+          onAddReview={readOnly ? undefined : openAddReview}
         />
       )}
 

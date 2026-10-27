@@ -282,7 +282,7 @@ export default function Register({ onSignUp, isPublic = true }: Props) {
               ) : null}
               {loading ? 'Creating account…' : 'Create account'}
             </button>
-            {formProblem && formProblem !== error && (
+            {formProblem && formProblem !== error && formProblem !== pwProblem && (
               <p id="register-blocker" className="-mt-2 text-center text-[11px] text-charcoal-500">
                 {formProblem}
               </p>

@@ -196,6 +196,10 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     || (!prefill && (!!shopName.trim() || !!address.trim()))
 
   const submittedRef = useRef(false)
+  // A parent may close the modal as soon as its save succeeds but before
+  // onSubmit resolves (SpotPage reloads the page data first), so an in-flight
+  // publish must not count as "closed without publishing".
+  const publishingRef = useRef(false)
   const discardedRef = useRef(false)
   const dirtyRef = useRef(isDirty)
   dirtyRef.current = isDirty
@@ -239,11 +243,11 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       draftSavedToastTimer = null
     }
     return () => {
-      if (!dirtyRef.current || submittedRef.current || discardedRef.current) return
+      if (!dirtyRef.current || submittedRef.current || discardedRef.current || publishingRef.current) return
       draftSavedToastTimer = setTimeout(() => {
         draftSavedToastTimer = null
         // Re-check: a publish that closes the modal may finish just after unmount.
-        if (submittedRef.current || discardedRef.current) return
+        if (submittedRef.current || discardedRef.current || publishingRef.current) return
         toast('Your review is saved as a draft. Open the review form again to finish it.', { duration: 5000 })
       }, 0)
     }
@@ -376,6 +380,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       return
     }
     setSubmitting(true)
+    publishingRef.current = true
     const result = await onSubmit({
       shop_name: shopName.trim(),
       address: address.trim(),
@@ -393,6 +398,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       event_stop_id: eventContext?.event_stop_id,
     })
     setSubmitting(false)
+    publishingRef.current = false
     if (result.error) {
       toast.error(friendlySubmitError(result.error))
       return
@@ -485,7 +491,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
               placeholder="Type a name, e.g. Wingstop"
             />
             <p className="text-xs text-charcoal-500 mt-1">
-              Start typing to search. Spots already on WingMap show first.
+              Start typing to search. Spots already on WingKingTony show first.
             </p>
             {fieldErrors.shopName && (
               <p className="text-xs text-red-600 mt-1" role="alert">{fieldErrors.shopName}</p>
@@ -495,7 +501,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           {locationCollapsed ? (
             <div className="bg-cream-100 rounded-2xl px-4 py-3 space-y-0.5 border border-night-900/10 min-w-0">
               <p className="text-xs font-bold text-sauce-600 flex items-center gap-1">
-                <span aria-hidden>✓</span> Location set{onWingMap && ' · Already on WingMap'}
+                <span aria-hidden>✓</span> Location set{onWingMap && ' · Already on WingKingTony'}
               </p>
               <p className="text-sm font-bold text-night-800 break-words">{address}</p>
               {onWingMap && (

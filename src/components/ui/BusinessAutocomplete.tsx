@@ -416,7 +416,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
                   <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
                   <p className="text-xs text-charcoal-500 truncate mt-0.5">
                     {s.source === 'wingmap' && (
-                      <span className="font-bold text-sauce-600">On WingMap · </span>
+                      <span className="font-bold text-sauce-600">Already on WingKingTony · </span>
                     )}
                     {s.address || 'No address listed'}
                   </p>

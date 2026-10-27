@@ -55,13 +55,20 @@ export function isValidEmail(email: string): boolean {
 export const EMAIL_FORMAT_MESSAGE = 'Enter a full email address, for example name@gmail.com.'
 
 export function passwordProblem(password: string): string | null {
+  if (password && !password.trim()) return 'Your password can’t be only spaces.'
   if (password.length >= MIN_PASSWORD_LENGTH) return null
   const left = MIN_PASSWORD_LENGTH - password.length
   return `Password needs at least ${MIN_PASSWORD_LENGTH} characters (${left} more).`
 }
 
+// Invisible bidi controls (e.g. U+202E) flip how a name renders and can be
+// used to spoof another member's name.
+const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/
+
 export function displayNameProblem(name: string): string | null {
-  return name.trim() ? null : 'Enter a display name. It can’t be only spaces.'
+  if (!name.trim()) return 'Enter a display name. It can’t be only spaces.'
+  if (BIDI_CONTROLS.test(name)) return 'Your name has hidden text-direction characters. Please type it again.'
+  return null
 }
 
 /** First thing stopping the sign-up form from being sent, in field order, or
@@ -69,6 +76,8 @@ export function displayNameProblem(name: string): string | null {
  *  mystery why it won't submit. */
 export function signUpProblem(f: { displayName: string; email: string; password: string }): string | null {
   if (!f.displayName.trim()) return 'Enter a display name.'
+  const nameProblem = displayNameProblem(f.displayName)
+  if (nameProblem) return nameProblem
   if (!f.email.trim()) return 'Enter your email address.'
   if (!isValidEmail(f.email)) return EMAIL_FORMAT_MESSAGE
   if (!f.password) return 'Choose a password.'

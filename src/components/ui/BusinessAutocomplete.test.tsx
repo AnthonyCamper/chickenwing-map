@@ -93,7 +93,7 @@ describe('BusinessAutocomplete', () => {
     const options = screen.getAllByRole('option')
     expect(options).toHaveLength(2)
     expect(options[0]).toHaveTextContent('Ale Marys')
-    expect(options[0]).toHaveTextContent('On WingMap · 1939 Fleet St')
+    expect(options[0]).toHaveTextContent('Already on WingKingTony · 1939 Fleet St')
     expect(screen.queryByText('Alemar')).not.toBeInTheDocument()
     expect(db.ilike).toContain('%Ale%Marys%')
 

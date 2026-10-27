@@ -14,7 +14,7 @@ export default function Terms() {
         <Bullets items={[
           'Creating an account is free. You must be 13 or older.',
           'Use your real email address and keep your password to yourself. You are responsible for what is posted from your account.',
-          'You can delete your account at any time from your profile (Profile → Delete account).',
+          'You can delete your account at any time from your profile (your picture in the top corner → Edit profile → Delete account).',
         ]} />
       </Section>
 

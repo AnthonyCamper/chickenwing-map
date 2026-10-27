@@ -67,6 +67,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
           className="input pr-10"
           placeholder="Search flavors or type your own…"
           aria-label="Search flavors"
+          maxLength={60}
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => {
@@ -117,7 +118,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
           <button
             type="button"
             onClick={() => select(search.trim())}
-            className="px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold border-2 border-dashed border-sauce-400 text-sauce-600 hover:bg-sauce-50 transition-colors"
+            className="max-w-full px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold border-2 border-dashed border-sauce-400 text-sauce-600 hover:bg-sauce-50 transition-colors break-words [overflow-wrap:anywhere] text-left"
           >Use "{search.trim()}"</button>
         )}
         {displayFlavors.map(flavor => (

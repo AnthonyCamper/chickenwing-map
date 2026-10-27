@@ -7,6 +7,7 @@ import PhotoModal from './gallery/PhotoModal'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
+import { MIN_REVIEWS_FOR_RANKING } from './LiveScene'
 
 type SortKey = 'name' | 'rating'
 /** Local-only sort options — 'near' lives inside ListView (Home only knows name/rating). */
@@ -158,7 +159,13 @@ export default function ListView({
         haversineMiles(nearLoc, a.spot) - haversineMiles(nearLoc, b.spot))
     }
     return [...filtered].sort((a, b) => {
-      if (sortBy === 'rating') return b.avg_rating - a.avg_rating
+      if (sortBy === 'rating') {
+        // Same bar as the ticker's "King of the house": a spot needs a few
+        // reviews to be ranked, or one new 10/10 takes #1.
+        const ranked = (s: typeof a) => s.reviews.length >= MIN_REVIEWS_FOR_RANKING
+        if (ranked(a) !== ranked(b)) return ranked(a) ? -1 : 1
+        return b.avg_rating - a.avg_rating
+      }
       return a.spot.name.localeCompare(b.spot.name)
     })
   }, [shops, sortBy, filterReviewer, search, nearMe, nearLoc])
@@ -214,6 +221,7 @@ export default function ListView({
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
+              maxLength={100}
               placeholder="Search spots, addresses, flavors…"
               aria-label="Search spots by name, address, or flavor"
               className="input pr-11"
@@ -302,7 +310,7 @@ export default function ListView({
                 shopId={spot.id}
                 slug={spot.slug}
                 rank={idx + 1}
-                showRank={showRanks}
+                showRank={showRanks && reviews.length >= MIN_REVIEWS_FOR_RANKING}
                 name={spot.name}
                 address={spot.address}
                 reviews={reviews}

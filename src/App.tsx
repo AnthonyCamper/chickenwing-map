@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
 import Home from './pages/Home'
@@ -93,6 +93,14 @@ export default function App() {
   // CrawlEditor's login bounce and AuthGateModal). Survives the Google OAuth
   // full-page round-trip because it lives in sessionStorage; entries older
   // than 15 minutes are ignored (see lib/authReturn).
+  // Confirmation after deleting an account (set right before the full reload).
+  useEffect(() => {
+    if (auth.status === 'loading') return
+    let deleted = false
+    try { deleted = sessionStorage.getItem('account-deleted') === '1'; sessionStorage.removeItem('account-deleted') } catch { /* ignore */ }
+    if (deleted) toast.success('Your account and everything you posted were deleted.', { duration: 8000 })
+  }, [auth.status])
+
   useEffect(() => {
     if (auth.status !== 'authorized') return
     const dest = takeReturnTo()

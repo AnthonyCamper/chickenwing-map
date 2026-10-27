@@ -24,6 +24,9 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
   const fetchLikers = useCallback(() => fetchReviewLikers(review.review_id), [review.review_id])
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [showComments, setShowComments] = useState(false)
+  // Photos that fail to load (deleted file, corrupt upload) get a placeholder
+  // instead of a black box with a broken-image icon.
+  const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(() => new Set())
   const [commentCount, setCommentCount] = useState(review.comment_count)
 
   const primaryPhoto = review.photos[0]
@@ -102,13 +105,22 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
               clickable above the track because it FOLLOWS the track in DOM
               order — don't reorder these two elements. */}
           <div className="flex h-full w-full" style={review.photos.length > 1 ? trackStyle : undefined}>
-            {review.photos.map(p => (
+            {review.photos.map(p => brokenPhotos.has(p.photo_id) ? (
+              <div
+                key={p.photo_id}
+                className="w-full h-full flex-shrink-0 flex flex-col items-center justify-center gap-1 bg-cream-100 text-charcoal-500"
+              >
+                <span className="text-3xl" aria-hidden="true">🍗</span>
+                <span className="text-xs font-bold">Photo unavailable</span>
+              </div>
+            ) : (
               <img
                 key={p.photo_id}
                 src={p.photo_url}
                 alt={review.spot_name}
                 loading="lazy"
                 draggable={false}
+                onError={() => setBrokenPhotos(prev => new Set(prev).add(p.photo_id))}
                 className="w-full h-full flex-shrink-0 object-cover"
               />
             ))}

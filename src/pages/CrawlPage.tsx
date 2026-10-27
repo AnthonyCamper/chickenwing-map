@@ -19,6 +19,7 @@ import CrawlCommentThread from '../components/CrawlCommentThread'
 import { useAuthGate } from '../components/AuthGateModal'
 import { useDragCarousel } from '../components/gallery/useDragCarousel'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
+import { isUuid } from '../lib/reviewActions'
 
 interface SpotPhoto { id: string; url: string }
 
@@ -62,10 +63,11 @@ export default function CrawlPage() {
     if (!slug) return
     setStatus('loading')
 
+    // /lists/<uuid> links (e.g. built from a list id) resolve too, not just slugs.
     const { data: crawl, error: crawlErr } = await supabase
       .from('wing_crawls_detailed')
       .select('*')
-      .eq('slug', slug)
+      .eq(isUuid(slug) ? 'id' : 'slug', slug)
       .maybeSingle()
 
     if (crawlErr) { setStatus('error'); return }

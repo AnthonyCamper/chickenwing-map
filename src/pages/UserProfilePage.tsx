@@ -285,7 +285,7 @@ export default function UserProfilePage() {
               }
             />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest truncate">{displayName}</h1>
+              <h1 className="font-display uppercase text-3xl text-night-900 leading-[1.15] pt-0.5 tracking-tightest truncate">{displayName}</h1>
               <p className="text-xs text-charcoal-500 mt-1 truncate">@{profile.username}</p>
             </div>
             {!isOwner && (

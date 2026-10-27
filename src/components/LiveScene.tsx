@@ -101,7 +101,11 @@ export default function LiveScene({ spots, loading }: Props) {
                         bg-gradient-to-r from-night-900 to-transparent" aria-hidden="true" />
         <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 z-[5]
                         bg-gradient-to-l from-night-900 to-transparent" aria-hidden="true" />
+        {/* Decorative, endlessly repeated headlines: hidden from screen
+            readers (and its links from the tab order) so they don't have to
+            get through ~80 items before the page content */}
         <div
+          aria-hidden="true"
           className={ready ? 'marquee-track' : 'inline-flex items-center pl-4'}
           style={ready ? {
             animationDuration: `${duration}s`,
@@ -142,6 +146,7 @@ function Chip({ item }: { item: SceneItem }) {
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
+        tabIndex={-1}
         className="cursor-pointer"
         onClick={e => e.stopPropagation()}
       >

@@ -161,7 +161,7 @@ describe('ReviewFormModal — existing spots and publishing', () => {
   it('picking a WingMap spot reuses its exact name/address and opens the new review', async () => {
     const { onSubmit } = renderForm()
     await pickExistingSpot()
-    expect(screen.getByText(/Already on WingMap/)).toBeInTheDocument()
+    expect(screen.getByText(/Already on WingKingTony/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Next →' }))
 
     const publish = screen.getByRole('button', { name: 'Publish review' })
@@ -254,6 +254,21 @@ describe('ReviewFormModal — drafts', () => {
     expect(screen.getByLabelText('Wing spot name')).toHaveValue('')
     expect(screen.queryByText(/Draft restored/)).not.toBeInTheDocument()
     expect(sessionStorage.length).toBe(0)
+  })
+
+  it('no "saved as a draft" toast when the parent closes the modal mid-publish (SpotPage)', async () => {
+    // SpotPage unmounts the modal as soon as the save succeeds, before its
+    // onSubmit resolves (it refetches the page first).
+    let finish: (v: { error: null; reviewId: string }) => void = () => {}
+    const onSubmit = vi.fn<SubmitFn>(() => new Promise(res => { finish = res }))
+    const r = renderForm({ onSubmit, prefill: { shop_name: 'Ale Marys', address: '1939 Fleet St', lat: 39.28, lng: -76.59 } })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    r.unmount()
+    await act(async () => { await new Promise(res => setTimeout(res, 10)) })
+    await act(async () => { finish({ error: null, reviewId: 'rev-9' }) })
+    expect(toastMock).not.toHaveBeenCalledWith(expect.stringMatching(/saved as a draft/), expect.anything())
   })
 
   it('restores step 2 input for a spot review', () => {

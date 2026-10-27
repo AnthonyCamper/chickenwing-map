@@ -194,6 +194,14 @@ export default function ReviewPage() {
           />
         </div>
 
+        {/* Landing here straight after publishing shouldn't be a dead end */}
+        <nav aria-label="Next steps" className="mt-4 flex flex-wrap gap-2">
+          <Link to="/" className="btn-secondary min-h-[44px]">← Back to the feed</Link>
+          {spot?.slug && (
+            <Link to={`/spots/${spot.slug}`} className="btn-ghost min-h-[44px]">See all reviews of {spot.name}</Link>
+          )}
+        </nav>
+
         {review.photos && review.photos.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
             {review.photos.map((p, i) => (

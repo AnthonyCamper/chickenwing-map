@@ -345,7 +345,9 @@ export default function SpotPage() {
             const result = await createReviewAction(formData, currentUserId)
             if (!result.error) {
               setShowLogModal(false)
-              await load()
+              // Don't hold the form's publish on a page refetch; it navigates
+              // to the new review anyway.
+              void load()
             }
             return result
           }}

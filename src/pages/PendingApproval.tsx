@@ -64,7 +64,7 @@ export default function PendingApproval({ auth }: Props) {
             Check status
           </button>
           <a
-            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent('WingMap access request')}&body=${encodeURIComponent(`Hi — I requested access as ${email}. Just checking in.`)}`}
+            href={`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent('WingKingTony access request')}&body=${encodeURIComponent(`Hi — I requested access as ${email}. Just checking in.`)}`}
             className="inline-flex items-center min-h-[44px] px-2 text-xs text-sauce-500 font-bold uppercase tracking-crowd hover:underline"
           >
             Email the admin

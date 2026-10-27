@@ -557,7 +557,8 @@ function DeleteAccountPanel({ userId, isAdmin, onCancel }: { userId: string; isA
       setError(error)
       return
     }
-    toast.success('Your account was deleted')
+    // The toast wouldn't survive the reload, so App shows it after it loads.
+    try { sessionStorage.setItem('account-deleted', '1') } catch { /* ignore */ }
     // Full reload: drops every cached feed, profile and modal history entry
     // that still refers to the deleted user.
     window.location.replace('/')

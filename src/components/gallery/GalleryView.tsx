@@ -14,12 +14,14 @@ interface Props {
   currentUserId: string
   isAdmin: boolean
   onViewOnMap?: (spotId: string) => void
+  /** Opens the add-review form; omitted for signed-out visitors. */
+  onAddReview?: () => void
 }
 
 const FEEDS: Feed[] = ['following', 'discover', 'crawls', 'people']
 function isFeed(x: string | null): x is Feed { return !!x && (FEEDS as string[]).includes(x) }
 
-export default function GalleryView({ currentUserId, isAdmin }: Props) {
+export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Props) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -248,9 +250,14 @@ export default function GalleryView({ currentUserId, isAdmin }: Props) {
                 Reviews from people you follow show here. Your own reviews are on your profile page.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
+                {onAddReview && (
+                  <button onClick={onAddReview} className="btn-primary px-5">
+                    + Rate wings
+                  </button>
+                )}
                 <button
                   onClick={() => setFeed('discover')}
-                  className="btn-primary px-5"
+                  className={onAddReview ? 'btn-secondary px-5' : 'btn-primary px-5'}
                 >
                   Go to Discover
                 </button>

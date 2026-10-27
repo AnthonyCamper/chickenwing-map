@@ -125,9 +125,13 @@ export default function Privacy() {
             Your browser loads these directly, so OpenStreetMap sees your IP address and what you
             search for.</>,
           <><strong>Google Fonts</strong>: the fonts on the site. Your browser loads them from Google.</>,
+          <><strong>unpkg.com</strong>: the map’s stylesheet (Leaflet) is loaded from this public code
+            host, so it sees your IP address.</>,
           <><strong>Klipy</strong>: the GIF search in comments. When you open it, your search words
             are sent to Klipy.</>,
-          <><strong>Google</strong>: only if you use “Continue with Google”.</>,
+          <><strong>Google</strong>: if you use “Continue with Google”. Also, members who signed in
+            with Google may have a profile photo stored by Google, so your browser loads those photos
+            from Google’s servers when you see them.</>,
           <><strong>Your browser’s push service</strong> (for example Google, Apple or Mozilla):
             only if you turn on push notifications.</>,
         ]} />
@@ -143,8 +147,8 @@ export default function Privacy() {
       <Section heading="Keeping and deleting your data">
         <p>
           We keep your data while you have an account. You can edit or delete any review or comment
-          at any time. To delete everything, open your profile (your picture in the top corner →
-          Profile) and choose <strong>Delete account</strong>. This permanently removes your account,
+          at any time. To delete everything, tap your picture in the top corner → <strong>Edit
+          profile</strong> and choose <strong>Delete account</strong>. This permanently removes your account,
           profile, reviews, photos, comments, likes, reactions, follows, lists, RSVPs, check-ins,
           badges and notifications. Spots you added stay on the map without your name.
         </p>
