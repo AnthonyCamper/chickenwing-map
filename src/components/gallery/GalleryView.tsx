@@ -176,7 +176,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
               <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
             </div>
           ) : crawlsError ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+            <div className="flex flex-col items-center justify-center pt-10 pb-28 sm:py-24 text-center px-6">
               <div className="text-5xl mb-4">🧯</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">Couldn't load lists</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">{crawlsError}</p>
@@ -185,7 +185,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
               </button>
             </div>
           ) : crawls.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+            <div className="flex flex-col items-center justify-center pt-10 pb-28 sm:py-24 text-center px-6">
               <div className="text-5xl mb-4">📋</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">No lists yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
@@ -241,7 +241,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
           </button>
         </div>
       ) : gallery.reviews.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+        <div className="flex flex-col items-center justify-center pt-10 pb-28 sm:py-24 text-center px-6">
           {feed === 'following' ? (
             <>
               <div className="text-5xl mb-4">🍗</div>

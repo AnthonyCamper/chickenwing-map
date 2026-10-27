@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
@@ -305,6 +305,13 @@ export default function ListView({
         ) : (
           <div className="space-y-4">
             {shopsWithReviews.map(({ spot, reviews, avg_rating, photos }, idx) => (
+              <Fragment key={spot.id}>
+              {showRanks && reviews.length < MIN_REVIEWS_FOR_RANKING
+                && (idx === 0 || shopsWithReviews[idx - 1].reviews.length >= MIN_REVIEWS_FOR_RANKING) && (
+                <p className="pt-4 text-xs font-bold text-charcoal-500">
+                  Not ranked yet: spots need at least {MIN_REVIEWS_FOR_RANKING} reviews to get a rank.
+                </p>
+              )}
               <ShopCard
                 key={spot.id}
                 shopId={spot.id}
@@ -319,6 +326,7 @@ export default function ListView({
                 distanceMi={nearMe && nearLoc ? haversineMiles(nearLoc, spot) : null}
                 onViewOnMap={onViewOnMap}
               />
+              </Fragment>
             ))}
           </div>
         )}

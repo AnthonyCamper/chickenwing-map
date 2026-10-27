@@ -445,3 +445,8 @@
   /* Park the marquee mid-track instead of leaving it translated off-screen */
   .marquee-track { animation: none !important; transform: none !important; }
 }
+
+/* Set by main.tsx when an <img> fails to load */
+img.img-broken {
+  visibility: hidden;
+}
