@@ -10,6 +10,11 @@ interface Props {
   isAdmin: boolean
   onCommentCountChange?: (count: number) => void
   autoFocus?: boolean
+  /** Scroll to + highlight this comment once loaded (notification deep link). */
+  focusCommentId?: string | null
+  /** Top-level comment of the thread when focusCommentId is a reply. */
+  focusParentId?: string | null
+  focusKey?: string
 }
 
 export default function ReviewCommentThread({
@@ -18,6 +23,9 @@ export default function ReviewCommentThread({
   isAdmin,
   onCommentCountChange,
   autoFocus = false,
+  focusCommentId = null,
+  focusParentId = null,
+  focusKey,
 }: Props) {
   const { requireAuth } = useAuthGate()
   const {
@@ -28,6 +36,7 @@ export default function ReviewCommentThread({
     toggleCommentLike,
     toggleReaction,
     fetchReplies,
+    refresh,
   } = useReviewComments(reviewId, currentUserId)
 
   // Keep parent informed of total comment count (top-level + replies)
@@ -53,6 +62,10 @@ export default function ReviewCommentThread({
       likersFetcher={fetchReviewCommentLikers}
       reactorsFetcher={fetchReviewCommentReactors}
       autoFocus={autoFocus}
+      focusCommentId={focusCommentId}
+      focusParentId={focusParentId}
+      focusKey={focusKey}
+      onRefresh={refresh}
     />
   )
 }

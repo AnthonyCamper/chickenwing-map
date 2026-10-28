@@ -87,7 +87,7 @@ function PillLink({ href, active, label }: { href: string; active: boolean; labe
   return (
     <Link
       to={href}
-      className={`min-w-[64px] min-h-[40px] flex items-center justify-center px-4 text-xs font-extrabold uppercase tracking-crowd rounded-lg transition-colors ${cls}`}
+      className={`min-w-[64px] min-h-11 flex items-center justify-center px-4 text-xs font-extrabold uppercase tracking-crowd rounded-lg transition-colors ${cls}`}
       aria-current={active ? 'page' : undefined}
     >
       {label}

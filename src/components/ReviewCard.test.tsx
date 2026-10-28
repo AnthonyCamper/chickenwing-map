@@ -219,3 +219,52 @@ describe('ReviewCard comment count', () => {
     expect(await screen.findByRole('button', { name: '2 comments' })).toBeInTheDocument()
   })
 })
+
+describe('ReviewCard private profile', () => {
+  // Rule (Privacy policy): a private profile hides the profile PAGE; the
+  // person's reviews stay public and show their name everywhere.
+  function renderPrivate(currentUserId: string) {
+    return render(
+      <MemoryRouter>
+        <ReviewCard
+          review={makeReview({ reviewer_is_private: true, reviewer_name: 'Sam Skeptic', reviewer_username: 'sam-skeptic' })}
+          currentUserId={currentUserId}
+          isAdmin={false}
+          commentCount={0}
+          onUpdate={vi.fn(async () => ({ error: null }))}
+          onDelete={vi.fn(async () => ({ error: null as string | null }))}
+        />
+      </MemoryRouter>
+    )
+  }
+
+  it('shows the real name, not "Private", but no link to the hidden profile', () => {
+    renderPrivate('someone-else')
+    expect(screen.getByText('Sam Skeptic')).toBeInTheDocument()
+    expect(screen.queryByText('Private')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Sam Skeptic/ })).not.toBeInTheDocument()
+  })
+
+  it('the author still sees their own name and can open their own profile', () => {
+    renderPrivate('u1')
+    expect(screen.getByRole('link', { name: /Sam Skeptic/ })).toHaveAttribute('href', '/u/sam-skeptic')
+  })
+
+  it('renders photos passed as media inside the card, after the review text', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ReviewCard
+          review={makeReview()}
+          currentUserId="u1"
+          isAdmin={false}
+          commentCount={0}
+          media={<img src="x.jpg" alt="Photo of wings at Duff's" />}
+          onUpdate={vi.fn(async () => ({ error: null }))}
+          onDelete={vi.fn(async () => ({ error: null as string | null }))}
+        />
+      </MemoryRouter>
+    )
+    const html = container.innerHTML
+    expect(html.indexOf('Photo of wings')).toBeGreaterThan(html.indexOf('Hot and crispy'))
+  })
+})

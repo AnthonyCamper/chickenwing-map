@@ -3,7 +3,7 @@ import { Bullets, ContactLink, LegalPage, Section } from './Privacy'
 
 export default function Terms() {
   return (
-    <LegalPage title="Terms of Use">
+    <LegalPage title="Terms of Use" related={{ to: '/privacy', label: 'Privacy Policy' }}>
       <p>
         These are the rules for using WingKingTony, a free website for rating chicken wing spots.
         By creating an account or posting, you agree to them. They are written in plain words on
@@ -20,7 +20,8 @@ export default function Terms() {
 
       <Section heading="What you post">
         <Bullets items={[
-          'Reviews, photos, comments and lists you post are public. Post only what you are happy for anyone to see.',
+          'Reviews, photos and comments you post are public. Post only what you are happy for anyone to see.',
+          'Wing lists are public by default: anyone can see them, and they show in the Lists tab. If you turn off “Public” on a list, only you can see it.',
           'Be honest. Review places you actually visited, and share your own opinion.',
           'Only post photos you took or have the right to share. Don’t post photos of other people without their permission.',
           'You keep ownership of what you post. You give WingKingTony permission to show it on the site (for example in the feed, on spot pages and in share previews) for as long as it is on the site.',

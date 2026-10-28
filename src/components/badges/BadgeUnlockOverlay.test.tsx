@@ -22,9 +22,9 @@ function makeBadge(overrides: Partial<BadgeWithEarned> = {}): BadgeWithEarned {
   }
 }
 
-function fireUnlock(badges: BadgeWithEarned[]) {
+function fireUnlock(badges: BadgeWithEarned[], extra: { reviewPublished?: boolean } = {}) {
   act(() => {
-    window.dispatchEvent(new CustomEvent(BADGES_UNLOCKED_EVENT, { detail: { badges } }))
+    window.dispatchEvent(new CustomEvent(BADGES_UNLOCKED_EVENT, { detail: { badges, ...extra } }))
   })
 }
 
@@ -99,5 +99,21 @@ describe('BadgeUnlockOverlay', () => {
     fireUnlock([makeBadge()])
     expect(screen.getByText('First Flight')).toBeInTheDocument()
     expect(screen.queryByText(/members have this|of members/)).not.toBeInTheDocument()
+  })
+
+  it('confirms the review is published when the unlocks came from publishing', () => {
+    render(<BadgeUnlockOverlay />)
+    fireUnlock([makeBadge(), makeBadge({ id: 'b2', name: 'Heat Seeker' })], { reviewPublished: true })
+    expect(screen.getByText(/Your review is published/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    // A later unlock from something else doesn't repeat it.
+    fireUnlock([makeBadge({ id: 'b3', name: 'Loud Mouth' })])
+    expect(screen.queryByText(/Your review is published/)).not.toBeInTheDocument()
+  })
+
+  it('says nothing about a review for other unlocks', () => {
+    render(<BadgeUnlockOverlay />)
+    fireUnlock([makeBadge()])
+    expect(screen.queryByText(/Your review is published/)).not.toBeInTheDocument()
   })
 })

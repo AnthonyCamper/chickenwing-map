@@ -66,3 +66,30 @@ export function takeReturnTo(now: number = Date.now()): string | null {
   clearReturnTo()
   return usable(v, now)
 }
+
+/**
+ * The stored path only belongs to the flow that set it: the auth wall
+ * navigates to /login or /register inside the app (or Google's round trip
+ * lands back on "/"). Arriving on an auth page by a fresh page load — a typed
+ * URL, a bookmark, a link from elsewhere — starts a new flow, so an entry left
+ * over from an earlier, abandoned one must not apply (r-m2 breaker: a later
+ * sign-up landed on "Start a new list"). A reload or Back/Forward keeps it.
+ */
+export function isFreshAuthPageLoad(path: string, navigationType: string | undefined): boolean {
+  return isAuthPath(path) && navigationType === 'navigate'
+}
+
+/** Run once at startup: forget the stored path on a fresh load of an auth page. */
+export function dropReturnToOnFreshAuthLoad(
+  path: string = window.location.pathname,
+  navigationType: string | undefined = currentNavigationType(),
+) {
+  if (isFreshAuthPageLoad(path, navigationType)) clearReturnTo()
+}
+
+function currentNavigationType(): string | undefined {
+  try {
+    const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
+    return nav?.type
+  } catch { return undefined }
+}

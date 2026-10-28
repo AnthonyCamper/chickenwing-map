@@ -15,6 +15,10 @@ interface Props {
   max?: number
   /** Disable input. */
   disabled?: boolean
+  /** id for the slider, so a form can focus it after a failed submit. */
+  id?: string
+  /** id of an error message describing the slider. */
+  'aria-describedby'?: string
 }
 
 const ACCENT_CLASSES: Record<NonNullable<Props['accent']>, {
@@ -54,6 +58,8 @@ export default function RatingPicker({
   min = 1,
   max = 10,
   disabled = false,
+  id,
+  'aria-describedby': describedBy,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -220,6 +226,7 @@ export default function RatingPicker({
       {/* Star track — drag/tap surface */}
       <div
         ref={trackRef}
+        id={id}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-valuemin={min}
@@ -228,6 +235,7 @@ export default function RatingPicker({
         aria-valuetext={value > 0 ? `${value.toFixed(1)} out of ${max}` : 'No rating'}
         aria-label={label ?? 'Rating'}
         aria-disabled={disabled}
+        aria-describedby={describedBy}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -235,7 +243,7 @@ export default function RatingPicker({
         onLostPointerCapture={endDrag}
         onKeyDown={onKeyDown}
         className={`relative flex items-center justify-between w-full
-                    py-2.5 px-1 rounded-xl
+                    min-h-[48px] py-3 px-1 rounded-xl
                     ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer touch-none'}
                     focus:outline-none ${colors.ring} focus-visible:ring-2`}
         style={{ touchAction: 'none' }}
@@ -277,7 +285,7 @@ export default function RatingPicker({
       <p className={`mt-1.5 text-xs ${
         accent === 'rose' ? 'text-espresso-400' : 'text-charcoal-500'
       }`}>
-        1 = bad, {max} = best. Tap a star to choose a whole number. Slide along the stars or use the buttons for decimals.
+        1 = bad, {max} = best. Choose a star for a whole number. Slide along the stars or use the buttons for decimals.
       </p>
     </div>
   )

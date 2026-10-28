@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
@@ -32,6 +32,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { WingCrawl, WingCrawlItem, WingSpot } from '../lib/types'
 import { rememberReturnTo } from '../lib/authReturn'
+import { cleanUserText } from '../lib/userText'
+import { dedupeSpots, findExistingSpot } from '../lib/spotMatch'
+import { useIsMobile } from '../hooks/useBottomSheetDrag'
 
 interface ItemWithSpot extends WingCrawlItem {
   spot: WingSpot | null
@@ -40,7 +43,11 @@ interface ItemWithSpot extends WingCrawlItem {
 export default function CrawlEditor() {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isNew = !id
+  // Set by "Create list": jump straight to adding spots (m2 S11).
+  const focusAddSpots = !!(location.state as { addSpots?: boolean } | null)?.addSpots
+  const addSpotInputRef = useRef<HTMLInputElement>(null)
 
   const auth = useAuthContext()
   const authChecked = !!auth && auth.status !== 'loading'
@@ -146,6 +153,24 @@ export default function CrawlEditor() {
 
   useEffect(() => { load() }, [load])
 
+  // Just created: the spot search is a couple of screens down (below the
+  // cover and the toggles), so take the user there and put the cursor in it.
+  const spotsReady = !loading && !!crawl
+  const focusedAddSpotsRef = useRef(false)
+  useEffect(() => {
+    if (!focusAddSpots || !spotsReady || focusedAddSpotsRef.current) return
+    focusedAddSpotsRef.current = true
+    requestAnimationFrame(() => {
+      const input = addSpotInputRef.current
+      if (input) {
+        input.focus({ preventScroll: true })
+        revealUnderHeader(input)
+      }
+      // Only once: drop the flag so a reload doesn't jump again.
+      navigate(location.pathname, { replace: true, state: null })
+    })
+  }, [focusAddSpots, spotsReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const metaDirty = !!crawl && (
     title !== crawl.title
     || description !== (crawl.description ?? '')
@@ -227,8 +252,8 @@ export default function CrawlEditor() {
         toast.error(result.error ?? 'Could not create'); return
       }
       try { sessionStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
-      toast.success('List created — now add your spots')
-      navigate(`/lists/${result.crawl.id}/edit`, { replace: true })
+      toast.success('List created. Now add your spots.')
+      navigate(`/lists/${result.crawl.id}/edit`, { replace: true, state: { addSpots: true } })
     } finally {
       setSavingMeta(false)
     }
@@ -386,7 +411,7 @@ export default function CrawlEditor() {
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
-        <title>{isNew ? 'New list' : `Edit: ${crawl?.title ?? 'List'}`} — WingKingTony</title>
+        <title>{isNew ? 'New list — WingKingTony' : `Edit: ${cleanUserText(crawl?.title) || 'List'} — WingKingTony`}</title>
       </Helmet>
 
       <AppHeader />
@@ -404,8 +429,10 @@ export default function CrawlEditor() {
         <div className="max-w-3xl mx-auto px-5 py-6 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="eyebrow mb-1">{isNew ? 'New list' : 'Editing'}</p>
-            <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-              {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
+            {/* user-text: a long unbroken title wraps instead of running off
+                the right edge (the View page already did this) */}
+            <h1 className="user-text font-display uppercase text-3xl text-night-900 leading-none tracking-tightest break-words">
+              {isNew ? 'Start a new list' : cleanUserText(crawl?.title) || 'List'}
             </h1>
           </div>
           {!isNew && saveState !== 'idle' && (
@@ -427,8 +454,9 @@ export default function CrawlEditor() {
           <h2 className="font-display text-lg text-charcoal-800">List details</h2>
 
           <div>
-            <label className="label">Title</label>
+            <label htmlFor="crawl-title" className="label">Title</label>
             <input
+              id="crawl-title"
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -439,16 +467,18 @@ export default function CrawlEditor() {
           </div>
 
           <div>
-            <label className="label">Description</label>
+            <label htmlFor="crawl-description" className="label">Description (optional)</label>
             <textarea
+              id="crawl-description"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Why this list? What's the through-line?"
+              placeholder="What do these spots have in common? Why did you pick them?"
               rows={3}
               maxLength={600}
+              aria-describedby="crawl-description-count"
               className="input resize-none"
             />
-            <p className="mt-1 text-[11px] text-charcoal-500">{description.length} / 600</p>
+            <p id="crawl-description-count" className="mt-1 text-[11px] text-charcoal-500">{description.length} / 600 characters</p>
           </div>
 
           {!isNew && crawl && (
@@ -460,7 +490,7 @@ export default function CrawlEditor() {
             />
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -470,7 +500,7 @@ export default function CrawlEditor() {
               />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-night-800">Ranked</p>
-                <p className="text-[11px] text-charcoal-400 leading-tight">Numbered top → bottom</p>
+                <p className="text-[11px] text-charcoal-500 leading-tight">Number the spots from best (1) down</p>
               </div>
             </label>
             <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
@@ -482,7 +512,11 @@ export default function CrawlEditor() {
               />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-night-800">Public</p>
-                <p className="text-[11px] text-charcoal-400 leading-tight">Shareable link</p>
+                {/* Matches what RLS does: a private list is visible only to
+                    its owner (404 for everyone else, hidden from Lists). */}
+                <p className="text-[11px] text-charcoal-500 leading-tight">
+                  Anyone can see this list, and it shows in the Lists tab. Turn off to keep it private: only you can see it.
+                </p>
               </div>
             </label>
           </div>
@@ -560,6 +594,7 @@ export default function CrawlEditor() {
             <AddSpotForm
               existingSpotIds={new Set(items.map(i => i.wing_spot_id))}
               onAdded={handleAddSpot}
+              searchInputRef={addSpotInputRef}
             />
           </div>
         )}
@@ -570,13 +605,48 @@ export default function CrawlEditor() {
 }
 
 
+// ─── Keep a focused field above the on-screen keyboard ───────────────────────
+
+// Bottom edge of the sticky/fixed bars at the top of the page (AppHeader,
+// the list owner toolbar), so a field can be scrolled to just below them.
+function stickyTopInset(): number {
+  let bottom = 0
+  document.querySelectorAll<HTMLElement>('header, .sticky, .fixed').forEach(el => {
+    const pos = getComputedStyle(el).position
+    if (pos !== 'sticky' && pos !== 'fixed') return
+    const r = el.getBoundingClientRect()
+    if (r.height > 0 && r.top <= 1 + bottom && r.bottom < window.innerHeight / 2) bottom = Math.max(bottom, r.bottom)
+  })
+  return bottom
+}
+
+// Room kept above the field for its label.
+const REVEAL_GAP = 12
+
+/** Scroll the page so `el` sits just under the sticky header. */
+function revealUnderHeader(el: HTMLElement) {
+  const offset = el.getBoundingClientRect().top - stickyTopInset() - REVEAL_GAP
+  if (Math.abs(offset) > 2) window.scrollBy({ top: offset, behavior: 'auto' })
+}
+
+// Bottom of what's visible: above the on-screen keyboard where the browser
+// reports it (visualViewport shrinks), else the window.
+function visibleBottom(): number {
+  const vv = window.visualViewport
+  return vv ? vv.offsetTop + vv.height : window.innerHeight
+}
+
+const RESULTS_MAX_PX = 288
+const RESULTS_MIN_PX = 140
+
 // ─── Add spot form (existing or new) ─────────────────────────────────────────
 
 function AddSpotForm({
-  existingSpotIds, onAdded,
+  existingSpotIds, onAdded, searchInputRef,
 }: {
   existingSpotIds: Set<string>
   onAdded: (spotId: string) => void
+  searchInputRef?: React.RefObject<HTMLInputElement>
 }) {
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
 
@@ -584,6 +654,34 @@ function AddSpotForm({
   const [search, setSearch] = useState('')
   const [existingResults, setExistingResults] = useState<WingSpot[]>([])
   const [searching, setSearching] = useState(false)
+
+  // Phones: on focus, scroll "Search by name…" up under the sticky header
+  // and cap the results to the space left above the keyboard, so neither
+  // opens underneath it (m2 S02). A spacer below keeps the page tall enough
+  // to scroll that far while the search is in use.
+  const isMobile = useIsMobile()
+  const ownInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = searchInputRef ?? ownInputRef
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [resultsMax, setResultsMax] = useState<number | null>(null)
+  const revealSearch = useCallback(() => {
+    const input = inputRef.current
+    if (!isMobile || !input || document.activeElement !== input) return
+    revealUnderHeader(input)
+    const top = input.getBoundingClientRect().bottom + 8
+    setResultsMax(Math.max(RESULTS_MIN_PX, Math.min(RESULTS_MAX_PX, Math.floor(visibleBottom() - top - 8))))
+  }, [isMobile, inputRef])
+  const searchActive = isMobile && (searchFocused || search.trim().length >= 2)
+  useEffect(() => {
+    if (!searchFocused) return
+    // Again once the spacer has rendered and the keyboard is up (it shrinks
+    // the visual viewport).
+    const raf = requestAnimationFrame(revealSearch)
+    const t = setTimeout(revealSearch, 350)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', revealSearch)
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); vv?.removeEventListener('resize', revealSearch) }
+  }, [searchFocused, revealSearch])
 
   // New-mode state
   const [newName, setNewName] = useState('')
@@ -604,7 +702,8 @@ function AddSpotForm({
         .order('name')
         .limit(20)
       if (cancelled) return
-      setExistingResults((data ?? []) as WingSpot[])
+      // The same place stored twice shows once (the original).
+      setExistingResults(dedupeSpots((data ?? []) as WingSpot[]))
       setSearching(false)
     }, 200)
     return () => { cancelled = true; clearTimeout(t) }
@@ -625,6 +724,15 @@ function AddSpotForm({
     setCreating(true)
     const name = newName.trim()
     const address = newAddr.trim()
+    // Already on the site under a slightly different spelling (case, extra
+    // spaces)? Use that spot instead of creating a twin.
+    const found = await findExistingSpot(name, address, { lat, lng })
+    if (found.spot) {
+      setCreating(false)
+      setNewName(''); setNewAddr(''); setNewLat(''); setNewLng('')
+      onAdded(found.spot.id)
+      return
+    }
     const { data: spot, error } = await supabase
       .from('wing_spots')
       .insert({ name, address, lat, lng })
@@ -635,13 +743,7 @@ function AddSpotForm({
       if (error.code === '23505') {
         // Spot already exists — reuse it. Never overwrite an existing spot's
         // coordinates from this form (that corrupts shared data).
-        const { data: existing } = await supabase
-          .from('wing_spots')
-          .select('id')
-          .eq('name', name)
-          .eq('address', address)
-          .maybeSingle()
-        spotId = (existing as { id: string } | null)?.id
+        spotId = (await findExistingSpot(name, address, { lat, lng })).spot?.id
       }
       if (!spotId) {
         setCreating(false)
@@ -679,14 +781,22 @@ function AddSpotForm({
       {mode === 'existing' ? (
         <>
           <input
+            ref={inputRef}
             type="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => { setSearchFocused(true); revealSearch() }}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Search by name…"
+              data-reveal-handled
+            aria-label="Search spots on WingKingTony by name"
             className="input"
           />
           {search.trim().length >= 2 && (
-            <div className="max-h-72 overflow-y-auto rounded-xl border-2 border-night-900/10 bg-cream-50 divide-y divide-night-900/10">
+            <div
+              className="max-h-72 overflow-y-auto overscroll-contain rounded-xl border-2 border-night-900/10 bg-cream-50 divide-y divide-night-900/10"
+              style={isMobile && resultsMax ? { maxHeight: resultsMax } : undefined}
+            >
               {searching ? (
                 <p className="text-xs text-charcoal-400 p-3">Searching…</p>
               ) : existingResults.length === 0 ? (
@@ -700,7 +810,7 @@ function AddSpotForm({
                     key={s.id}
                     disabled={already}
                     onClick={() => { onAdded(s.id); setSearch(''); setExistingResults([]) }}
-                    className="w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:bg-cream-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+                    className="w-full text-left px-3 py-2 min-h-[48px] flex items-center justify-between gap-2 hover:bg-cream-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-night-900 truncate">{s.name}</p>
@@ -722,7 +832,15 @@ function AddSpotForm({
             <BusinessAutocomplete
               value={newName}
               onChange={setNewName}
-              onSelect={(s) => { setNewName(s.name); setNewAddr(s.address); setNewLat(s.lat); setNewLng(s.lng) }}
+              onSelect={(s) => {
+                // Already on the site: add that spot itself, never a copy.
+                if (s.source === 'wingmap' && s.spotId) {
+                  setNewName('')
+                  onAdded(s.spotId)
+                  return
+                }
+                setNewName(s.name); setNewAddr(s.address); setNewLat(s.lat); setNewLng(s.lng)
+              }}
               placeholder="Start typing — autocomplete pulls address + coords"
             />
           </div>
@@ -744,6 +862,11 @@ function AddSpotForm({
             {creating ? 'Adding…' : 'Add spot to list'}
           </button>
         </div>
+      )}
+      {mode === 'existing' && searchActive && (
+        // Room to scroll the search up under the header; it sits under
+        // the keyboard while typing.
+        <div aria-hidden="true" style={{ height: '60dvh' }} />
       )}
     </div>
   )
@@ -782,16 +905,19 @@ function ItemEditor({
       style={style}
       className="rounded-2xl bg-cream-50 border-2 border-night-900/10 overflow-hidden"
     >
-      <div className="flex items-center gap-2 p-3">
+      {/* Phones: the name gets the row (up to two lines) and the move
+          buttons sit with the note below; 4 buttons in one row left ~45px
+          for the name ("Duff…"), m2 S22. Every button is 44×44. */}
+      <div className="flex items-center gap-1.5 p-2">
         {/* Drag handle */}
         <button
           type="button"
           {...attributes}
           {...listeners}
-          aria-label="Drag to reorder"
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-charcoal-400 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+          aria-label={`Drag to reorder ${spot?.name.trim() || 'spot'}`}
+          className="w-11 h-11 rounded-lg flex items-center justify-center text-charcoal-400 hover:text-charcoal-600 hover:bg-warmgray-200 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
         >
-          <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+          <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor" aria-hidden="true">
             <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
             <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
             <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
@@ -804,41 +930,23 @@ function ItemEditor({
           </div>
         )}
 
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm text-charcoal-700 truncate">{spot?.name ?? 'Unknown spot'}</p>
-          {spot?.address && <p className="text-xs text-charcoal-400 truncate">{spot.address}</p>}
+        <div className="min-w-0 flex-1 py-1">
+          <p className="font-semibold text-sm text-charcoal-700 leading-snug line-clamp-2 break-words">{spot?.name ?? 'Unknown spot'}</p>
+          {spot?.address && <p className="text-xs text-charcoal-400 leading-snug line-clamp-2 break-words">{spot.address}</p>}
         </div>
 
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button
-            onClick={onMoveUp}
-            disabled={!canMoveUp}
-            className="w-10 h-10 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
-            aria-label="Move up"
-          >
-            ↑
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={!canMoveDown}
-            className="w-10 h-10 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
-            aria-label="Move down"
-          >
-            ↓
-          </button>
-          <button
-            onClick={onRemove}
-            className="w-10 h-10 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center text-lg"
-            aria-label="Remove"
-          >
-            ×
-          </button>
-        </div>
+        <button
+          onClick={onRemove}
+          className="w-11 h-11 rounded-lg hover:bg-red-100 text-red-500 flex items-center justify-center text-lg flex-shrink-0"
+          aria-label={`Remove ${spot?.name.trim() || 'spot'} from the list`}
+        >
+          ×
+        </button>
       </div>
 
-      <div className="border-t border-warmgray-200 px-3 pb-3 pt-2">
+      <div className="border-t border-warmgray-200 px-3 pb-2 pt-2">
         {editingNote ? (
-          <div className="space-y-2">
+          <div className="space-y-2 pb-1">
             <textarea
               value={noteText}
               onChange={e => setNoteText(e.target.value)}
@@ -863,18 +971,42 @@ function ItemEditor({
               </button>
             </div>
           </div>
-        ) : item.note ? (
-          <button onClick={() => setEditingNote(true)} className="w-full text-left text-sm text-charcoal-700 italic hover:text-night-900 transition-colors">
-            "{item.note}"
-            <span className="ml-2 text-[10px] uppercase tracking-crowd not-italic text-charcoal-400">Edit</span>
-          </button>
         ) : (
-          <button
-            onClick={() => setEditingNote(true)}
-            className="min-h-[44px] -my-2 py-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
-          >
-            + Add a note
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {item.note ? (
+                <button onClick={() => setEditingNote(true)} className="w-full min-h-[44px] text-left text-sm text-charcoal-700 italic hover:text-night-900 transition-colors break-words">
+                  "{item.note}"
+                  <span className="ml-2 text-[10px] uppercase tracking-crowd not-italic text-charcoal-400">Edit</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setEditingNote(true)}
+                  className="min-h-[44px] text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
+                >
+                  + Add a note
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                className="w-11 h-11 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+                aria-label="Move up"
+              >
+                ↑
+              </button>
+              <button
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                className="w-11 h-11 rounded-lg hover:bg-warmgray-200 disabled:opacity-30 flex items-center justify-center text-charcoal-500"
+                aria-label="Move down"
+              >
+                ↓
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </li>

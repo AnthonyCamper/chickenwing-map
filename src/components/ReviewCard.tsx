@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
@@ -14,6 +14,7 @@ import { useAuthGate } from './AuthGateModal'
 import { fetchReviewReactors } from '../lib/reactionDetails'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate } from '../lib/dates'
+import { cleanUserText } from '../lib/userText'
 import type { Review, ReviewUpdateData } from '../lib/types'
 
 const UNDO_WINDOW_MS = 5000
@@ -29,6 +30,13 @@ interface Props {
   /** Real comment count (top-level + replies). When omitted the card
    *  fetches it itself so the label never claims "0 comments" falsely. */
   commentCount?: number
+  /** Photos (or other content) shown inside the card, under the review text. */
+  media?: ReactNode
+  /**
+   * Open the comments and bring this comment into view (notification deep
+   * link). `parentId` is set when it's a reply; change `key` to repeat.
+   */
+  focusComment?: { id: string; parentId: string | null; key: string } | null
 }
 
 export default function ReviewCard({
@@ -39,13 +47,24 @@ export default function ReviewCard({
   onDelete,
   compact = false,
   commentCount,
+  media,
+  focusComment = null,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(!!focusComment)
+  // Only put the cursor in the comment box when the user opened the
+  // comments themselves — not when a notification link opened them.
+  const [commentsOpenedByUser, setCommentsOpenedByUser] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [localCommentCount, setLocalCommentCount] = useState(commentCount ?? 0)
+
+  useEffect(() => {
+    if (!focusComment) return
+    setShowComments(true)
+    setCommentsOpenedByUser(false)
+  }, [focusComment?.key, focusComment?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The parent's count can arrive after mount (pages fetch it alongside the
   // reviews), so keep following the prop instead of freezing the first value.
@@ -165,29 +184,34 @@ export default function ReviewCard({
         {/* Identity + rating header */}
         <div className="flex items-center gap-2 mb-2 flex-wrap min-w-0">
           {(() => {
+            // A private profile hides the person's profile PAGE, not their
+            // name: reviews stay public and show who wrote them everywhere
+            // (feed, People, comments). So: real name, just no profile link
+            // — except for the author, who can always open their own.
             const isPrivate = review.reviewer_is_private === true
-            const displayName = isPrivate ? 'Private' : (review.reviewer_name ?? review.reviewer_email ?? 'Unknown')
-            const avatar = isPrivate ? null : review.reviewer_avatar
-            const linkable = !isPrivate && review.reviewer_username
+            const isOwn = !!currentUserId && review.user_id === currentUserId
+            const displayName = cleanUserText(review.reviewer_name ?? review.reviewer_email ?? 'Unknown') || 'Unknown'
+            const linkable = (!isPrivate || isOwn) && review.reviewer_username
             const chip = (
               <>
                 <AvatarImage
-                  src={avatar}
-                  alt={displayName}
+                  src={review.reviewer_avatar}
+                  alt=""
                   className="w-6 h-6 flex-shrink-0 rounded-full object-cover border border-night-900"
                   fallback={
-                    <span className="w-6 h-6 flex-shrink-0 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
+                    <span aria-hidden="true" className="w-6 h-6 flex-shrink-0 rounded-full bg-night-800 text-cream-50 flex items-center justify-center text-[10px] font-extrabold uppercase border border-night-900">
                       {displayName.charAt(0)}
                     </span>
                   }
                 />
-                <span className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-crowd text-night-800">
+                <span className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-crowd text-night-800 user-text">
                   {displayName}
                 </span>
               </>
             )
             return linkable ? (
-              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 min-w-0 max-w-full hover:text-sauce-500 transition-colors">
+              // 44px tall hit area; negative margin keeps the header compact
+              <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center gap-2 min-w-0 max-w-full min-h-[44px] -my-2.5 hover:text-sauce-500 transition-colors">
                 {chip}
               </Link>
             ) : (
@@ -220,7 +244,7 @@ export default function ReviewCard({
             {review.wing_flavor && (
               <span className="flex items-baseline gap-1.5 min-w-0 max-w-full">
                 <span className="eyebrow text-night-700 flex-shrink-0">Flavor</span>
-                <span className="text-sm font-bold text-night-900 min-w-0 break-words [overflow-wrap:anywhere]">{review.wing_flavor}</span>
+                <span className="text-sm font-bold text-night-900 min-w-0 break-words user-text">{cleanUserText(review.wing_flavor)}</span>
               </span>
             )}
             {review.wing_size && (
@@ -237,11 +261,13 @@ export default function ReviewCard({
           <ExpandableText text={review.review_text} className="mb-2 text-charcoal-700 leading-relaxed" />
         )}
 
+        {media}
+
         {/* Footer: comments + options */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
           {/* Comment toggle — icon + visible text, 44px tall hit area */}
           <button
-            onClick={() => setShowComments(!showComments)}
+            onClick={() => { setCommentsOpenedByUser(true); setShowComments(!showComments) }}
             aria-expanded={showComments}
             className="inline-flex items-center gap-1.5 min-h-[44px] px-1 -mx-1 text-charcoal-500 hover:text-sauce-500 transition-colors"
           >
@@ -299,13 +325,15 @@ export default function ReviewCard({
           )}
         </div>
 
-        {/* Reactions */}
+        {/* Reactions — the emoji row opens inline under "React", inside the
+            card, so it never covers the page links below the card */}
         <div className="mt-3 group">
-          <LikedByOverlay fetchUsers={() => fetchReviewReactors(review.id)} count={totalReactionCount} label="Reactions">
+          <LikedByOverlay fetchUsers={() => fetchReviewReactors(review.id)} count={totalReactionCount} label="Reactions" className="flex">
             <ReactionPicker
               reactions={reactions}
               onToggle={type => { if (requireAuth()) toggleReaction(type) }}
               showLabel
+              inlineTray
             />
           </LikedByOverlay>
         </div>
@@ -317,7 +345,10 @@ export default function ReviewCard({
               currentUserId={currentUserId}
               isAdmin={isAdmin}
               onCommentCountChange={setLocalCommentCount}
-              autoFocus
+              autoFocus={commentsOpenedByUser}
+              focusCommentId={focusComment?.id ?? null}
+              focusParentId={focusComment?.parentId ?? null}
+              focusKey={focusComment?.key}
             />
           </div>
         )}

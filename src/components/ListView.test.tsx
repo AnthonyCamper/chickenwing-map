@@ -18,7 +18,9 @@ vi.mock('../hooks/useHistoryModal', () => ({ useHistoryModal: () => {} }))
 vi.mock('./gallery/PhotoModal', () => ({ default: () => null }))
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))
 
-import {
+import { render, screen, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import ListView, {
   averageRating,
   filterShopsByReviewer,
   filterShopsBySearch,
@@ -210,5 +212,63 @@ describe('shortLabel', () => {
     const long = 'x'.repeat(200)
     expect(shortLabel(long)).toHaveLength(32)
     expect(shortLabel(long).endsWith('…')).toBe(true)
+  })
+})
+
+describe('ListView spot cards and search (phone layout)', () => {
+  // jsdom has no layout/scrolling; the focus handler scrolls the field up
+  window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
+  function renderList(props: Partial<React.ComponentProps<typeof ListView>> = {}) {
+    const onViewOnMap = vi.fn()
+    render(
+      <MemoryRouter>
+        <ListView
+          shops={SHOPS}
+          loading={false}
+          error={null}
+          currentUserId=""
+          isAdmin={false}
+          onViewOnMap={onViewOnMap}
+          sortBy="name"
+          onSortChange={vi.fn()}
+          filterReviewer="all"
+          onFilterChange={vi.fn()}
+          {...props}
+        />
+      </MemoryRouter>
+    )
+    return { onViewOnMap }
+  }
+
+  it('keeps the Map shortcut outside the card link, so tapping the card body opens the spot', () => {
+    const { onViewOnMap } = renderList()
+    const link = screen.getAllByRole('link').find(a => a.getAttribute('href') === '/spots/wing-palace')!
+    const mapBtn = screen.getByRole('button', { name: 'Show Wing Palace on the map' })
+    expect(link.contains(mapBtn)).toBe(false)
+    expect(within(link).queryByRole('button')).toBeNull()
+    fireEvent.click(mapBtn)
+    expect(onViewOnMap).toHaveBeenCalledWith('s1')
+  })
+
+  it('tucks the sort and reviewer rows away while there is a search query', () => {
+    renderList()
+    expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
+    const search = screen.getByRole('textbox', { name: /Search spots/ })
+    fireEvent.focus(search)
+    // Focus alone doesn't move anything
+    expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'duff' } })
+    expect(screen.queryByRole('button', { name: 'A–Z' })).toBeNull()
+    // Closing the keyboard must not re-insert the rows above the results
+    // (that shifted the cards under the finger and the tap missed)
+    fireEvent.blur(search)
+    expect(screen.queryByRole('button', { name: 'A–Z' })).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear search' })[0])
+    expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
+  })
+
+  it('shows a placeholder layout (not a lone spinner) while loading', () => {
+    renderList({ loading: true })
+    expect(screen.getByRole('status')).toHaveTextContent('Loading spots…')
   })
 })

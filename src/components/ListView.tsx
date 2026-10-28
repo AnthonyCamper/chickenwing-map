@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import StarRating from './ui/StarRating'
@@ -8,6 +8,9 @@ import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 import { MIN_REVIEWS_FOR_RANKING } from './LiveScene'
+import { cleanUserText } from '../lib/userText'
+import { ListViewSkeleton } from './SpotsViewSkeletons'
+import { formatRating } from '../lib/formatRating'
 
 type SortKey = 'name' | 'rating'
 /** Local-only sort options — 'near' lives inside ListView (Home only knows name/rating). */
@@ -104,6 +107,23 @@ export default function ListView({
   useHistoryModal(!!photoDetail.review, photoDetail.close)
 
   const [search, setSearch] = useState('')
+  // On a phone the keyboard covers the bottom ~260px, and the sort/filter
+  // rows pushed the first result under it. Lift the field to just under the
+  // sticky header on focus, and tuck the rows away while there is a query.
+  // Keyed on the query, not on focus: un-hiding them on blur moved every
+  // result down 124px under the finger, so the tap that closed the keyboard
+  // missed the card it was aimed at. Clearing the search brings them back.
+  const searching = search.trim() !== ''
+  const searchRef = useRef<HTMLInputElement>(null)
+  const liftSearchField = () => {
+    const el = searchRef.current
+    if (!el || typeof window === 'undefined') return
+    const header = document.querySelector('header')
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 0
+    const top = el.getBoundingClientRect().top + window.scrollY - Math.max(0, headerBottom) - 8
+    // Wait a frame so the keyboard's own scroll doesn't fight ours.
+    window.requestAnimationFrame(() => window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }))
+  }
   const [nearMe, setNearMe] = useState(false)
   const [nearLoc, setNearLoc] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
@@ -143,7 +163,7 @@ export default function ListView({
     for (const { reviews } of shops) {
       for (const r of reviews) {
         if (!set.has(r.user_id)) {
-          set.set(r.user_id, r.reviewer_name ?? r.reviewer_email ?? 'Unknown')
+          set.set(r.user_id, cleanUserText(r.reviewer_name ?? r.reviewer_email) || 'Unknown')
         }
       }
     }
@@ -170,14 +190,7 @@ export default function ListView({
     })
   }, [shops, sortBy, filterReviewer, search, nearMe, nearLoc])
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-        <p className="font-display uppercase tracking-crowd text-sm text-night-700">Loading spots…</p>
-      </div>
-    )
-  }
+  if (loading) return <ListViewSkeleton />
 
   if (error) {
     return (
@@ -203,9 +216,12 @@ export default function ListView({
         {hasAnyOnBoard && (
           <div className="mb-5 flex items-end justify-between gap-4">
             <div className="min-w-0">
-              <p className="eyebrow mb-1">The scoreboard</p>
+              {/* Plain description first; the big heading can keep the joke */}
+              <p className="eyebrow mb-1">
+                {nearMe ? 'Spots near you' : sortBy === 'rating' ? 'Top rated spots' : 'All rated spots, A to Z'}
+              </p>
               <h2 className="font-display uppercase text-3xl sm:text-4xl text-night-900 leading-tight tracking-wide">
-                {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every spot on the board'}
+                {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every rated spot'}
               </h2>
             </div>
             <div className="sticker-night flex-shrink-0">
@@ -218,11 +234,16 @@ export default function ListView({
         {hasAnyOnBoard && (
           <div className="mb-4 relative">
             <input
+              ref={searchRef}
               type="text"
+              enterKeyHint="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              onFocus={liftSearchField}
               maxLength={100}
               placeholder="Search spots, addresses, flavors…"
+              data-reveal-handled
               aria-label="Search spots by name, address, or flavor"
               className="input pr-11"
             />
@@ -231,7 +252,7 @@ export default function ListView({
                 type="button"
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center
+                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center
                            rounded-full text-night-700 hover:text-night-900 hover:bg-cream-200
                            text-xl font-extrabold leading-none transition-colors cursor-pointer"
               >
@@ -241,8 +262,8 @@ export default function ListView({
           </div>
         )}
 
-        {/* Controls */}
-        {hasAnyOnBoard && (
+        {/* Controls — tucked away while there is a search query (see searching) */}
+        {hasAnyOnBoard && !searching && (
           <div className="mb-5 flex items-center gap-3 flex-wrap">
             {/* Sort toggle */}
             <div className="flex items-center gap-2">
@@ -393,11 +414,12 @@ function ShopCard({
         </span>
       )}
 
-      <div className={`card ${isPodium ? 'shadow-sticker' : ''}`}>
-      {/* Header row — whole-row link to spot page */}
+      <div className={`card relative ${isPodium ? 'shadow-sticker' : ''}`}>
+      {/* Header row — whole-row link to spot page. The extra bottom padding
+          keeps the corner "Map" button (below) clear of the photo. */}
       <Link
         to={slug ? `/spots/${slug}` : '#'}
-        className="block w-full text-left px-4 sm:px-5 py-4 flex items-start gap-3 hover:bg-cream-100/60 transition-colors"
+        className={`block w-full text-left px-4 sm:px-5 pt-4 ${onViewOnMap ? 'pb-7' : 'pb-4'} flex items-start gap-3 hover:bg-cream-100/60 transition-colors`}
       >
         {/* Rank stencil */}
         {showRank && (
@@ -415,24 +437,7 @@ function ShopCard({
           <h3 className="font-display uppercase tracking-wide text-night-900 leading-tight text-xl sm:text-2xl">
             {name}
           </h3>
-          <div className="flex items-center gap-2 mt-1 min-w-0">
-            <p className="text-xs text-charcoal-500 truncate">{address}</p>
-            {onViewOnMap && (
-              <button
-                type="button"
-                onClick={e => { e.preventDefault(); e.stopPropagation(); onViewOnMap(shopId) }}
-                // py/-my pads the hit area to 44px without moving the layout
-                className="flex-shrink-0 inline-flex items-center gap-1 py-3.5 -my-3.5 px-1.5 -mx-1.5 text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-sauce-400 rounded transition-colors cursor-pointer"
-                aria-label="View on map"
-              >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-                Map
-              </button>
-            )}
-          </div>
+          <p className="text-xs text-charcoal-500 truncate mt-1">{address}</p>
 
           {/* Rating + reviewer stack */}
           <div className="flex items-center gap-3 mt-2.5 flex-wrap">
@@ -518,6 +523,24 @@ function ShopCard({
           </svg>
         </div>
       </Link>
+
+      {/* "Map" shortcut in the card's bottom-right corner, outside the link.
+          It used to sit ~4px from the card's centre, so tapping the middle
+          of a card opened the map instead of the spot. */}
+      {onViewOnMap && (
+        <button
+          type="button"
+          onClick={() => onViewOnMap(shopId)}
+          className="absolute bottom-0 right-0 min-h-11 min-w-11 inline-flex items-center justify-center gap-1 pl-3 pr-4 rounded-tl-xl text-[11px] font-extrabold uppercase tracking-crowd text-sauce-600 hover:text-sauce-700 hover:bg-cream-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sauce-400 transition-colors cursor-pointer"
+          aria-label={`Show ${name} on the map`}
+        >
+          <svg aria-hidden="true" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          Map
+        </button>
+      )}
       </div>
     </div>
   )
@@ -541,8 +564,11 @@ function RatingChip({ rating, count, hot }: { rating: number; count: number; hot
           ${hot ? 'bg-sauce-400 text-cream-50' : 'bg-cream-50 text-night-900'}`}
       >
         <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
-        <span className="hidden sm:inline-flex"><StarRating value={rating} size="sm" /></span>
-        <span>{rating.toFixed(1)}</span>
+        {/* Amber stars vanish on the red "hot" chip, so they sit on a cream inset there */}
+        <span className={`hidden sm:inline-flex ${hot ? 'bg-cream-50 rounded px-1 py-0.5' : ''}`}>
+          <StarRating value={Number(formatRating(rating))} size="sm" />
+        </span>
+        <span>{formatRating(rating)}</span>
       </span>
       <span className="text-[12px] font-bold text-charcoal-500 whitespace-nowrap">
         {count} {count === 1 ? 'review' : 'reviews'}

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useIsMobile } from '../../hooks/useBottomSheetDrag'
+import { dedupeSpots, normalizeSpotText } from '../../lib/spotMatch'
 
 export interface Suggestion {
   name: string
@@ -16,6 +18,8 @@ export interface Suggestion {
 
 interface NominatimResult {
   place_id: number
+  osm_type?: string
+  osm_id?: number
   name: string
   display_name: string
   lat: string
@@ -43,6 +47,7 @@ interface SpotRow {
   address: string
   lat: number
   lng: number
+  created_at?: string | null
 }
 
 interface Props {
@@ -52,10 +57,35 @@ interface Props {
   placeholder?: string
   id?: string
   maxLength?: number
+  /**
+   * Phone sheets: on focus, scroll the field to the top of its scroll area
+   * and show the suggestions in the page flow, sized to the space left above
+   * the keyboard, so they're never hidden under the sheet's footer or the
+   * on-screen keyboard (m1 mobile 6).
+   */
+  revealOnFocus?: boolean
 }
 
 const MIN_QUERY = 2
 const MAX_WINGMAP_RESULTS = 5
+// Room kept above the field when it's scrolled up, for its label.
+const REVEAL_LABEL_SPACE = 32
+const LIST_MAX_PX = 288
+const LIST_MIN_PX = 140
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  let p = el.parentElement
+  while (p) {
+    const oy = getComputedStyle(p).overflowY
+    if (oy === 'auto' || oy === 'scroll') return p
+    p = p.parentElement
+  }
+  return null
+}
+
+// Location shared for "places near me" is rounded to about 1 km before it's
+// sent anywhere — enough to sort nearby places, not enough to pinpoint you.
+const approx = (n: number) => Math.round(n * 100) / 100
 
 function buildAddress(result: NominatimResult): string {
   const a = result.address
@@ -124,6 +154,28 @@ function getSpotsViewbox(): Promise<string | null> {
   return spotsViewboxPromise
 }
 
+/**
+ * OpenStreetMap sometimes returns the same place twice (e.g. as a node and
+ * as an area, or twice with different place ids): keep the first of any
+ * results with the same OSM id, or the same name and either the same address
+ * or a spot within ~200 m (m2 S13).
+ */
+export function dedupeOsmSuggestions<T extends Suggestion & { osmId?: string }>(results: readonly T[]): T[] {
+  const out: T[] = []
+  for (const r of results) {
+    const twin = out.some(o =>
+      (r.osmId && o.osmId === r.osmId) || (
+        normalizeSpotText(o.name) === normalizeSpotText(r.name) && (
+          normalizeSpotText(o.address) === normalizeSpotText(r.address)
+          || (Math.abs(Number(o.lat) - Number(r.lat)) < 0.002 && Math.abs(Number(o.lng) - Number(r.lng)) < 0.002)
+        )
+      )
+    )
+    if (!twin) out.push(r)
+  }
+  return out
+}
+
 const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 
 // Same place already listed from WingMap? (same name, within ~200 m)
@@ -132,7 +184,7 @@ function isSameSpot(a: Suggestion, b: Suggestion): boolean {
   return Math.abs(Number(a.lat) - Number(b.lat)) < 0.002 && Math.abs(Number(a.lng) - Number(b.lng)) < 0.002
 }
 
-export default function BusinessAutocomplete({ value, onChange, onSelect, placeholder, id, maxLength }: Props) {
+export default function BusinessAutocomplete({ value, onChange, onSelect, placeholder, id, maxLength, revealOnFocus = false }: Props) {
   const [wingmap, setWingmap] = useState<Suggestion[]>([])
   const [osm, setOsm] = useState<Suggestion[]>([])
   const [wingmapLoading, setWingmapLoading] = useState(false)
@@ -141,6 +193,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
   const [activeIndex, setActiveIndex] = useState(-1)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -154,7 +207,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     if (!navigator.geolocation) { setLocationDenied(true); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
-      pos => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false) },
+      pos => { setUserLocation({ lat: approx(pos.coords.latitude), lng: approx(pos.coords.longitude) }); setLocating(false) },
       () => { setLocationDenied(true); setLocating(false) },
       { timeout: 8000 }
     )
@@ -168,17 +221,18 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     if (!pattern) return []
     const { data, error } = await supabase
       .from('wing_spots')
-      .select('id,name,address,lat,lng')
+      .select('id,name,address,lat,lng,created_at')
       .ilike('name', pattern)
       .order('name')
       .limit(MAX_WINGMAP_RESULTS)
       .abortSignal(signal)
     if (error || !data) return []
-    return (data as SpotRow[]).map(s => ({
-      name: s.name,
+    // The same place stored twice (e.g. a name with a trailing space) would
+    // show as identical twins: show the original only (m2 S03).
+    return dedupeSpots(data as SpotRow[]).map(s => ({
+      // Trimmed for display; the review is attached by spotId, not by name.
+      name: s.name.trim(),
       address: s.address,
-      // Keep the stored values untouched: the review is matched to this
-      // spot by exact name + address.
       lat: String(s.lat),
       lng: String(s.lng),
       key: `wm-${s.id}`,
@@ -217,7 +271,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     })
     const data = (await res.json()) as NominatimResult[]
 
-    return data
+    const mapped = data
       // Towns, regions and admin areas aren't wing spots.
       .filter(r => r.class !== 'boundary' && !(r.class === 'place' && r.type !== 'house'))
       .map(r => ({
@@ -227,8 +281,10 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
         lng: r.lon,
         key: `osm-${r.place_id}`,
         source: 'osm' as const,
+        osmId: r.osm_type && r.osm_id != null ? `${r.osm_type}/${r.osm_id}` : undefined,
       }))
       .filter(s => s.name)
+    return dedupeOsmSuggestions(mapped).map(({ osmId: _osmId, ...s }) => s)
   }, [userLocation])
 
   const search = useCallback(async (query: string) => {
@@ -339,8 +395,139 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
 
   const showDropdown = open && value.trim().length >= MIN_QUERY
 
+  // ── Phone sheets: keep the field and its suggestions in view ─────────────
+  const isMobile = useIsMobile()
+  const inline = revealOnFocus && isMobile
+  const [listMax, setListMax] = useState<number | null>(null)
+
+  const reveal = useCallback((scroll: boolean) => {
+    const wrap = wrapperRef.current
+    const input = inputRef.current
+    if (!wrap || !input || document.activeElement !== input) return
+    const sc = scrollParent(wrap)
+    if (scroll && sc) {
+      const offset = wrap.getBoundingClientRect().top - sc.getBoundingClientRect().top - REVEAL_LABEL_SPACE
+      if (Math.abs(offset) > 2) sc.scrollTop += offset
+    }
+    // Visible area: above the keyboard (visualViewport) and inside the sheet's
+    // scroll area (its footer sits below it).
+    const vv = window.visualViewport
+    const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+    const visibleBottom = Math.min(viewBottom, sc ? sc.getBoundingClientRect().bottom : viewBottom)
+    const listTop = input.getBoundingClientRect().bottom + 4
+    setListMax(Math.max(LIST_MIN_PX, Math.min(LIST_MAX_PX, Math.floor(visibleBottom - listTop - 8))))
+  }, [])
+
+  // On focus, and again once the sheet has expanded / the keyboard is up.
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleFocus = () => {
+    if (suggestions.length > 0 || loading) setOpen(true)
+    if (!inline) return
+    reveal(true)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => reveal(true), 400)
+  }
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
+
+  // The list opening (and its results arriving) grows the sheet, which only
+  // then has room to scroll the field up: do it again each time.
+  useEffect(() => {
+    if (!inline || !showDropdown) return
+    const raf = requestAnimationFrame(() => reveal(true))
+    return () => cancelAnimationFrame(raf)
+  }, [inline, showDropdown, suggestions.length, loading, reveal])
+
+  // Keyboard showing/hiding changes the visible height.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!inline || !vv) return
+    const onResize = () => reveal(true)
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [inline, reveal])
+
+  const locationBlock = (
+    <>
+      {!userLocation && !locationDenied && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-2">
+          <button
+            type="button"
+            onClick={requestLocation}
+            disabled={locating}
+            aria-describedby={`${listboxId}-near-help`}
+            className="min-h-[44px] text-xs font-bold text-sauce-600 hover:text-sauce-700 transition-colors"
+          >
+            {locating ? 'Finding your location…' : '📍 Show places near me'}
+          </button>
+          <span id={`${listboxId}-near-help`} className="text-xs text-charcoal-500">
+            Uses your approximate location to search OpenStreetMap.
+          </span>
+        </div>
+      )}
+      {locationDenied && (
+        <p className="mt-1 text-xs text-charcoal-500">Location is off, so results aren't sorted by distance.</p>
+      )}
+    </>
+  )
+
+  const dropdown = showDropdown && (
+    <div
+      ref={dropdownRef}
+      id={listboxId}
+      className={`${inline ? 'relative mb-2' : 'absolute left-0 right-0 top-full max-h-72'} mt-1 bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 overflow-y-auto overscroll-contain`}
+      style={inline && listMax ? { maxHeight: listMax } : undefined}
+      role="listbox"
+      aria-label="Wing spot suggestions"
+      aria-busy={loading || undefined}
+    >
+      {suggestions.map((s, i) => (
+        <div key={s.key} role="presentation">
+          {s.source === 'osm' && i === wingmap.length && wingmap.length > 0 && (
+            <p className="px-4 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 border-t border-night-900/10">
+              Other places on the map
+            </p>
+          )}
+          <button
+            id={`${listboxId}-${i}`}
+            type="button"
+            role="option"
+            aria-selected={i === activeIndex}
+            onMouseDown={e => { e.preventDefault(); handleSelect(s) }}
+            onMouseEnter={() => setActiveIndex(i)}
+            className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-night-900/10 min-h-[56px] ${
+              i === activeIndex ? 'bg-cream-100' : 'hover:bg-cream-100/60'
+            }`}
+          >
+            <span className="text-base mt-0.5 flex-shrink-0" aria-hidden>{s.source === 'wingmap' ? '🍗' : '📍'}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
+              <p className="text-xs text-charcoal-500 truncate mt-0.5">
+                {s.source === 'wingmap' && (
+                  <span className="font-bold text-sauce-600">Already on WingKingTony · </span>
+                )}
+                {s.address || 'No address listed'}
+              </p>
+            </div>
+          </button>
+        </div>
+      ))}
+
+      {loading && (
+        <p className="px-4 py-3 text-sm text-charcoal-500" role="status">
+          {suggestions.length ? 'Searching for more places…' : 'Searching…'}
+        </p>
+      )}
+
+      {!loading && suggestions.length === 0 && (
+        <p className="px-4 py-3 text-sm text-charcoal-600" role="status">
+          No matches. Check the spelling or add the address below.
+        </p>
+      )}
+    </div>
+  )
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <div className="relative">
         <input
           ref={inputRef}
@@ -350,7 +537,9 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => (suggestions.length > 0 || loading) && setOpen(true)}
+          onFocus={handleFocus}
+          data-expand-sheet={revealOnFocus || undefined}
+          data-reveal-handled={revealOnFocus || undefined}
           placeholder={placeholder ?? 'Search for a wing spot…'}
           maxLength={maxLength}
           autoComplete="off"
@@ -370,74 +559,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
         )}
       </div>
 
-      {!userLocation && !locationDenied && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
-        <button
-          type="button"
-          onClick={requestLocation}
-          disabled={locating}
-          className="mt-1 min-h-[44px] text-xs font-bold text-sauce-600 hover:text-sauce-700 transition-colors"
-        >
-          {locating ? 'Finding your location…' : '📍 Show places near me'}
-        </button>
-      )}
-      {locationDenied && (
-        <p className="mt-1 text-xs text-charcoal-500">Location is off, so results aren't sorted by distance.</p>
-      )}
-
-      {showDropdown && (
-        <div
-          ref={dropdownRef}
-          id={listboxId}
-          className="absolute left-0 right-0 top-full mt-1 bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 max-h-72 overflow-y-auto overscroll-contain"
-          role="listbox"
-          aria-label="Wing spot suggestions"
-          aria-busy={loading || undefined}
-        >
-          {suggestions.map((s, i) => (
-            <div key={s.key} role="presentation">
-              {s.source === 'osm' && i === wingmap.length && wingmap.length > 0 && (
-                <p className="px-4 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 border-t border-night-900/10">
-                  Other places on the map
-                </p>
-              )}
-              <button
-                id={`${listboxId}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={i === activeIndex}
-                onMouseDown={e => { e.preventDefault(); handleSelect(s) }}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-night-900/10 min-h-[56px] ${
-                  i === activeIndex ? 'bg-cream-100' : 'hover:bg-cream-100/60'
-                }`}
-              >
-                <span className="text-base mt-0.5 flex-shrink-0" aria-hidden>{s.source === 'wingmap' ? '🍗' : '📍'}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
-                  <p className="text-xs text-charcoal-500 truncate mt-0.5">
-                    {s.source === 'wingmap' && (
-                      <span className="font-bold text-sauce-600">Already on WingKingTony · </span>
-                    )}
-                    {s.address || 'No address listed'}
-                  </p>
-                </div>
-              </button>
-            </div>
-          ))}
-
-          {loading && (
-            <p className="px-4 py-3 text-sm text-charcoal-500" role="status">
-              {suggestions.length ? 'Searching for more places…' : 'Searching…'}
-            </p>
-          )}
-
-          {!loading && suggestions.length === 0 && (
-            <p className="px-4 py-3 text-sm text-charcoal-600" role="status">
-              No matches. Check the spelling or add the address below.
-            </p>
-          )}
-        </div>
-      )}
+      {inline ? <>{dropdown}{locationBlock}</> : <>{locationBlock}{dropdown}</>}
     </div>
   )
 }

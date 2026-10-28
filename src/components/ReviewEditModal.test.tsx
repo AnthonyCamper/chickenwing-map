@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ReviewEditModal from './ReviewEditModal'
 import type { Review } from '../lib/types'
 
@@ -77,4 +77,28 @@ describe('ReviewEditModal', () => {
       render(<ReviewEditModal review={review} onClose={vi.fn()} onSubmit={vi.fn()} />)
     ).not.toThrow()
   })
+
+  it('flags a future date as soon as it is entered and focuses it on Save', async () => {
+    const onSubmit = vi.fn()
+    render(<ReviewEditModal review={makeReview()} onClose={vi.fn()} onSubmit={onSubmit} />)
+    const date = screen.getByLabelText('Date you visited')
+    fireEvent.change(date, { target: { value: '2099-12-31' } })
+    expect(screen.getByText(/can't be in the future/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('Check the visit date above.')).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(date))
+  })
+
+  it('keeps over-long pasted text and asks to shorten it instead of cutting it', () => {
+    const onSubmit = vi.fn()
+    render(<ReviewEditModal review={makeReview()} onClose={vi.fn()} onSubmit={onSubmit} />)
+    const text = screen.getByLabelText('Your review (optional)')
+    fireEvent.change(text, { target: { value: 'y'.repeat(510) } })
+    expect(text).toHaveValue('y'.repeat(510))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText(/10 characters too long/)).toBeInTheDocument()
+  })
 })
+

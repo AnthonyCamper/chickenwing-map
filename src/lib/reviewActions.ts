@@ -3,7 +3,9 @@ import { supabase } from './supabase'
 import { downscaleImage, imageExtension } from './imageResize'
 import { triggerPushDelivery } from './pushManager'
 import { announceNewBadges, snapshotEarnedBadgeIds } from './badgeUnlocks'
+import { SIGNED_OUT_ERROR, looksSignedOut } from './publishErrors'
 import { invalidateGalleryFeedCache } from '../hooks/useGallery'
+import { findExistingSpot } from './spotMatch'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
 // Review ids are UUIDs. Anything else can't exist, and sending it to
@@ -66,53 +68,94 @@ async function uploadReviewPhoto(
   return true
 }
 
+/**
+ * A write failed: was it because the session is gone? Checks the error text
+ * first, then whether the client still holds a session at all (signing out
+ * in another tab clears it, and the write then fails as an RLS refusal).
+ */
+async function signedOutError(message: string | null | undefined): Promise<boolean> {
+  if (looksSignedOut(message)) return true
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    return !error && !data.session
+  } catch {
+    return false
+  }
+}
+
 function toastFailedUploads(failed: number) {
   if (failed > 0) {
     toast.error(`${failed} photo${failed === 1 ? '' : 's'} failed to upload`)
   }
 }
 
-export async function createReview(
-  data: ReviewFormData,
-  userId: string
-): Promise<{ error: string | null; reviewId?: string }> {
-  // DB triggers award badges on the insert below — snapshot first so we can
-  // diff afterwards and celebrate any new unlocks.
-  const earnedBefore = await snapshotEarnedBadgeIds()
+/**
+ * What the review form sends. `wing_spot_id` is set when the user picked a
+ * spot that's already on the site (a suggestion, the spot page, an event
+ * stop): the review goes straight onto that spot, no name lookup (m2 S03).
+ */
+export type ReviewCreateData = ReviewFormData & { wing_spot_id?: string | null }
+
+/**
+ * The spot a new review belongs to: the picked one, else an existing spot
+ * with the same name + address (case/whitespace-tolerant), else a new spot.
+ */
+async function resolveSpotId(
+  data: ReviewCreateData
+): Promise<{ id: string | null; error: { message: string; code?: string } | null }> {
+  if (isUuid(data.wing_spot_id)) {
+    const { data: row, error } = await supabase
+      .from('wing_spots')
+      .select('id')
+      .eq('id', data.wing_spot_id)
+      .maybeSingle()
+    if (error) return { id: null, error }
+    // Gone since it was picked (deleted by an admin): fall back to the lookup.
+    if (row) return { id: (row as { id: string }).id, error: null }
+  }
 
   // Reuse an existing spot by name+address without touching its coordinates.
   // The old upsert (ignoreDuplicates: false) let any reviewer move an
   // existing spot just by submitting different lat/lng for the same name.
   const spotName = data.shop_name.trim()
   const spotAddress = data.address.trim()
-  const findSpot = () => supabase
+  const near = { lat: parseFloat(data.lat), lng: parseFloat(data.lng) }
+  const found = await findExistingSpot(spotName, spotAddress, near)
+  if (found.error) return { id: null, error: found.error }
+  if (found.spot) return { id: found.spot.id, error: null }
+
+  const inserted = await supabase
     .from('wing_spots')
+    .insert({ name: spotName, address: spotAddress, lat: parseFloat(data.lat), lng: parseFloat(data.lng) })
     .select('id')
-    .eq('name', spotName)
-    .eq('address', spotAddress)
-    .maybeSingle()
-
-  let { data: spotData, error: spotErr } = await findSpot()
-  if (!spotErr && !spotData) {
-    const inserted = await supabase
-      .from('wing_spots')
-      .insert({ name: spotName, address: spotAddress, lat: parseFloat(data.lat), lng: parseFloat(data.lng) })
-      .select('id')
-      .single()
-    spotData = inserted.data
-    spotErr = inserted.error
-    // Lost a race with someone adding the same spot: use theirs.
-    if (spotErr?.code === '23505') ({ data: spotData, error: spotErr } = await findSpot())
+    .single()
+  if (inserted.data) return { id: (inserted.data as { id: string }).id, error: null }
+  // Lost a race with someone adding the same spot: use theirs.
+  if (inserted.error?.code === '23505') {
+    const again = await findExistingSpot(spotName, spotAddress, near)
+    if (again.spot) return { id: again.spot.id, error: null }
   }
+  return { id: null, error: inserted.error }
+}
 
-  if (spotErr || !spotData) {
+export async function createReview(
+  data: ReviewCreateData,
+  userId: string
+): Promise<{ error: string | null; reviewId?: string }> {
+  // DB triggers award badges on the insert below — snapshot first so we can
+  // diff afterwards and celebrate any new unlocks.
+  const earnedBefore = await snapshotEarnedBadgeIds()
+
+  const { id: spotId, error: spotErr } = await resolveSpotId(data)
+  if (spotErr || !spotId) {
+    if (await signedOutError(spotErr?.message)) return { error: SIGNED_OUT_ERROR }
     return { error: spotErr?.message ?? 'Could not create wing spot' }
   }
 
   const { data: reviewData, error: reviewErr } = await supabase
     .from('reviews')
     .insert({
-      wing_spot_id: spotData.id,
+      wing_spot_id: spotId,
       overall_rating: data.overall_rating,
       wing_size: data.wing_size?.trim() || null,
       wing_flavor: data.wing_flavor?.trim() || null,
@@ -128,6 +171,7 @@ export async function createReview(
     .single()
 
   if (reviewErr || !reviewData) {
+    if (await signedOutError(reviewErr?.message)) return { error: SIGNED_OUT_ERROR }
     return { error: reviewErr?.message ?? 'Could not create review' }
   }
 
@@ -171,7 +215,13 @@ export async function updateReview(
       .from('reviews')
       .update(updates)
       .eq('id', reviewId)
-    if (err) return { error: err.message }
+    if (err) {
+      // Callers show this text as-is in a toast, so keep it readable.
+      if (await signedOutError(err.message)) {
+        return { error: "You've been signed out. Sign in again to save your changes." }
+      }
+      return { error: "Couldn't save your changes. Check your connection and try again." }
+    }
   }
 
   if (data.photos_to_delete?.length) {

@@ -1,18 +1,20 @@
-import { ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from './AuthProvider'
 import { useNotifications } from '../hooks/useNotifications'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import { supabase } from '../lib/supabase'
+import { lazyWithReload } from '../lib/staleDeploy'
 import type { WingEvent } from '../lib/types'
 import NotificationBell from './NotificationBell'
 import AvatarImage from './ui/AvatarImage'
 
 // Opened from the profile menu only, and the header ships on every page:
 // keep them out of the first-load bundle.
-const ProfileModal = lazy(() => import('./ProfileModal'))
-const LeaderboardModal = lazy(() => import('./LeaderboardModal'))
-const NotificationSettings = lazy(() => import('./NotificationSettings'))
+// lazyWithReload: reloads onto the new version if a deploy removed the file.
+const ProfileModal = lazyWithReload(() => import('./ProfileModal'))
+const LeaderboardModal = lazyWithReload(() => import('./LeaderboardModal'))
+const NotificationSettings = lazyWithReload(() => import('./NotificationSettings'))
 
 type View = 'list' | 'map' | 'gallery'
 
@@ -56,6 +58,40 @@ function ViewIcon({ kind, className = 'w-4 h-4' }: { kind: View; className?: str
   )
 }
 
+// Same inbox as the footer's Contact link.
+const CONTACT_EMAIL = 'anthonycap949@gmail.com'
+
+// ── Active event, shared by every mounted header ────────────────────────────
+const ACTIVE_EVENT_TTL_MS = 5 * 60_000
+let cachedActiveEvent: { event: WingEvent | null; at: number } | null = null
+let activeEventRequest: Promise<WingEvent | null> | null = null
+
+function loadActiveEvent(): Promise<WingEvent | null> {
+  if (cachedActiveEvent && Date.now() - cachedActiveEvent.at < ACTIVE_EVENT_TTL_MS) {
+    return Promise.resolve(cachedActiveEvent.event)
+  }
+  if (activeEventRequest) return activeEventRequest
+  const now = new Date().toISOString()
+  activeEventRequest = Promise.resolve(
+    supabase
+      .from('events_with_counts')
+      .select('*')
+      .eq('is_published', true)
+      .or(`ends_at.gte.${now},ends_at.is.null`)
+      .order('starts_at', { ascending: true, nullsFirst: false })
+      .limit(1),
+  ).then(({ data, error }) => {
+    // Fail quietly: the broadcast strip is optional chrome — just don't
+    // render it rather than showing a bogus "no event" state elsewhere
+    // (and don't cache the failure, so the next page tries again).
+    if (error) return null
+    const event = (data?.[0] as WingEvent | undefined) ?? null
+    cachedActiveEvent = { event, at: Date.now() }
+    return event
+  }, () => null).finally(() => { activeEventRequest = null })
+  return activeEventRequest
+}
+
 const VIEWS: { key: View; label: string }[] = [
   { key: 'gallery', label: 'Feed' },
   { key: 'list',    label: 'Spots' },
@@ -84,7 +120,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
   const [showNotifSettings, setShowNotifSettings] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const notificationsHook = useNotifications(auth?.user?.id)
-  const [activeEvent, setActiveEvent] = useState<WingEvent | null>(null)
+  const [activeEvent, setActiveEvent] = useState<WingEvent | null>(() => cachedActiveEvent?.event ?? null)
   const profileTriggerRef = useRef<HTMLButtonElement>(null)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
@@ -113,29 +149,13 @@ export default function AppHeader({ view, onViewChange }: Props) {
   // Runs signed-out too: published events are anon-readable (migration 029),
   // and the broadcast strip is the only in-app pointer to the crawl — gating
   // it on a session left logged-out visitors with no way to find the event.
+  // Every page mounts its own header, so the answer is shared (see
+  // loadActiveEvent) instead of refetched on each navigation.
   useEffect(() => {
     let cancelled = false
-    const fetchActive = async () => {
-      const now = new Date().toISOString()
-      const { data, error } = await supabase
-        .from('events_with_counts')
-        .select('*')
-        .eq('is_published', true)
-        .or(`ends_at.gte.${now},ends_at.is.null`)
-        .order('starts_at', { ascending: true, nullsFirst: false })
-        .limit(1)
-      if (cancelled) return
-      if (error) {
-        // Fail quietly: the broadcast strip is optional chrome — just don't
-        // render it rather than showing a bogus "no event" state elsewhere.
-        setActiveEvent(null)
-        return
-      }
-      setActiveEvent((data?.[0] as WingEvent | undefined) ?? null)
-    }
-    fetchActive()
+    loadActiveEvent().then(ev => { if (!cancelled) setActiveEvent(ev) })
     return () => { cancelled = true }
-  }, [auth?.user])
+  }, [auth?.user?.id])
 
   useHistoryModal(showProfileModal, () => setShowProfileModal(false))
   useHistoryModal(showNotifSettings, () => setShowNotifSettings(false))
@@ -149,8 +169,8 @@ export default function AppHeader({ view, onViewChange }: Props) {
   const email = user?.email ?? ''
 
   const eventLabel = activeEvent && activeEvent.starts_at && new Date(activeEvent.starts_at) > new Date()
-    ? 'Upcoming crawl'
-    : 'Crawl in progress'
+    ? 'Upcoming event'
+    : 'Event happening now'
 
   function handleBrandClick() {
     if (onViewChange) onViewChange('gallery')
@@ -171,7 +191,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
             <button
               onClick={handleBack}
               aria-label="Back"
-              className="flex-shrink-0 w-10 h-11 flex items-center justify-center rounded-lg text-cream-100 hover:text-cream-50 hover:bg-night-800 active:bg-night-700 transition-colors -ml-1.5"
+              className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-lg text-cream-100 hover:text-cream-50 hover:bg-night-800 active:bg-night-700 transition-colors -ml-1.5"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
@@ -187,7 +207,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
             // With the view tabs, the brand is just the icon (and on the very
             // narrowest phones it steps aside entirely; the Feed tab goes to
             // the same place)
-            className={`${view && onViewChange ? 'hidden min-[340px]:flex flex-shrink-0' : 'flex flex-shrink'} items-center gap-2 min-w-0 min-h-11 group`}
+            className={`${view && onViewChange ? 'hidden min-[340px]:flex flex-shrink-0' : 'flex flex-shrink'} items-center gap-2 min-w-11 min-h-11 group`}
             aria-label="WingKingTony home"
           >
             <span className="relative inline-flex flex-shrink-0">
@@ -264,26 +284,29 @@ export default function AppHeader({ view, onViewChange }: Props) {
             <div className="relative flex items-center gap-1 flex-shrink-0">
               <NotificationBell notifications={notificationsHook} />
               <div className="relative">
+                {/* 44×44 tap target around the 40px avatar */}
                 <button
                   ref={profileTriggerRef}
                   onClick={() => setProfileOpen(!profileOpen)}
-                  className="w-10 h-10 rounded-full overflow-hidden border-2 border-cream-50
-                             hover:border-sauce-300 transition-colors
-                             flex items-center justify-center bg-night-700 shadow-sticker-sm"
+                  className="w-11 h-11 flex items-center justify-center rounded-full group"
                   aria-label="Profile menu"
                   aria-haspopup="menu"
                   aria-expanded={profileOpen}
                 >
-                  <AvatarImage
-                    src={avatar}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                    fallback={
-                      <span className="text-sm font-extrabold uppercase text-cream-50">
-                        {(name || '?').charAt(0).toUpperCase()}
-                      </span>
-                    }
-                  />
+                  <span className="w-10 h-10 rounded-full overflow-hidden border-2 border-cream-50
+                                   group-hover:border-sauce-300 transition-colors
+                                   flex items-center justify-center bg-night-700 shadow-sticker-sm">
+                    <AvatarImage
+                      src={avatar}
+                      alt={name}
+                      className="w-full h-full object-cover"
+                      fallback={
+                        <span className="text-sm font-extrabold uppercase text-cream-50">
+                          {(name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      }
+                    />
+                  </span>
                 </button>
 
                 {profileOpen && (
@@ -347,6 +370,16 @@ export default function AppHeader({ view, onViewChange }: Props) {
                         </MenuItem>
                       )}
 
+                      {/* Site info — otherwise only in the feed's footer,
+                          thousands of pixels down */}
+                      <div className="flex border-t border-night-900/15">
+                        <MenuLink to="/privacy" onClick={() => setProfileOpen(false)}>Privacy</MenuLink>
+                        <MenuLink to="/terms" onClick={() => setProfileOpen(false)}>Terms</MenuLink>
+                        <MenuLink href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('WingKingTony')}`} onClick={() => setProfileOpen(false)}>
+                          Contact
+                        </MenuLink>
+                      </div>
+
                       <MenuItem onClick={async () => { setProfileOpen(false); await auth?.signOut() }} danger>
                         Sign out
                       </MenuItem>
@@ -386,7 +419,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
               </span>
             </div>
             <span className="hidden sm:inline text-[11px] font-extrabold uppercase tracking-crowd flex-shrink-0 group-hover:translate-x-0.5 transition-transform">
-              Pull up →
+              See event →
             </span>
           </div>
         </button>
@@ -436,5 +469,22 @@ function MenuItem({
     <button role="menuitem" onClick={onClick} className={`${base} ${tone}`}>
       {children}
     </button>
+  )
+}
+
+/** Compact link row item for Privacy / Terms / Contact in the profile menu. */
+function MenuLink({
+  children, to, href, onClick,
+}: {
+  children: ReactNode
+  to?: string
+  href?: string
+  onClick: () => void
+}) {
+  const cls = 'flex-1 min-h-11 px-2 flex items-center justify-center text-xs font-bold text-charcoal-600 underline underline-offset-2 decoration-night-900/20 hover:bg-cream-100 hover:text-night-900 focus:outline-none focus:bg-cream-100'
+  return to ? (
+    <Link role="menuitem" to={to} onClick={onClick} className={cls}>{children}</Link>
+  ) : (
+    <a role="menuitem" href={href} onClick={onClick} className={cls}>{children}</a>
   )
 }

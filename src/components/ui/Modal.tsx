@@ -1,7 +1,8 @@
-import { useEffect, useState, ReactNode, useId } from 'react'
+import { useEffect, useRef, useState, ReactNode, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { useBottomSheetDrag, useIsMobile } from '../../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useHideFab } from '../../hooks/useHideFab'
 
 interface Props {
   title: string
@@ -24,6 +25,11 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
   const titleId = useId()
   const [stackId] = useState(() => Symbol('modal'))
   const isMobile = useIsMobile()
+  const footerRef = useRef<HTMLDivElement>(null)
+
+  // The floating "Rate wings" button would sit on top of the sheet's own
+  // footer buttons and text; it steps aside while any modal is open.
+  useHideFab(true)
 
   // Keep the sheet above the iOS keyboard: 100dvh ignores the keyboard, so
   // shrink and lift the bottom-anchored sheet by the overlap (same pattern
@@ -76,6 +82,24 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
     return () => window.removeEventListener('keydown', handler)
   }, [onClose, stackId])
 
+  // Toasts sit at the bottom of the screen (App's Toaster); publish the
+  // pinned footer's height so they're lifted above Cancel / Publish instead
+  // of covering them. Last writer wins, which is the topmost modal.
+  const hasFooter = footer != null
+  useEffect(() => {
+    const el = footerRef.current
+    const root = document.documentElement
+    if (!el) return
+    const set = () => root.style.setProperty('--wkt-sheet-footer', `${el.offsetHeight}px`)
+    set()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--wkt-sheet-footer')
+    }
+  }, [hasFooter])
+
   const maxWidths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
 
   // Portaled to <body>: a transformed/overflow-hidden ancestor (e.g. a
@@ -126,7 +150,7 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
           <h2 id={titleId} className="font-display uppercase tracking-wide text-lg text-night-900 truncate pr-3">{title}</h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 active:bg-cream-200 transition-colors text-2xl leading-none flex-shrink-0"
+            className="w-11 h-11 -mr-1.5 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 active:bg-cream-200 transition-colors text-2xl leading-none flex-shrink-0"
             aria-label="Close"
           >
             ×
@@ -143,6 +167,7 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
 
         {footer && (
           <div
+            ref={footerRef}
             className="flex-shrink-0 border-t border-night-900/10 bg-cream-50 px-6 pt-3 pb-3 rounded-b-none sm:rounded-b-3xl"
             style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
           >

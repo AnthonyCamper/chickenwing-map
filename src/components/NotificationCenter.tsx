@@ -1,4 +1,7 @@
 import { formatDistanceToNow } from 'date-fns'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { cleanUserText } from '../lib/userText'
 import { supabase } from '../lib/supabase'
 import type { UseNotificationsReturn } from '../hooks/useNotifications'
 import type { Notification } from '../lib/types'
@@ -22,11 +25,16 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
     pushSupported,
   } = notifications
 
+  const navigate = useNavigate()
+
+  // Every notification opens the thing it's about, from any page: lists go
+  // to the list, everything else to the review (and the exact comment, via
+  // #comment-<id>, which ReviewPage opens, scrolls to and highlights).
   const handleNotificationClick = async (notif: Notification) => {
     markRead(notif.id)
     onClose()
 
-    // Crawl notifications — look up slug then dispatch deep-link
+    // List notifications — look up the slug
     if (notif.crawl_id) {
       const { data } = await supabase
         .from('wing_crawls')
@@ -34,38 +42,39 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
         .eq('id', notif.crawl_id)
         .maybeSingle()
       if (data?.slug) {
-        window.dispatchEvent(new CustomEvent('push-deep-link', {
-          detail: { crawlSlug: data.slug },
-        }))
-        return
+        navigate(`/lists/${data.slug}`)
+      } else {
+        toast.error('That list was deleted or made private.')
       }
+      return
     }
 
-    let photoId = notif.photo_id
-    const reviewId = notif.review_id
     const commentId = notif.comment_id
+    let reviewId = notif.review_id
 
-    // Resolve review_id from comment_id if missing
-    if (!photoId && !reviewId && commentId) {
+    // Older rows carry only a comment or a photo id: find their review
+    if (!reviewId && commentId) {
       const { data } = await supabase
         .from('review_comments')
         .select('review_id')
         .eq('id', commentId)
         .maybeSingle()
-      if (data) {
-        window.dispatchEvent(new CustomEvent('push-deep-link', {
-          detail: { reviewId: data.review_id, commentId },
-        }))
-        return
-      }
+      reviewId = (data as { review_id: string } | null)?.review_id ?? null
+    }
+    if (!reviewId && notif.photo_id) {
+      const { data } = await supabase
+        .from('review_photos')
+        .select('review_id')
+        .eq('id', notif.photo_id)
+        .maybeSingle()
+      reviewId = (data as { review_id: string } | null)?.review_id ?? null
     }
 
-    // Navigate to the relevant content via deep-link event (no full reload)
-    if (photoId || reviewId) {
-      window.dispatchEvent(new CustomEvent('push-deep-link', {
-        detail: { photoId, reviewId, commentId },
-      }))
+    if (!reviewId) {
+      toast.error('That review or comment was deleted.')
+      return
     }
+    navigate(`/reviews/${reviewId}${commentId ? `#comment-${commentId}` : ''}`)
   }
 
   return (
@@ -85,7 +94,7 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
         {unreadCount > 0 && (
           <button
             onClick={markAllRead}
-            className="text-[11px] font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors flex-shrink-0"
+            className="min-h-[44px] -my-3 px-1 text-[11px] font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600 transition-colors flex-shrink-0"
           >
             Mark all read
           </button>
@@ -150,14 +159,14 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <p className={`text-sm leading-snug ${
+              <p className={`text-sm leading-snug user-text ${
                 notif.read ? 'text-charcoal-500' : 'text-night-800 font-medium'
               }`}>
-                {notif.preview_text || getDefaultText(notif)}
+                {notificationText(notif)}
               </p>
               {notif.shop_name && notif.type === 'new_review' && (
-                <p className="text-xs text-charcoal-500 mt-0.5 truncate">
-                  at {notif.shop_name}
+                <p className="text-xs text-charcoal-500 mt-0.5 truncate user-text">
+                  at {cleanUserText(notif.shop_name)}
                 </p>
               )}
               <p className="text-xs text-charcoal-400 mt-1">
@@ -213,6 +222,18 @@ function NotificationIcon({ type }: { type: string }) {
     default:
       return <div className={`${iconClass} bg-cream-100`}>🔔</div>
   }
+}
+
+/**
+ * Reaction notifications store only the emoji as preview_text ("❤️"), which
+ * says nothing on its own. When the stored text has no letters or digits,
+ * use the plain sentence and append the emoji.
+ */
+export function notificationText(notif: Notification): string {
+  const preview = notif.preview_text ? cleanUserText(notif.preview_text).trim() : ''
+  if (!preview) return getDefaultText(notif)
+  if (/[\p{L}\p{N}]/u.test(preview)) return preview
+  return `${getDefaultText(notif)}: ${preview}`
 }
 
 function getDefaultText(notif: Notification): string {

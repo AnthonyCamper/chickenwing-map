@@ -136,4 +136,25 @@ describe('useBottomSheetDrag', () => {
     // the containing block for position:fixed descendants (nested modals).
     expect(result.current.sheetStyle.transform).toBeUndefined()
   })
+
+  it('expands to full height when a field marked data-expand-sheet gets focus', () => {
+    const sheet = document.createElement('div')
+    sheet.setAttribute('role', 'dialog')
+    const handle = document.createElement('div')
+    const search = document.createElement('input')
+    search.setAttribute('data-expand-sheet', 'true')
+    const plain = document.createElement('input')
+    sheet.append(handle, plain, search)
+    document.body.append(sheet)
+
+    const { result } = renderHook(() => useBottomSheetDrag())
+    act(() => result.current.handleProps.ref(handle))
+
+    act(() => { plain.focus() })
+    expect(result.current.expanded).toBe(false)
+    act(() => { search.focus() })
+    expect(result.current.expanded).toBe(true)
+    sheet.remove()
+  })
 })
+

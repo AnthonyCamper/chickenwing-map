@@ -26,8 +26,33 @@ export interface AuthState {
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
   /** Resolves true when the row was saved; on failure it has already shown a toast. */
-  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => Promise<boolean>
+  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string; username?: string }) => Promise<boolean>
   refreshProfile: () => Promise<void>
+}
+
+// Shared by every useAuth() caller: one sign-out at a time.
+let signOutInFlight: Promise<void> | null = null
+
+/**
+ * Sign out, single-flight: a double tap (or the menu and a status screen both
+ * asking) shares the one in-flight /auth/v1/logout instead of firing a second
+ * request (S25). Resolves only after the server has answered (supabase-js
+ * revokes the session there first, then clears it locally), so callers can
+ * navigate afterwards. If the request fails (offline), the session is kept —
+ * say so instead of silently leaving the user signed in.
+ */
+export function signOutOnce(): Promise<void> {
+  if (!signOutInFlight) {
+    signOutInFlight = (async () => {
+      try {
+        const { error } = await supabase.auth.signOut()
+        if (error) toast.error("Couldn't sign you out. Check your internet connection and try again.")
+      } finally {
+        signOutInFlight = null
+      }
+    })()
+  }
+  return signOutInFlight
 }
 
 export function useAuth(): AuthState {
@@ -278,11 +303,10 @@ export function useAuth(): AuthState {
     return { error: null }
   }
 
-  const signOut = async () => {
-    await supabase.auth.signOut()
-  }
+  // See signOutOnce: resolves after the server answered; one request at a time.
+  const signOut = signOutOnce
 
-  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }): Promise<boolean> => {
+  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string; username?: string }): Promise<boolean> => {
     const userId = session?.user?.id
     if (!userId) return false
 
@@ -294,7 +318,9 @@ export function useAuth(): AuthState {
       .maybeSingle()
 
     if (error || !data) {
-      toast.error(error?.message ?? 'Could not update profile')
+      // Never show raw backend text (e.g. a Postgres constraint message)
+      if (error) console.error('[auth] profile update failed:', error)
+      toast.error('Your profile could not be saved. Check your connection and try again.')
       return false
     }
     setProfile(prev => prev ? { ...prev, ...updates } : prev)

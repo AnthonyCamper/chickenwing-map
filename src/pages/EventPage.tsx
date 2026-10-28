@@ -21,7 +21,8 @@ import EventRecap from '../components/events/EventRecap'
 import { WhosComing, CheckedInFeed, type CheckinAttendee } from '../components/events/EventAttendees'
 import { eventPhase } from '../lib/eventPhase'
 import { supabase } from '../lib/supabase'
-import type { BadgeWithEarned, EventStop, Review, ReviewPhoto, ReviewFormData, RsvpStatus } from '../lib/types'
+import type { BadgeWithEarned, EventStop, Review, ReviewPhoto, RsvpStatus } from '../lib/types'
+import type { ReviewCreateData } from '../lib/reviewActions'
 
 interface Props {
   auth: AuthState
@@ -282,7 +283,7 @@ export default function EventPage({ auth }: Props) {
     setReviewingStop(stop)
   }
 
-  const handleSubmitReview = async (data: ReviewFormData) => {
+  const handleSubmitReview = async (data: ReviewCreateData) => {
     if (!reviewingStop) return { error: 'No stop selected' }
     if (evt.myRsvp?.status !== 'going') return { error: 'Join the crawl first before leaving a review!' }
     const result = await reviews.createReview(data, userId ?? '')
@@ -400,7 +401,7 @@ export default function EventPage({ auth }: Props) {
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
           <h1 className="font-display uppercase text-lg text-night-900 tracking-tightest flex-1 truncate hidden sm:block">{e.name}</h1>
           <span className="flex-1 sm:hidden text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 truncate">
-            {startsAt ? format(startsAt, 'EEE MMM d') : 'Date TBA'} · {goingCount} going
+            {startsAt ? format(startsAt, 'EEE MMM d') : 'Date not set yet'} · {goingCount} {phase === 'wrapped' ? 'went' : 'going'}
           </span>
           <ShareButton
             title={e.name}
@@ -464,6 +465,7 @@ export default function EventPage({ auth }: Props) {
           onClose={() => setReviewingStop(null)}
           onSubmit={handleSubmitReview}
           prefill={{
+            wing_spot_id: reviewingStop.wing_spot_id,
             shop_name: reviewingStop.spot_name ?? '',
             address: reviewingStop.spot_address ?? '',
             lat: reviewingStop.spot_lat ?? 0,

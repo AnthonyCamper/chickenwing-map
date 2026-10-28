@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
-import { downscaleImage, imageExtension } from '../../lib/imageResize'
-import { useAdminEvents } from '../../hooks/useAdminEvents'
+import { downscaleImage } from '../../lib/imageResize'
+import { EVENT_COVER_CACHE_SECONDS, eventCoverPath, useAdminEvents } from '../../hooks/useAdminEvents'
 import BusinessAutocomplete from '../ui/BusinessAutocomplete'
 import CoverImagePicker from '../ui/CoverImagePicker'
 import type { WingEvent, EventStop, EventFormData, WingSpot } from '../../lib/types'
 
 async function uploadEventCover(slug: string, original: File): Promise<string | null> {
+  // ≤1600px JPEG (a phone photo or a PNG poster was 2–3 MB; this is ~200 KB)
   const file = await downscaleImage(original)
-  const path = `${slug}/cover.${imageExtension(file)}`
+  const path = eventCoverPath(slug, file)
   const { error } = await supabase.storage
     .from('event-covers')
-    .upload(path, file, { upsert: true, contentType: file.type })
+    .upload(path, file, { upsert: false, contentType: file.type, cacheControl: EVENT_COVER_CACHE_SECONDS })
   if (error) {
-    toast.error('Cover upload failed: ' + error.message)
+    toast.error(/size|too large|exceed/i.test(error.message)
+      ? "Couldn't upload the cover: the image is too big. Choose a smaller image."
+      : "Couldn't upload the cover. Check your connection and try again.")
     return null
   }
   const { data } = supabase.storage.from('event-covers').getPublicUrl(path)

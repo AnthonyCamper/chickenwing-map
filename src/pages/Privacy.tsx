@@ -4,10 +4,15 @@ import { Helmet } from 'react-helmet-async'
 import AppHeader from '../components/AppHeader'
 
 export const LEGAL_CONTACT_EMAIL = 'anthonycap949@gmail.com'
-export const LEGAL_LAST_UPDATED = '27 October 2026'
+export const LEGAL_LAST_UPDATED = '28 October 2026'
 
 // Shared layout for the plain-language legal pages (/privacy, /terms).
-export function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+export function LegalPage({ title, related, children }: {
+  title: string
+  /** The other legal page, linked at the bottom. */
+  related: { to: string; label: string }
+  children: ReactNode
+}) {
   return (
     <div className="min-h-dvh bg-paper flex flex-col">
       <Helmet>
@@ -24,7 +29,22 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
         <div className="space-y-6 text-sm text-charcoal-700 leading-relaxed break-words">
           {children}
         </div>
+        <LegalFooter related={related} />
       </main>
+    </div>
+  )
+}
+
+// End of both legal pages: the other policy, how to reach us, and the way
+// back into the app (people finish reading at the bottom, not the header).
+function LegalFooter({ related }: { related: { to: string; label: string } }) {
+  return (
+    <div className="mt-10 pt-6 border-t-2 border-night-900/10 text-sm text-charcoal-700 space-y-3">
+      <p>
+        Read also: <Link to={related.to} className="inline-flex items-center min-h-[44px] px-1 text-sauce-500 font-bold underline">{related.label}</Link>
+      </p>
+      <p>Questions or requests: <ContactLink /></p>
+      <Link to="/" className="btn-secondary">← Back to WingKingTony</Link>
     </div>
   )
 }
@@ -58,7 +78,7 @@ export function ContactLink() {
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy Policy">
+    <LegalPage title="Privacy Policy" related={{ to: '/terms', label: 'Terms of Use' }}>
       <p>
         WingKingTony is a small, free website where people rate chicken wing spots. It is run by
         one person, the site admin. This page explains, in plain words, what we collect, who can
@@ -71,8 +91,10 @@ export default function Privacy() {
             by our login provider (Supabase) in hashed form; we never see them.</>,
           <><strong>Google sign-in (optional):</strong> if you choose “Continue with Google”, Google
             gives us your email, your name and your Google profile photo.</>,
-          <><strong>Profile:</strong> display name, a username made from it (used in your profile
-            link), an optional profile photo and an optional short bio.</>,
+          <><strong>Profile:</strong> display name, a username (used in your profile link; it is made
+            from your display name when you sign up, and you can change it in Edit profile), an
+            optional profile photo and an optional short bio. When you change your username, we
+            keep your old usernames so that old links still work (see “What is public”).</>,
           <><strong>What you post:</strong> reviews (spot, rating, flavor, size, visit date, text),
             photos, comments, GIFs you add to comments, likes and emoji reactions, people you
             follow, wing lists you make, and event RSVPs and check-ins.</>,
@@ -92,12 +114,19 @@ export default function Privacy() {
           'your display name, username, profile photo and bio',
           'your reviews, review photos, comments and the spots you add',
           'your likes and reactions (in “liked by” lists), who you follow and who follows you',
-          'your badges and wing lists you make public',
+          'your badges, and your wing lists (lists are public by default and show in the Lists tab; if you turn off “Public” on a list, only you can see it)',
           'your event RSVPs (on event pages); event check-ins are shown to signed-in members',
         ]} />
         <p>
           <strong>Your email address is never shown to other people.</strong> Only the site admin
           can see it, to manage accounts.
+        </p>
+        <p>
+          <strong>Old profile links keep working.</strong> If you change your username, your old
+          link (wingkingtony.com/u/old-name) keeps sending people to your profile with the new
+          name, and nobody else can take your old username. So changing your username does not
+          hide your profile from people who have an old link. When you delete your account, your
+          profile link and all your old links stop working.
         </p>
         <p>
           The “Private profile” setting in your profile hides your profile page from other people
@@ -146,11 +175,12 @@ export default function Privacy() {
 
       <Section heading="Keeping and deleting your data">
         <p>
-          We keep your data while you have an account. You can edit or delete any review or comment
-          at any time. To delete everything, tap your picture in the top corner → <strong>Edit
+          We keep your data while you have an account. You can edit or delete any of your reviews, and
+          delete any of your comments, at any time. To delete everything, tap your picture in the top corner → <strong>Edit
           profile</strong> and choose <strong>Delete account</strong>. This permanently removes your account,
           profile, reviews, photos, comments, likes, reactions, follows, lists, RSVPs, check-ins,
-          badges and notifications. Spots you added stay on the map without your name.
+          badges and notifications, and your old usernames, so none of your profile links work
+          any more. Spots you added stay on the map without your name.
         </p>
         <p>
           You can also email <ContactLink /> to ask for a copy of your data or to have it deleted.

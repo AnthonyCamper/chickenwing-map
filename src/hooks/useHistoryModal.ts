@@ -8,9 +8,18 @@ import { useEffect, useRef } from 'react'
  * 1. Browser back (popstate) → calls onClose
  * 2. App close (X button, Escape) → calls history.back() to clean up the entry
  */
-export function useHistoryModal(isOpen: boolean, onClose: () => void) {
+export function useHistoryModal(
+  isOpen: boolean,
+  onClose: () => void,
+  /** Optional guard for browser Back: return false to keep the modal open
+   *  (e.g. after asking to confirm discarding unsaved edits). The history
+   *  entry is pushed again so the next Back is caught too. */
+  canClose?: () => boolean,
+) {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const canCloseRef = useRef(canClose)
+  canCloseRef.current = canClose
 
   const pushedRef = useRef(false)
   const closingViaAppRef = useRef(false)
@@ -48,6 +57,11 @@ export function useHistoryModal(isOpen: boolean, onClose: () => void) {
       }
       if (pushedRef.current) {
         // User pressed back / swiped back while modal was open
+        if (canCloseRef.current && !canCloseRef.current()) {
+          // Stay open: put our entry back so history matches what's shown
+          window.history.pushState({ _modal: true }, '')
+          return
+        }
         pushedRef.current = false
         onCloseRef.current()
       }

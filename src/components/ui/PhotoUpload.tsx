@@ -5,13 +5,26 @@ import { MAX_IMAGE_MB, validateImageFile } from '../../lib/imageValidation'
 interface Props {
   files: File[]
   onChange: (files: File[]) => void
-  max?: number   // max total files allowed (default 5)
+  max?: number   // max files this picker may hold (default 5)
+  /** The per-review limit named in messages (the edit form passes only the
+   *  slots left as `max`). Default 5. */
+  perReview?: number
 }
 
-export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
+/** Message when a pick goes over the limit, or null when everything fit. */
+export function overLimitMessage(picked: number, added: number, perReview: number): string | null {
+  if (added >= picked) return null
+  if (added === 0) return `Only ${perReview} photos per review. Remove a photo to add another.`
+  return `Only ${perReview} photos per review — the first ${added} you picked ${added === 1 ? 'was' : 'were'} added.`
+}
+
+export default function PhotoUpload({ files, onChange, max = 5, perReview = 5 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [checking, setChecking] = useState(false)
+  // Shown under the photos (a toast alone was easy to miss — m1 breaker 7).
+  const [limitNote, setLimitNote] = useState<string | null>(null)
+  const full = files.length >= max
   // Validation decodes each image (async), so read the latest list from a
   // ref when merging — a second pick during the check must not drop the first.
   const filesRef = useRef(files)
@@ -34,13 +47,13 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
     if (!valid.length) return
     const current = filesRef.current
     const merged = [...current, ...valid].slice(0, max)
-    if (merged.length < current.length + valid.length) {
-      toast.error(`You can add up to ${max} photos.`)
-    }
-    onChange(merged)
+    const note = overLimitMessage(valid.length, merged.length - current.length, perReview)
+    setLimitNote(note)
+    if (merged.length > current.length) onChange(merged)
   }
 
   const remove = (index: number) => {
+    setLimitNote(null)
     onChange(files.filter((_, i) => i !== index))
   }
 
@@ -62,19 +75,24 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
           setDragging(false)
           void addFiles(e.dataTransfer.files)
         }}
-        onClick={() => inputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 min-h-[120px] cursor-pointer transition-colors ${
-          dragging
-            ? 'border-sauce-400 bg-sauce-50'
-            : 'border-night-900/25 bg-cream-100 hover:border-sauce-300 hover:bg-sauce-50/40'
+        onClick={() => { if (!full) inputRef.current?.click() }}
+        aria-disabled={full || undefined}
+        className={`relative flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-5 min-h-[120px] transition-colors ${
+          full
+            ? 'border-night-900/15 bg-cream-100 cursor-default'
+            : dragging
+              ? 'border-sauce-400 bg-sauce-50 cursor-pointer'
+              : 'border-night-900/25 bg-cream-100 hover:border-sauce-300 hover:bg-sauce-50/40 cursor-pointer'
         }`}
       >
-        <span className="text-2xl">📷</span>
+        <span className="text-2xl" aria-hidden>📷</span>
         <p className="text-sm font-bold text-night-800">
-          {checking ? 'Checking photos…' : dragging ? 'Drop to add' : 'Add photos'}
+          {full ? 'Photo limit reached' : checking ? 'Checking photos…' : dragging ? 'Drop to add' : 'Add photos'}
         </p>
         <p className="text-xs text-charcoal-500">
-          Tap to choose, or drag photos here · up to {max} photos · {MAX_IMAGE_MB} MB each
+          {full
+            ? `A review can have up to ${perReview} photos. Remove one to add a different one.`
+            : `Choose photos, or drag them here · up to ${max} photos · ${MAX_IMAGE_MB} MB each`}
         </p>
         <input
           ref={inputRef}
@@ -82,6 +100,7 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
           accept="image/*"
           multiple
           className="sr-only"
+          disabled={full}
           onChange={e => {
             if (e.target.files) void addFiles(e.target.files)
             // Reset so picking the same file again (after removing it) fires onChange
@@ -89,6 +108,10 @@ export default function PhotoUpload({ files, onChange, max = 5 }: Props) {
           }}
         />
       </div>
+
+      {limitNote && (
+        <p className="text-xs font-bold text-red-600" role="status">{limitNote}</p>
+      )}
 
       {/* Preview grid */}
       {files.length > 0 && (

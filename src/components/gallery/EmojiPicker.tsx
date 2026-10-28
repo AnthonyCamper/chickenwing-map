@@ -195,6 +195,15 @@ export default function EmojiPicker({ onSelect, onClose, anchorRect }: EmojiPick
     }
   }, [isDesktop])
 
+  // Escape closes the picker (popover and bottom sheet alike)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   // Close on outside click for desktop popover
   useEffect(() => {
     if (!isDesktop) return

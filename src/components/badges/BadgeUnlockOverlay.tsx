@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
 import BadgeIcon from './BadgeIcon'
+import { useHideFab } from '../../hooks/useHideFab'
 import { BADGES_UNLOCKED_EVENT, BadgesUnlockedDetail } from '../../lib/badgeUnlocks'
 import { badgeRarity, rarityLine, RARITY_CHIP_CLASSES } from '../../lib/badgeRarity'
 import type { BadgeWithEarned } from '../../lib/types'
@@ -60,11 +62,18 @@ function rarityText(badge: BadgeWithEarned): { chip: string | null; tierClass: s
  */
 export default function BadgeUnlockOverlay() {
   const [batch, setBatch] = useState<BadgeWithEarned[]>([])
+  // The unlocks came from publishing a review: say so first, so the
+  // celebration never reads as the only sign the review went live.
+  const [reviewPublished, setReviewPublished] = useState(false)
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const badges = (e as CustomEvent<BadgesUnlockedDetail>).detail?.badges
+      const detail = (e as CustomEvent<BadgesUnlockedDetail>).detail
+      const badges = detail?.badges
       if (!badges?.length) return
+      if (detail.reviewPublished) setReviewPublished(true)
+      // This overlay now says "published"; the toast would only cover its buttons.
+      if (detail.confirmationToastId) toast.dismiss(detail.confirmationToastId)
       setBatch(prev => {
         const seen = new Set(prev.map(b => b.id))
         return [...prev, ...badges.filter(b => !seen.has(b.id))]
@@ -75,12 +84,13 @@ export default function BadgeUnlockOverlay() {
   }, [])
 
   const open = batch.length > 0
-  const close = () => setBatch([])
+  const close = () => { setBatch([]); setReviewPublished(false) }
+  useHideFab(open)
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter') setBatch([])
+      if (e.key === 'Escape' || e.key === 'Enter') { setBatch([]); setReviewPublished(false) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -104,7 +114,7 @@ export default function BadgeUnlockOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-[220] flex items-center justify-center px-6 animate-fade-in"
+      className="fixed inset-0 z-[220] flex items-center justify-center px-4 animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -114,7 +124,7 @@ export default function BadgeUnlockOverlay() {
 
       <div
         key={seedKey}
-        className={`relative w-full max-w-sm max-h-[85dvh] flex flex-col bg-cream-50 border-2 rounded-3xl shadow-elevated text-center overflow-hidden animate-slide-up
+        className={`relative w-full max-w-sm max-h-[92dvh] flex flex-col bg-cream-50 border-2 rounded-3xl shadow-elevated text-center overflow-hidden animate-slide-up
           ${anyEvent && single ? 'border-gold-400' : 'border-night-900'}`}
         onClick={e => e.stopPropagation()}
       >
@@ -150,11 +160,19 @@ export default function BadgeUnlockOverlay() {
           ×
         </button>
 
-        <div className="overflow-y-auto px-6 pt-8 pb-4">
+        <div className={`overflow-y-auto overscroll-contain ${single ? 'px-6 pt-8 pb-4' : 'px-4 pt-4 pb-2'}`}>
+          {reviewPublished && (
+            <p
+              className="mx-auto mb-2.5 w-fit max-w-[calc(100%-5.5rem)] flex items-center gap-1.5 px-3 py-1 rounded-full bg-cream-100 border border-night-900/15 text-xs font-bold text-night-800"
+              role="status"
+            >
+              <span className="text-sauce-500" aria-hidden>✓</span> Your review is published.
+            </p>
+          )}
           {single ? <SingleBadge badge={single} /> : <BadgeList badges={batch} />}
         </div>
 
-        <div className="px-6 pb-6 pt-2">
+        <div className={single ? 'px-6 pb-6 pt-2' : 'px-4 pb-4 pt-2'}>
           <button type="button" onClick={close} className="btn-primary w-full py-3">
             Done
           </button>
@@ -248,24 +266,26 @@ function BadgeList({ badges }: { badges: BadgeWithEarned[] }) {
   return (
     <>
       <p className="eyebrow mb-1 text-sauce-500">Badges unlocked!</p>
-      <h3 className="font-display uppercase tracking-wide text-3xl text-night-900 mb-4 leading-none">
+      {/* Compact rows so 3–4 badges fit a 375×667 screen without scrolling
+          inside the card (m1 mobile 11). */}
+      <h3 className="font-display uppercase tracking-wide text-2xl text-night-900 mb-2.5 leading-none">
         You unlocked {badges.length} badges
       </h3>
-      <ul className="space-y-2.5 text-left">
+      <ul className="space-y-2 text-left">
         {badges.map((b, i) => {
           const isEvent = !!b.event_id
           const rarity = rarityText(b)
           return (
             <li
               key={b.id}
-              className={`flex items-start gap-3 p-3 rounded-2xl border-2 bg-cream-100 animate-rise-in ${isEvent ? 'border-gold-400' : 'border-night-900/15'}`}
+              className={`flex items-start gap-2.5 px-2.5 py-2 rounded-2xl border-2 bg-cream-100 animate-rise-in ${isEvent ? 'border-gold-400' : 'border-night-900/15'}`}
               style={{ animationDelay: `${0.1 + i * 0.08}s` }}
             >
               <span
-                className={`relative flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border-2 bg-night-800 text-cream-50
+                className={`relative flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border-2 bg-night-800 text-cream-50
                   ${isEvent ? 'border-gold-400' : 'border-night-900'}`}
               >
-                <BadgeIcon icon={b.icon} className="w-7 h-7" />
+                <BadgeIcon icon={b.icon} className="w-6 h-6" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-extrabold text-sm uppercase tracking-crowd text-night-900 leading-tight break-words">{b.name}</p>
@@ -273,10 +293,10 @@ function BadgeList({ badges }: { badges: BadgeWithEarned[] }) {
                   <p className="text-xs text-charcoal-500 leading-snug mt-0.5">{b.description}</p>
                 )}
                 {isEvent && b.event_name && (
-                  <p className="text-[11px] font-extrabold uppercase tracking-crowd text-gold-500 mt-1">★ Earned at {b.event_name}</p>
+                  <p className="text-[11px] font-extrabold uppercase tracking-crowd text-gold-500 mt-0.5">★ Earned at {b.event_name}</p>
                 )}
                 {rarity && (
-                  <p className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
                     {rarity.chip && (
                       <span className={`px-1.5 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-crowd ${rarity.tierClass}`}>
                         {rarity.chip}

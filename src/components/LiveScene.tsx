@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpotWithReviews } from '../lib/types'
+import { formatRating } from '../lib/formatRating'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 
@@ -80,18 +81,16 @@ export default function LiveScene({ spots, loading }: Props) {
     >
       <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-20" aria-hidden="true" />
 
-      {/* LIVE badge — an in-flow flex item (not absolute) so its label can
-          say what the number is without overlapping the headlines */}
-      <div className="hidden sm:flex relative z-10 px-4 items-center gap-2
+      {/* Label — an in-flow flex item (not absolute) so it never overlaps
+          the headlines. It says these are jokes: "LIVE" + "BREAKING" read
+          as a real news feed. Shown on phones too, in short form. */}
+      <div className="flex relative z-10 px-2.5 sm:px-4 items-center gap-1.5
                       bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px]
                       font-extrabold uppercase tracking-crowd flex-shrink-0 whitespace-nowrap">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cream-50 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-cream-50" />
-        </span>
-        <span>Live</span>
+        <span aria-hidden>😄</span>
+        <span>Wing news <span className="normal-case tracking-normal font-bold">(jokes)</span></span>
         {ratedCount > 0 && (
-          <span className="opacity-70">· {ratedCount} {ratedCount === 1 ? 'spot rated' : 'spots rated'}</span>
+          <span className="hidden sm:inline opacity-70">· {ratedCount} {ratedCount === 1 ? 'spot rated' : 'spots rated'}</span>
         )}
       </div>
 
@@ -122,7 +121,7 @@ export default function LiveScene({ spots, loading }: Props) {
 }
 
 const LOADING_ITEM: SceneItem = {
-  emoji: '📡', eyebrow: 'Live', type: 'scene', body: 'Loading wing news…',
+  emoji: '📡', eyebrow: 'Wing news', type: 'scene', body: 'Loading wing news…',
 }
 
 function Chip({ item }: { item: SceneItem }) {
@@ -179,7 +178,7 @@ export function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
 
   const king = [...ranked].sort((a, b) => b.avg_rating - a.avg_rating)[0]
   if (king) items.push({ emoji: '👑', eyebrow: 'King of the house', type: 'scene',
-    body: `${trunc(king.spot.name, 26)} · ${king.avg_rating.toFixed(1)}/10 from ${king.reviews.length} reviews` })
+    body: `${trunc(king.spot.name, 26)} · ${formatRating(king.avg_rating)}/10 from ${king.reviews.length} reviews` })
 
   const newest = [...rated].map(s => ({ s, r: s.reviews[0] })).filter(x => !!x.r)
     .sort((a, b) => b.r.visited_at.localeCompare(a.r.visited_at))[0]
@@ -207,7 +206,7 @@ export function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
 
   const bottom = [...ranked].sort((a, b) => a.avg_rating - b.avg_rating)[0]
   if (bottom && bottom.avg_rating < 6) items.push({ emoji: '🫤', eyebrow: 'Tough crowd', type: 'debate',
-    body: `${trunc(bottom.spot.name, 24)} catching strays — ${bottom.avg_rating.toFixed(1)}/10` })
+    body: `${trunc(bottom.spot.name, 24)} catching strays — ${formatRating(bottom.avg_rating)}/10` })
 
   const perfect = rated.flatMap(s => s.reviews).find(r => r.overall_rating === 10)
   if (perfect) items.push({ emoji: '💯', eyebrow: 'Perfect ten', type: 'alert',
@@ -228,7 +227,7 @@ function buildTimeItems(): SceneItem[] {
   else if (h < 17)  items.push({ emoji: '🕒', eyebrow: 'Afternoon',    type: 'alert',    body: 'Happy hour incoming. Position yourselves.' })
   else if (h < 20)  items.push({ emoji: '🌆', eyebrow: 'Prime time',   type: 'breaking', body: 'Dinner rush is live. The sauce is flowing.' })
   else if (h < 23)  items.push({ emoji: '🌙', eyebrow: 'Night mode',   type: 'breaking', body: 'Late night crew checking in. No regrets.' })
-  else              items.push({ emoji: '🚨', eyebrow: 'Last call',    type: 'breaking', body: "It's late. You know what to do." })
+  else              items.push({ emoji: '🌃', eyebrow: 'Last call',    type: 'breaking', body: "It's late. You know what to do." })
 
   if (day === 5) items.push({ emoji: '🎉', eyebrow: 'Friday',   type: 'alert',  body: 'It is Friday. The wing gods are watching.' })
   if (day === 6) items.push({ emoji: '🏈', eyebrow: 'Saturday', type: 'alert',  body: 'Game day energy. Wings first, questions later.' })
@@ -240,86 +239,66 @@ function buildTimeItems(): SceneItem[] {
 
 // ─── Onion-style deadpan news headlines ──────────────────────────────────────
 
-function o(body: string, eyebrow = 'Developing'): SceneItem {
+// Every one of these is a joke. Labels say so ("Parody", "Fake study") rather
+// than "Breaking" / "Health" / "Alert", which read as real news (m1 non-native
+// persona thought someone was in hospital). Nothing about hospitals, deaths,
+// police or real government, and nothing aimed at the reader.
+function o(body: string, eyebrow = 'Parody'): SceneItem {
   return { emoji: '📰', eyebrow, type: 'onion', body }
 }
 
-const ONION: SceneItem[] = [
+export const ONION: SceneItem[] = [
   // ── Area Man / Local Woman classics ──
   o('Area Man Drives 45 Minutes For Wings, Rates 6/10, Will Return Next Week'),
   o('Local Woman Describes Wing Sauce As "Giving" — Experts Remain Baffled'),
   o('Wing Spot Receives First 10/10 Review; Owner Claims He "Knew It All Along"'),
   o('Man Who Ordered Mild Wings Still Crying, Sources Confirm'),
-  o('Local Food Critic Gives Wings 4/10; Found Hiding In Witness Protection'),
   o('Area Man Insists He "Only Wanted A Few" Before Finishing 30 Wings Alone'),
   o('Local Woman\'s Review Described As "The Most Emotional Thing Posted On This Platform"'),
   o('Area Man Unable To Explain Why He Ordered Boneless; Sitting With That'),
   o('Local Teen Gives First-Ever Wing Review; Adults Nod Slowly, Say Nothing'),
-  o('Area Man\'s Wing Order Described By Waitress As "A Cry For Help, But Make It Saucy"'),
   o('Local Father Rates Wings 8/10, Calls It "Pretty Good," Refuses Further Comment'),
   o('Area Woman Photographed Every Wing Before Eating; Plate Now Cold; No Regrets Expressed'),
   o('Man Seen Crying In Parking Lot Clarifies Tears Are From Happiness, Not Ghost Pepper'),
   o('Local Man\'s Wing Opinions Described As "Confidently Wrong" By Everyone At The Table'),
   o('Area Couple Disagrees On Sauce; Relationship Counselor Specializing In Wings Now Booked 6 Months Out'),
-  o('Local Woman Orders Extra Ranch "For The Table" — Drinks It Alone In Bathroom'),
   o('Area Man Returns Takeout Order, Cites "Vibe Was Off"; Unable To Define Vibe'),
   o('Local Man\'s Wing Face Described By Loved Ones As "Concerning But Familiar"'),
-  o('Area Woman Adds Wings To Every Occasion; Funeral Next Weekend'),
   o('Man Who Brought His Own Sauce To Wing Spot Asked To Leave, Refuses'),
   o('Local Influencer Posts Wing Photo; 47 Comments Ask Where It\'s From; She Never Responds'),
   o('Area Man Describes Himself As A "Wing Guy" Despite Only Eating Wings Four Times'),
   o('Local Restaurant Owner Spotted Watching His Own Google Reviews Refresh In Real Time'),
 
   // ── Nation / Study / Report ──
-  o('Nation Divided After Photo Of Boneless Wings Labeled As Wings', 'Breaking'),
-  o('Scientists Confirm: No Amount Of Ranch Will Fix Bad Wings', 'Study'),
-  o('Study: People Who Don\'t Finish Their Wings Are A Completely Different Kind Of Person', 'Study'),
-  o('Report: Man Fully Committed To Rating Wings "Tomorrow" For Past 3 Weeks', 'Report'),
-  o('New Study Finds People Who Say "I\'m Not That Hungry" Are Statistically The Hungriest', 'Study'),
-  o('Researchers: Those Who Order Mild And Then Steal Your Hot Wings Are A Documented Threat', 'Study'),
-  o('Study Confirms Lemon Pepper Is Objectively Best; Everyone Already Knew This', 'Study'),
-  o('National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance', 'Study'),
-  o('Report: Wing Sauce Described As "Not Too Spicy" By Person Currently Sweating Through Their Shirt', 'Report'),
-  o('Scientists Unable To Explain Why Wings Always Taste Better After Midnight', 'Study'),
-  o('Report: 94% Of People Who Say "Just One More" Are On Wing Number 7', 'Report'),
-  o('Study: Finishing Your Wings And Immediately Wanting More Is Clinically Normal', 'Study'),
-  o('Report: Man Who Splits An Order With You Eats 70% Of It While Looking You In The Eye', 'Report'),
-  o('New Data Shows The Best Wing Spots Have The Worst Parking; Correlation Confirmed', 'Study'),
-  o('CDC Issues No Warning About Wing Overconsumption; Community Takes This As Endorsement', 'Report'),
-  o('Economists Baffled By Wing Spot Pricing; Customers Pay Anyway', 'Report'),
-  o('Study: People Who Review Wings Immediately Are More Trustworthy In Every Area Of Life', 'Study'),
-  o('Investigation Finds That "Family Size" Order Is Intended For One Person; Always Has Been', 'Report'),
-  o('Research Confirms The Crunchy One At The Bottom Of The Bag Is Always The Best One', 'Study'),
+  o('Nation Divided After Photo Of Boneless Wings Labeled As Wings'),
+  o('Scientists Confirm: No Amount Of Ranch Will Fix Bad Wings', 'Fake study'),
+  o('Study: People Who Don\'t Finish Their Wings Are A Completely Different Kind Of Person', 'Fake study'),
+  o('Report: Man Fully Committed To Rating Wings "Tomorrow" For Past 3 Weeks', 'Fake report'),
+  o('New Study Finds People Who Say "I\'m Not That Hungry" Are Statistically The Hungriest', 'Fake study'),
+  o('Researchers: Those Who Order Mild And Then Steal Your Hot Wings Are A Documented Threat', 'Fake study'),
+  o('Study Confirms Lemon Pepper Is Objectively Best; Everyone Already Knew This', 'Fake study'),
+  o('National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance', 'Fake study'),
+  o('Report: Wing Sauce Described As "Not Too Spicy" By Person Currently Sweating Through Their Shirt', 'Fake report'),
+  o('Scientists Unable To Explain Why Wings Always Taste Better After Midnight', 'Fake study'),
+  o('Report: 94% Of People Who Say "Just One More" Are On Wing Number 7', 'Fake report'),
+  o('Study: Finishing Your Wings And Immediately Wanting More Is Clinically Normal', 'Fake study'),
+  o('Report: Man Who Splits An Order With You Eats 70% Of It While Looking You In The Eye', 'Fake report'),
+  o('New Data Shows The Best Wing Spots Have The Worst Parking; Correlation Confirmed', 'Fake study'),
+  o('Economists Baffled By Wing Spot Pricing; Customers Pay Anyway', 'Fake report'),
+  o('Study: People Who Review Wings Immediately Are More Trustworthy In Every Area Of Life', 'Fake study'),
+  o('Survey Finds That "Family Size" Order Is Intended For One Person; Always Has Been', 'Fake report'),
+  o('Research Confirms The Crunchy One At The Bottom Of The Bag Is Always The Best One', 'Fake study'),
 
-  // ── Witness Protection / Legal / Government ──
-  o('D.C. Man Sets Personal Record Of 47 Wings Before Questioning Life Choices', 'Breaking'),
-  o('D.C. Wing Crawl Participant Has Not Been Seen Since Stop 5; Friends Unworried', 'Breaking'),
-  o('Congress Unable To Agree On Wing Legislation; Bipartisan Support For Eating More', 'Breaking'),
-  o('D.C. Zoning Board Approves New Wing Spot; Citizens Weep With Gratitude', 'Breaking'),
-  o('Federal Reserve Raises Rates; Wing Spots Completely Unaffected, Continue Thriving', 'Report'),
-  o('D.C. Council Introduces Bill To Classify Lemon Pepper As Essential Infrastructure', 'Breaking'),
-  o('White House Has No Comment On Wing Rankings; Seen As Tacit Endorsement Of Top Spot', 'Report'),
-  o('Local Politician Claims Wings Are "Fine"; Approval Rating Drops 12 Points', 'Breaking'),
-  o('FBI Opens Investigation Into Who Touched The Last Wing Without Asking', 'Breaking'),
-  o('Supreme Court Asked To Rule On Whether Boneless Wings Are Wings; Case Accepted', 'Breaking'),
-  o('D.C. Mayor Photographed At Wing Spot On Campaign Trail; This Is Why She Wins', 'Report'),
-  o('Senate Hearing On Wing Sauce Safety Devolves Into Everyone Just Ordering Wings', 'Breaking'),
+  // ── D.C. ──
+  o('D.C. Man Sets Personal Record Of 47 Wings Before Questioning Life Choices'),
 
-  // ── Medical / Health ──
-  o('Doctors Baffled By Man Who Ate 60 Wings And Claims To Feel "Fine, Actually"', 'Health'),
-  o('ER Reports Spike In Ghost Pepper Wing Incidents; Staff Unmoved, Slightly Amused', 'Health'),
-  o('Man Describes Wing-Induced Stomach Pain As "Worth It" Before Ordering More', 'Health'),
-  o('Physical Therapist Notes Increase In Patients Who Hurt Themselves Reaching For Last Wing', 'Health'),
-  o('Nutritionist Recommends Wings "In Moderation"; Ignored Immediately By Everyone', 'Health'),
-  o('Area Man\'s Doctor Told Him To Eat Better; He Is Currently Eating Wings', 'Health'),
-  o('New Weight Loss Program Eliminates All Foods Except Wings; Practitioners Report Mixed Results', 'Health'),
-  o('Man Who Ate Wings Three Days In A Row Reports No Symptoms Other Than Happiness', 'Health'),
-  o('Gastroenterologist Refuses To Comment On Wing Consumption; Has Wing Sauce On Shirt', 'Health'),
-  o('Man\'s Hands Permanently Orange After 6 Months Of Wing Reviews; Considers It A Badge', 'Health'),
+  // ── Wing habits ──
+  o('Nutritionist Recommends Wings "In Moderation"; Ignored Immediately By Everyone'),
+  o('Man Who Ate Wings Three Days In A Row Reports No Symptoms Other Than Happiness'),
+  o('Man\'s Hands Permanently Orange After 6 Months Of Wing Reviews; Considers It A Badge'),
 
   // ── Wing Spot Culture ──
   o('Wing Spot Owner Insists "The Sauce Is The Same" Despite Widespread Community Outcry'),
-  o('Man Gives Spot 7/10, Refuses To Elaborate, Leaves Town'),
   o('Group Chat Unanimously Agrees On Wing Spot; First Time In Recorded History'),
   o('Wing Spot Opens At 11am; Man Already There At 10:45; Refuses Eye Contact'),
   o('Hot Wing Challenge Completed; Participant Claims Victory Despite Visible Evidence To The Contrary'),
@@ -329,11 +308,9 @@ const ONION: SceneItem[] = [
   o('Wing Spot Closes Early "Due To Running Out Of Wings"; Community Devastated, Secretly Proud'),
   o('Cashier At Wing Spot Recognizes Regular; Regular Pretends Not To Notice; Both Know'),
   o('Wing Spot Menu Has 47 Options; Man Orders Same Thing He Always Gets'),
-  o('Chef At Wing Spot Refuses To Reveal Sauce Recipe; Takes It To Grave In 2089'),
   o('Wing Spot\'s Yelp Page Has 3 Stars From People Who Ordered Wrong Thing; Spot Is Perfect'),
   o('Man Reviews Wing Spot He Has Never Visited; Somehow Gets It Exactly Right'),
   o('New Wing Spot Claims "Best In DC"; Residents Respect The Confidence, Verify Immediately'),
-  o('Wing Spot Runs Out Of Lemon Pepper On Friday Night; City Declares State Of Emergency'),
   o('Long-Awaited Wing Spot Finally Opens; Neighborhood Shows Up As One'),
 
   // ── The Sauce / Flavor discourse ──
@@ -369,7 +346,6 @@ const ONION: SceneItem[] = [
   o('Person Who Arrives Late To Wing Night Gets What\'s Left; Learns Valuable Lesson'),
   o('Wing Night Organizer Exhausted By Process Of Picking Wing Night Spot; Still Does It Every Week'),
   o('Man Who Always Says "I\'ll Just Have A Few" Has Never Had Just A Few'),
-  o('Friend\'s "Favorite Spot" Closes; Community Rallies; Grief Is Real'),
   o('Group Of Four Orders Enough Wings For Twenty; Zero Leftovers; No Explanation Given'),
   o('Man Loses Friends Over Boneless Stance; Finds New Friends; They Share His Values'),
   o('Woman Sends Wing Photo To Group Chat At 1am; Everyone Responds Immediately'),
@@ -379,9 +355,8 @@ const ONION: SceneItem[] = [
   o('Wing Crawl Stop 4 Described As "Where The Night Changed" By All Who Were Present', 'Crawl Report'),
   o('Crawl Participant Calls In Sick Next Day, Cites "Residual Wing Energy"', 'Crawl Report'),
   o('Wing Crawl Itinerary Ignored By Minute 12; Everyone Agrees It Was Better That Way', 'Crawl Report'),
-  o('Man Who Said He\'d "Just Try A Few At Each Stop" Hospitalizes Himself With Dignity', 'Crawl Report'),
   o('This Year\'s Wing Crawl Already Being Called "Legendary" By People Still In It', 'Crawl Report'),
-  o('Crawl Veteran Arrives With Own Wet Wipes; Group Elects Her President', 'Crawl Report'),
+  o('Crawl Veteran Arrives With Own Wet Wipes; Group Makes Her Team Captain', 'Crawl Report'),
   o('Last Stop On Wing Crawl Hits Hardest; Scientists Call It "The Final Form"', 'Crawl Report'),
   o('Wing Crawl Group Photo Taken; Everyone Has Sauce On Their Face; Photo Is Perfect', 'Crawl Report'),
   o('Crawl Participant Who "Wasn\'t Sure About This" Now Planning Next Crawl', 'Crawl Report'),
@@ -401,11 +376,8 @@ const ONION: SceneItem[] = [
 
   // ── Rating system discourse ──
   o('Man Gives 10/10; Immediately Starts Looking For Better; This Is The Wing Condition'),
-  o('7/10 Review Posted; Author Demands To Know Who Hurt Reviewer; No Response'),
   o('Wing Rating Scale 1-10 Described As "The Only Measurement That Matters" By Local Man'),
-  o('Person Who Gives Everything 5/10 Asked To Leave Platform; They Remain'),
   o('First Review Of New Spot Comes In At 9/10; Owner Immediately Wants To Know What Was Wrong'),
-  o('Man Gives Wings 10/10 Then Refuses To Name Spot; Considered A War Criminal'),
   o('Review Posted With Zero Stars; Turns Out Reviewer Ordered Wrong Thing; Stars Remain'),
   o('Anonymous Review Gives 3/10; Handwriting Recognized; Town Meeting Called'),
   o('Man Changes Rating From 8 To 9 After Reflecting; Spot Owner Cries'),
@@ -422,39 +394,35 @@ const ONION: SceneItem[] = [
 
 // ─── General evergreen pool ───────────────────────────────────────────────────
 
-const EVERGREEN: SceneItem[] = [
-  { emoji: '⚖️', eyebrow: 'Debate',        type: 'debate',   body: 'Bone-in vs boneless. Pick a side. No cowards.' },
+export const EVERGREEN: SceneItem[] = [
+  { emoji: '⚖️', eyebrow: 'Debate',        type: 'debate',   body: 'Bone-in vs boneless. Pick a side.' },
   { emoji: '🤔', eyebrow: 'Big question',  type: 'debate',   body: 'If a wing has no sauce, is it even a wing?' },
   { emoji: '💬', eyebrow: 'Argument',      type: 'debate',   body: 'Bleu cheese vs ranch. The culture is divided.' },
-  { emoji: '🔬', eyebrow: 'Science',       type: 'debate',   body: 'People who order boneless also put pineapple on pizza. Study pending.' },
+  { emoji: '🔬', eyebrow: 'Fake science',       type: 'debate',   body: 'People who order boneless also put pineapple on pizza. Study pending.' },
   { emoji: '🏛️', eyebrow: 'DC says',       type: 'debate',   body: 'Both sides of the aisle agree — lemon pepper hits different.' },
-  { emoji: '😮‍💨', eyebrow: 'Controversy', type: 'debate',   body: 'Someone called sauce "optional." They have not returned.' },
-  { emoji: '🫳', eyebrow: 'Dropped',       type: 'debate',   body: 'Dry rub vs wet sauce. No survivors.' },
+  { emoji: '😮‍💨', eyebrow: 'Controversy', type: 'debate',   body: 'Someone called sauce "optional." The table went quiet.' },
+  { emoji: '🫳', eyebrow: 'Dropped',       type: 'debate',   body: 'Dry rub vs wet sauce. The table is split.' },
   { emoji: '📐', eyebrow: 'Standards',     type: 'debate',   body: 'The correct wing size is jumbo. This is not a debate.' },
-  { emoji: '🚨', eyebrow: 'Alert',         type: 'breaking', body: 'Someone rated a spot 3/10. Investigators are on the scene.' },
-  { emoji: '🚔', eyebrow: 'Breaking',      type: 'breaking', body: 'Someone asked for a fork at a wing spot. We do not speak of it.' },
+  { emoji: '🍴', eyebrow: 'Etiquette',     type: 'debate',   body: 'Someone asked for a fork at a wing spot. We do not speak of it.' },
   { emoji: '📢', eyebrow: 'Announcement',  type: 'breaking', body: 'New sauce dropped. Supply chain is insufficient.' },
-  { emoji: '🌶', eyebrow: 'Heat alert',    type: 'breaking', body: 'Ghost pepper wings spotted in the wild. Paramedics on standby.' },
-  { emoji: '👀', eyebrow: 'Spotted',       type: 'breaking', body: 'Someone dunking in bleu cheese AND ranch simultaneously. Investigators en route.' },
+  { emoji: '👀', eyebrow: 'Spotted',       type: 'breaking', body: 'Someone dunking in bleu cheese AND ranch at the same time. Bold move.' },
   { emoji: '🛸', eyebrow: 'Unexplained',   type: 'breaking', body: "A 'mild' wing made someone cry. Science has no answers." },
-  { emoji: '📊', eyebrow: 'Statistics',    type: 'fact',     body: '67% of arguments at the table are about sauce. The other 33%: bone-in.' },
+  { emoji: '📊', eyebrow: 'Made-up stat',    type: 'fact',     body: '67% of arguments at the table are about sauce. The other 33%: bone-in.' },
   { emoji: '🎯', eyebrow: 'Fact',          type: 'fact',     body: 'The best wing is the one in front of you.' },
-  { emoji: '⚡', eyebrow: 'Hot take',      type: 'fact',     body: 'The bone is not the problem. You are the problem.' },
   { emoji: '🦅', eyebrow: 'DC dispatch',   type: 'fact',     body: 'The wings of this city will not be disrespected.' },
   { emoji: '💡', eyebrow: 'Pro tip',       type: 'fact',     body: 'Order more than you think you need. You will always think wrong.' },
   { emoji: '🧠', eyebrow: 'Psychology',    type: 'fact',     body: 'Nobody has ever said "I wish I ordered fewer wings."' },
-  { emoji: '📜', eyebrow: 'Law',           type: 'fact',     body: 'Every great night starts with a wing order. Verified.' },
+  { emoji: '📜', eyebrow: 'Wing law',         type: 'fact',     body: 'Every great night starts with a wing order. Verified.' },
   { emoji: '🫡', eyebrow: 'Respect',       type: 'fact',     body: 'Shoutout to everyone eating wings alone right now. Legends.' },
-  { emoji: '🎭', eyebrow: 'Drama',         type: 'scene',    body: 'Someone posted their rating on main. The comments are a warzone.' },
+  { emoji: '🎭', eyebrow: 'Drama',         type: 'scene',    body: 'Someone posted a 4/10 for a local favorite. The comments are heated.' },
   { emoji: '🎵', eyebrow: 'Go-go verified',type: 'scene',    body: 'These wings got the whole block moving.' },
-  { emoji: '🏆', eyebrow: 'Unverified',    type: 'scene',    body: 'Someone claims to have found the perfect spot. Investigation ongoing.' },
+  { emoji: '🏆', eyebrow: 'Unverified',    type: 'scene',    body: 'Someone claims to have found the perfect spot. We are checking.' },
   { emoji: '📱', eyebrow: 'Viral',         type: 'scene',    body: "Wing pic dropped. It's already in three group chats." },
   { emoji: '🌙', eyebrow: 'Late night',    type: 'scene',    body: 'The real reviews come in after midnight.' },
   { emoji: '🎪', eyebrow: 'Crawl report',  type: 'scene',    body: "Stop 3 hit different. You had to be there." },
   { emoji: '🔑', eyebrow: 'Keys',          type: 'scene',    body: "Find it. Rate it. Share it. That's the culture." },
   { emoji: '🍋', eyebrow: 'LP report',     type: 'fact',     body: 'Lemon pepper: still undefeated. Updated hourly.' },
   { emoji: '🍋', eyebrow: 'LP debate',     type: 'debate',   body: 'Wet lemon pepper vs dry. This is not a safe space.' },
-  { emoji: '💀', eyebrow: 'RIP',           type: 'alert',    body: "A man ordered 'well-done' wings. We do not speak of this." },
   { emoji: '🛡️', eyebrow: 'Protection',   type: 'debate',   body: 'Ranch is not a dipping sauce. Ranch is a lifestyle. Defend it.' },
   { emoji: '🧊', eyebrow: 'Styrofoam',     type: 'fact',     body: 'Styrofoam container appreciation post. It keeps the heat. Respect it.' },
   { emoji: '🎓', eyebrow: 'Education',     type: 'fact',     body: 'Nobody leaves this platform without knowing their flavor preference. We insist.' },
@@ -463,34 +431,37 @@ const EVERGREEN: SceneItem[] = [
 
 // ─── AI headline generation (Supabase Edge Function) ─────────────────────────
 
+/**
+ * Headlines that could be read as real, upsetting news (or as a dig at the
+ * reader) are left out — the generated ones as well as the fixed lists.
+ */
+const TOO_REAL = /\b(er|e\.r\.|hospitali[sz]ed|hospital|ambulance|paramedics?|doctors?|nurses?|cdc|died|dead|death|deaths|dies|funeral|rip|r\.i\.p|killed|murder|shooting|police|cops?|arrest(ed)?|investigat\w*|fbi|crime|criminal|witness protection|emergency|poison\w*|overdose|injur\w*|missing|congress|senate|white house|supreme court|president|mayor|federal|you are the problem)\b/i
+
+export function isTooReal(text: string): boolean {
+  return TOO_REAL.test(text)
+}
+
 function classifyLine(text: string): { eyebrow: string; type: ChipType } {
   const t = text.toLowerCase()
-  if (t.match(/\bstudy\b|\bscientists?\b|\bresearch(ers?)?\b|\bdoctors?\b/))
-    return { eyebrow: 'Study', type: 'fact' }
+  if (t.match(/\bstudy\b|\bscientists?\b|\bresearch(ers?)?\b/))
+    return { eyebrow: 'Fake study', type: 'fact' }
   if (t.match(/^report:|^report,|\bsources? confirm\b|\bdata show/))
-    return { eyebrow: 'Report', type: 'internet' }
-  if (t.match(/\bd\.c\.\b|\bcongress\b|\bsenate\b|\bfbi\b|\bwhite house\b|\bsupreme court\b|\bpentagon\b|\bfederal \b|\bpresident\b|\bmayor\b|\bcouncil\b/))
-    return { eyebrow: 'Breaking', type: 'breaking' }
-  if (t.match(/\bnation\b|\bnational\b|\bamericans?\b/))
-    return { eyebrow: 'Nation', type: 'breaking' }
+    return { eyebrow: 'Fake report', type: 'internet' }
   if (t.match(/crawl|stop [0-9]/))
     return { eyebrow: 'Crawl Report', type: 'scene' }
-  if (t.match(/doctor|health|hospital|\bcdc\b|nurse/))
-    return { eyebrow: 'Health', type: 'alert' }
   if (t.match(/midnight|late night|\b[12]am\b|after midnight/))
     return { eyebrow: 'Late Night', type: 'scene' }
-  if (t.match(/\bai\b|artificial intelligence|tech |layoff|economy|housing|crypto/))
-    return { eyebrow: 'Developing', type: 'internet' }
-  return { eyebrow: 'Developing', type: 'onion' }
+  return { eyebrow: 'Parody', type: 'onion' }
 }
 
 async function fetchAiHeadlines(): Promise<SceneItem[]> {
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `ai_headlines_v4_${today}`
+  // v5: new labels and the TOO_REAL filter; older cached days are dropped below.
+  const cacheKey = `ai_headlines_v5_${today}`
 
   try {
     const cached = localStorage.getItem(cacheKey)
-    if (cached) return JSON.parse(cached) as SceneItem[]
+    if (cached) return (JSON.parse(cached) as SceneItem[]).filter(it => !isTooReal(it.body))
   } catch {}
 
   try {
@@ -498,7 +469,7 @@ async function fetchAiHeadlines(): Promise<SceneItem[]> {
     if (!res.ok) return []
     const headlines = await res.json() as string[]
     const items: SceneItem[] = headlines
-      .filter((h: string) => typeof h === 'string' && h.length > 20)
+      .filter((h: string) => typeof h === 'string' && h.length > 20 && !isTooReal(h))
       .map((headline: string) => {
         const { eyebrow, type } = classifyLine(headline)
         return { emoji: '📰', eyebrow, body: headline, type }

@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useGallery } from '../../hooks/useGallery'
 import { useAuthGate } from '../AuthGateModal'
-import ReviewFeedCard from './ReviewFeedCard'
+import ReviewFeedCard, { isPlaceholderPhoto } from './ReviewFeedCard'
 import CrawlFeedCard from './CrawlFeedCard'
 import PeopleView from './PeopleView'
+import FeedSkeleton from './FeedSkeleton'
+import { useFollowsAnyone } from '../../hooks/useFollow'
 import { supabase } from '../../lib/supabase'
+import { markFeedLandingSettled } from '../../lib/feedLanding'
 import type { WingCrawlDetailed } from '../../lib/types'
 
 type Feed = 'following' | 'discover' | 'crawls' | 'people'
@@ -25,21 +28,29 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Default tab: signed-out / new users land on Discover, signed-in on Following.
-  const defaultFeed: Feed = currentUserId ? 'following' : 'discover'
+  // Default tab: Following for people who follow someone; Discover for
+  // everyone else (signed out, brand-new accounts) — an empty Following tab
+  // is a dead end right after sign-up. An explicit ?tab= always wins.
   const tabParam = searchParams.get('tab')
-  const feed: Feed = isFeed(tabParam) ? tabParam : defaultFeed
+  const explicitFeed = isFeed(tabParam) ? tabParam : null
+  const followsAnyone = useFollowsAnyone(explicitFeed ? '' : currentUserId)
+  const defaultFeed: Feed | null = !currentUserId
+    ? 'discover'
+    : followsAnyone === null ? null : followsAnyone ? 'following' : 'discover'
+  // null only while we're still finding out which tab is the default
+  const feed: Feed | null = explicitFeed ?? defaultFeed
 
   const setFeed = (next: Feed) => {
     setSearchParams(prev => {
       const p = new URLSearchParams(prev)
-      if (next === defaultFeed) p.delete('tab')
+      // Keep the URL explicit unless it's the default for this visitor
+      if (!explicitFeed && next === defaultFeed) p.delete('tab')
       else p.set('tab', next)
       return p
     }, { replace: true })
   }
 
-  const gallery = useGallery(currentUserId, feed === 'following' ? true : false)
+  const gallery = useGallery(currentUserId, feed === 'following', feed !== null)
   const { requireAuth } = useAuthGate()
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -55,7 +66,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
   const didRestoreScroll = useRef(false)
 
   useEffect(() => {
-    if (feed === 'people') return
+    if (!feed || feed === 'people') return
     const onScroll = () => {
       try { sessionStorage.setItem(`gallery-scroll:${feed}`, String(window.scrollY)) } catch { /* ignore */ }
     }
@@ -74,6 +85,18 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved)))
     }
   }, [feed, isReviewFeed, gallery.loading, gallery.error])
+
+  // The landing photo: the first photo of the top card (or of the next card
+  // with one, among the top three — text-only cards are short). It loads
+  // first, at high priority; everything else waits for it (lib/feedLanding).
+  // No such photo — nothing to wait for.
+  const priorityReviewId = isReviewFeed && !gallery.loading
+    ? gallery.reviews.slice(0, 3).find(r => r.photos.some(p => !isPlaceholderPhoto(p.photo_url)))?.review_id ?? null
+    : null
+  const feedShown = feed !== null && (!isReviewFeed || !gallery.loading)
+  useEffect(() => {
+    if (feedShown && !priorityReviewId) markFeedLandingSettled()
+  }, [feedShown, priorityReviewId])
 
   // Crawls feed — fetched independently when the tab is active
   const CRAWLS_PAGE = 20
@@ -155,7 +178,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
               role="tab"
               aria-selected={feed === f}
               onClick={() => setFeed(f)}
-              className={`px-4 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
+              className={`min-h-11 px-4 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
                 feed === f
                   ? 'bg-night-900 border-night-900 text-cream-50'
                   : 'border-night-900/20 text-charcoal-600 hover:border-night-900/40'
@@ -172,7 +195,8 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
       ) : feed === 'crawls' ? (
         <div className="max-w-2xl mx-auto px-4 pb-safe-fab">
           {crawlsLoading ? (
-            <div className="flex items-center justify-center py-20">
+            // Fill the screen so the footer doesn't jump when lists arrive
+            <div className="flex items-start justify-center pt-20 min-h-[100dvh]" role="status" aria-label="Loading lists">
               <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
             </div>
           ) : crawlsError ? (
@@ -225,9 +249,11 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
             </>
           )}
         </div>
-      ) : gallery.loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
+      ) : feed === null || gallery.loading ? (
+        // Fixed-size placeholder cards, not a spinner: the list and the footer
+        // below don't jump when the real cards arrive (layout shift on 3G).
+        <div className="max-w-2xl mx-auto px-4 pb-safe-fab">
+          <FeedSkeleton />
         </div>
       ) : gallery.error && gallery.reviews.length === 0 ? (
         // Full-screen error only when there's nothing to show — if we already
@@ -241,10 +267,12 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
           </button>
         </div>
       ) : gallery.reviews.length === 0 ? (
-        <div className="flex flex-col items-center justify-center pt-10 pb-28 sm:py-24 text-center px-6">
+        // Compact top + tall bottom padding: on a 375×667 phone the last
+        // button must end above the floating "Rate wings" button (y≈587).
+        <div className="flex flex-col items-center justify-center pt-2 pb-28 sm:py-24 text-center px-6">
           {feed === 'following' ? (
             <>
-              <div className="text-5xl mb-4">🍗</div>
+              <div className="text-4xl mb-2" aria-hidden="true">🍗</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">Nothing from people you follow yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed mb-5">
                 Reviews from people you follow show here. Your own reviews are on your profile page.
@@ -290,6 +318,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
                 isAdmin={isAdmin}
                 onOpen={() => navigate(`/reviews/${review.review_id}`)}
                 onLike={() => { if (requireAuth()) gallery.toggleLike(review.review_id) }}
+                priority={review.review_id === priorityReviewId}
               />
             ))}
           </div>

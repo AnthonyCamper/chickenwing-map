@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import ShopPanel from './ShopPanel'
+import { useFabHidden } from '../hooks/useHideFab'
 import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 
 vi.mock('./ReviewCard', () => ({
@@ -102,5 +103,41 @@ describe('ShopPanel spot page link', () => {
   it('shows no dead link when the spot has no slug', () => {
     renderPanel(makeSpotData(['rA'], []))
     expect(screen.queryByRole('link', { name: /Open spot page/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('ShopPanel and the floating Rate wings button', () => {
+  function FabProbe() {
+    return <span data-testid="fab-hidden">{String(useFabHidden())}</span>
+  }
+
+  it('hides the floating button while the sheet is open, and restores it on close', () => {
+    const { unmount } = render(<FabProbe />)
+    expect(screen.getByTestId('fab-hidden')).toHaveTextContent('false')
+    unmount()
+
+    const spot = makeSpotData(['rA'], [])
+    const view = render(
+      <MemoryRouter>
+        <FabProbe />
+        <ShopPanel
+          spotData={spot}
+          onClose={vi.fn()}
+          currentUserId="u1"
+          isAdmin={false}
+          onUpdate={vi.fn(async () => ({ error: null as string | null }))}
+          onDelete={vi.fn(async () => ({ error: null as string | null }))}
+          onPhotoOpen={vi.fn()}
+        />
+      </MemoryRouter>
+    )
+    expect(screen.getByTestId('fab-hidden')).toHaveTextContent('true')
+    view.rerender(<MemoryRouter><FabProbe /></MemoryRouter>)
+    expect(screen.getByTestId('fab-hidden')).toHaveTextContent('false')
+  })
+
+  it('shows the average as "/10"', () => {
+    renderPanel(makeSpotData(['rA'], []))
+    expect(screen.getByText('/10')).toBeInTheDocument()
   })
 })

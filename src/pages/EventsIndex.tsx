@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import AppHeader from '../components/AppHeader'
+import { CRAWL_EXPLAINER } from '../components/events/EventHero'
 import type { WingEvent } from '../lib/types'
 
 export default function EventsIndex() {
@@ -52,6 +53,10 @@ export default function EventsIndex() {
           <h1 className="font-display uppercase text-4xl text-night-900 leading-none tracking-tightest">
             Events
           </h1>
+          {/* "Crawl" isn't everyday English: explain it where it first appears */}
+          <p className="text-sm text-charcoal-600 mt-3 max-w-prose leading-relaxed">
+            {CRAWL_EXPLAINER} Everyone is welcome to join.
+          </p>
         </div>
       </header>
 
@@ -75,22 +80,38 @@ export default function EventsIndex() {
             <div className="relative">
               <p className="text-5xl mb-3">🍗</p>
               <p className="font-display uppercase text-xl text-night-900 mb-1">No events yet</p>
-              <p className="text-sm text-charcoal-600">Check back soon — the next route is brewing.</p>
+              <p className="text-sm text-charcoal-600">New events are posted on this page. Check back soon.</p>
             </div>
           </div>
         ) : (
           <>
-            {upcoming.length > 0 && (
-              <section>
-                <h2 className="eyebrow mb-3 px-1">Upcoming</h2>
+            <section>
+              <h2 className="eyebrow mb-3 px-1">Upcoming</h2>
+              {upcoming.length > 0 ? (
                 <div className="space-y-3">
                   {upcoming.map(e => <EventCard key={e.id} event={e} highlight />)}
                 </div>
-              </section>
-            )}
+              ) : (
+                // Only past events: say so plainly and offer a next step
+                // instead of a page that looks like a dead end.
+                <div className="card px-5 py-5">
+                  <p className="font-display uppercase text-xl text-night-900 leading-tight">No upcoming events yet</p>
+                  <p className="text-sm text-charcoal-600 mt-1 leading-relaxed">
+                    New events are posted on this page. Check back soon. Until then, rate the wings you eat,
+                    or look at the past events below to see how a crawl works.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <Link to="/?view=list" className="btn-primary text-xs">Find wing spots</Link>
+                    {past.length > 0 && (
+                      <a href="#past-events" className="btn-secondary text-xs">See past events</a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
             {past.length > 0 && (
-              <section>
-                <h2 className="eyebrow mb-3 px-1 !text-charcoal-400">Past</h2>
+              <section id="past-events" className="scroll-mt-24">
+                <h2 className="eyebrow mb-3 px-1 !text-charcoal-400">Past events</h2>
                 <div className="space-y-3">
                   {past.map(e => <EventCard key={e.id} event={e} />)}
                 </div>
@@ -121,7 +142,8 @@ function EventCard({ event, highlight = false }: { event: WingEvent; highlight?:
       }`}
     >
       {event.cover_image_url ? (
-        <img src={event.cover_image_url} alt="" className="w-full h-32 object-cover border-b-2 border-night-900" />
+        // Light placeholder colour while a large cover downloads
+        <img src={event.cover_image_url} alt="" loading="lazy" decoding="async" className="w-full h-32 object-cover border-b-2 border-night-900 bg-sauce-300" />
       ) : (
         <div className="w-full h-24 bg-night-800 bg-halftone-dark border-b-2 border-night-900 flex items-center justify-center">
           <span className="text-4xl">🍗</span>
@@ -135,7 +157,7 @@ function EventCard({ event, highlight = false }: { event: WingEvent; highlight?:
           <p className="text-sm text-charcoal-600 font-bold">{dateLabel}</p>
         )}
         <div className="flex items-center gap-3 mt-2 text-xs font-bold text-charcoal-500 uppercase tracking-crowd">
-          <span>👥 {event.going_count ?? 0} going</span>
+          <span>👥 {event.going_count ?? 0} {highlight ? 'going' : 'went'}</span>
           <span>📍 {event.stop_count ?? 0} stops</span>
         </div>
       </div>

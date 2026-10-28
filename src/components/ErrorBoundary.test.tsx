@@ -6,6 +6,10 @@ function Bomb(): JSX.Element {
   throw new Error('boom')
 }
 
+function StaleChunk(): JSX.Element {
+  throw new TypeError('Failed to fetch dynamically imported module: https://wingkingtony.com/assets/SpotPage-abc123.js')
+}
+
 describe('ErrorBoundary', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>
 
@@ -59,5 +63,16 @@ describe('ErrorBoundary', () => {
         value: originalLocation,
       })
     }
+  })
+
+  it('says a new version is available when a code file failed to load', () => {
+    render(
+      <ErrorBoundary>
+        <StaleChunk />
+      </ErrorBoundary>
+    )
+    expect(screen.getByText('A new version of WingKingTony is available')).toBeInTheDocument()
+    expect(screen.queryByText('Something broke')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
   })
 })

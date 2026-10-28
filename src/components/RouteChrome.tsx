@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { useLocation, useNavigationType } from 'react-router-dom'
+import { ReactNode, useEffect, useRef } from 'react'
+import { Link, useLocation, useNavigationType } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+
+// Same inbox as the home footer's and the profile menu's Contact links.
+const CONTACT_EMAIL = 'anthonycap949@gmail.com'
 
 export const DEFAULT_TITLE = 'WingKingTony · Rate chicken wing spots'
 
@@ -40,4 +43,40 @@ export function ScrollToTop() {
   }, [pathname, navType])
 
   return null
+}
+
+/**
+ * Small site footer for every page outside the home Layout (spot, review,
+ * profile, list, event, Privacy/Terms…), so Privacy, Terms and Contact are
+ * one scroll away everywhere instead of only at the bottom of the feed.
+ */
+export function SiteFooter() {
+  return (
+    <footer
+      className="border-t-2 border-night-900 bg-night-900 text-cream-100 px-4 pt-2 text-center"
+      style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+    >
+      <nav aria-label="Site" className="flex flex-wrap items-center justify-center gap-x-1 text-xs font-bold text-cream-100/80">
+        <SiteFooterLink to="/privacy">Privacy</SiteFooterLink>
+        <SiteFooterLink to="/terms">Terms</SiteFooterLink>
+        <a
+          href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('WingKingTony')}`}
+          className="inline-flex items-center min-h-11 px-2.5 hover:text-cream-50 underline underline-offset-2 decoration-cream-50/30"
+        >
+          Contact
+        </a>
+      </nav>
+    </footer>
+  )
+}
+
+function SiteFooterLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex items-center min-h-11 px-2.5 hover:text-cream-50 underline underline-offset-2 decoration-cream-50/30"
+    >
+      {children}
+    </Link>
+  )
 }

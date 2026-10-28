@@ -1,48 +1,146 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Suspense, useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { usePushDeepLinks } from './hooks/usePushDeepLinks'
 import toast, { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
-import Login from './pages/Login'
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
 import PageStateShell from './components/ui/PageStateShell'
+import AppHeader from './components/AppHeader'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
-import BadgeUnlockOverlay from './components/badges/BadgeUnlockOverlay'
-import { DefaultTitle, ScrollToTop } from './components/RouteChrome'
-import { clearReturnTo, isAuthPath, peekReturnTo, takeReturnTo } from './lib/authReturn'
+import LazyBadgeUnlockOverlay, { prefetchBadgeUnlockOverlay } from './components/LazyBadgeUnlockOverlay'
+import { DefaultTitle, ScrollToTop, SiteFooter } from './components/RouteChrome'
+import { clearReturnTo, dropReturnToOnFreshAuthLoad, isAuthPath, peekReturnTo, takeReturnTo } from './lib/authReturn'
+import { lazyWithReload } from './lib/staleDeploy'
+import { prefetchWhenIdle } from './lib/idlePrefetch'
 
 // ── Lazy-loaded routes — off the main path / heavy deps ──────────────────
 // AdminDashboard / EventPage / EventsIndex: admin or event-specific paths
 // CrawlEditor: pulls in @dnd-kit + the cover-upload pipeline; only owners hit it
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
-const EventPage = lazy(() => import('./pages/EventPage'))
-const EventsIndex = lazy(() => import('./pages/EventsIndex'))
-const CrawlEditor = lazy(() => import('./pages/CrawlEditor'))
-const ResetPassword = lazy(() => import('./pages/ResetPassword'))
-const Privacy = lazy(() => import('./pages/Privacy'))
-const Terms = lazy(() => import('./pages/Terms'))
+// lazyWithReload: a tab left open across a deploy asks for chunk files that
+// no longer exist; it reloads once onto the new version instead of crashing
+// into "Something broke" (see lib/staleDeploy).
+const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'))
+const EventPage = lazyWithReload(() => import('./pages/EventPage'))
+const loadEventsIndex = () => import('./pages/EventsIndex')
+const EventsIndex = lazyWithReload(loadEventsIndex)
+const CrawlEditor = lazyWithReload(() => import('./pages/CrawlEditor'))
+const ResetPassword = lazyWithReload(() => import('./pages/ResetPassword'))
+const Privacy = lazyWithReload(() => import('./pages/Privacy'))
+const Terms = lazyWithReload(() => import('./pages/Terms'))
 // Content pages and the sign-up/pending screens aren't on the landing path
 // either; keeping them out of the first bundle matters on slow 3G.
-const Register = lazy(() => import('./pages/Register'))
-const PendingApproval = lazy(() => import('./pages/PendingApproval'))
-const SpotPage = lazy(() => import('./pages/SpotPage'))
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
-const ReviewPage = lazy(() => import('./pages/ReviewPage'))
-const CrawlPage = lazy(() => import('./pages/CrawlPage'))
+const loadRegister = () => import('./pages/Register')
+const Register = lazyWithReload(loadRegister)
+// Sign-in isn't on the public landing path either (S26: it and Register,
+// which it imports, were ~30 KB of the first download). On a private site
+// "/" is the sign-in screen, and its code is requested as soon as the
+// session check says "signed out".
+const loadLogin = () => import('./pages/Login')
+const Login = lazyWithReload(loadLogin)
+const PendingApproval = lazyWithReload(() => import('./pages/PendingApproval'))
+const loadSpotPage = () => import('./pages/SpotPage')
+const SpotPage = lazyWithReload(loadSpotPage)
+const loadUserProfilePage = () => import('./pages/UserProfilePage')
+const UserProfilePage = lazyWithReload(loadUserProfilePage)
+const loadReviewPage = () => import('./pages/ReviewPage')
+const ReviewPage = lazyWithReload(loadReviewPage)
+const loadCrawlPage = () => import('./pages/CrawlPage')
+const CrawlPage = lazyWithReload(loadCrawlPage)
 
-// Shown while a lazy page's code downloads (3–5s on slow 3G). Keeps the app
-// header and brand on screen instead of a bare full-screen spinner.
+// Fetched in the background once the first page is idle, most likely next
+// tap first: a feed card's spot or review, the Spots tab, a reviewer's
+// profile, a list, Events. (Login/Register are warmed separately below, for
+// signed-out visitors only.)
+// The Map tab (Leaflet) is left out: it's big, and would compete with feed
+// photos on a slow connection.
+const LIKELY_NEXT_PAGES = [
+  loadSpotPage,
+  loadReviewPage,
+  () => import('./components/ListView'),
+  loadUserProfilePage,
+  loadCrawlPage,
+  loadEventsIndex,
+]
+
+// Shown while a lazy page's code downloads (3–5s on slow 3G). The real app
+// header plus a page-shaped skeleton (title, a couple of content blocks) in
+// the space the page will fill, instead of a bare centred spinner.
 function LazyFallback() {
   return (
-    <PageStateShell>
-      <div role="status" className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin">
+    <div className="min-h-dvh bg-paper flex flex-col">
+      <AppHeader />
+      <div role="status" className="w-full max-w-2xl mx-auto px-4 py-6 space-y-4 animate-pulse" aria-live="polite">
         <span className="sr-only">Loading…</span>
+        <div aria-hidden="true" className="h-3 w-24 rounded bg-night-900/10" />
+        <div aria-hidden="true" className="h-8 w-3/4 rounded-lg bg-night-900/10" />
+        <div aria-hidden="true" className="h-4 w-1/2 rounded bg-night-900/10" />
+        <div aria-hidden="true" className="h-44 rounded-2xl bg-night-900/10" />
+        <div aria-hidden="true" className="h-24 rounded-2xl bg-night-900/10" />
+        <div aria-hidden="true" className="h-24 rounded-2xl bg-night-900/10" />
+      </div>
+    </div>
+  )
+}
+
+type HomeView = 'list' | 'map' | 'gallery'
+
+// While the session/profile check runs (a couple of round trips: seconds on
+// slow 3G), show the real header and a "Loading…" line instead of a
+// full-screen splash. On the home page the header gets its Feed/Spots/Map
+// tabs too, so it doesn't change shape when the page arrives.
+function AuthLoadingShell() {
+  const { pathname } = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isHome = pathname === '/'
+  const view = (searchParams.get('view') as HomeView | null) ?? 'gallery'
+  const setView = (v: HomeView) => {
+    const next = new URLSearchParams(searchParams)
+    if (v === 'gallery') next.delete('view')
+    else next.set('view', v)
+    setSearchParams(next, { replace: true })
+  }
+  return (
+    <PageStateShell headerProps={isHome ? { view, onViewChange: setView } : undefined}>
+      <div role="status" className="flex flex-col items-center gap-3">
+        <div aria-hidden="true" className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
+        <p className="text-sm font-bold text-charcoal-600">Loading…</p>
       </div>
     </PageStateShell>
   )
 }
+
+// Height of the on-screen keyboard, as a CSS variable the bottom toasts use
+// to stay above it (iOS doesn't shrink the layout viewport for the keyboard).
+function useKeyboardInsetVar() {
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const update = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+      root.style.setProperty('--wkt-kb', `${inset}px`)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+      root.style.removeProperty('--wkt-kb')
+    }
+  }, [])
+}
+
+// Toasts sit at the bottom centre: clear of the sticky header (logo, Events)
+// and of every sheet's title and × Close at the top. They're lifted above the
+// floating "Rate wings" button (Layout sets --wkt-fab-space), above an open
+// sheet's pinned Cancel/Publish row (Modal sets --wkt-sheet-footer) and above
+// the on-screen keyboard (--wkt-kb).
+const TOASTER_BOTTOM =
+  'calc(12px + max(var(--wkt-fab-space, 0px), var(--wkt-sheet-footer, 0px)) + var(--wkt-kb, 0px) + env(safe-area-inset-bottom))'
 
 const ADMIN_EMAIL = 'anthonycap949@gmail.com'
 
@@ -58,6 +156,19 @@ let accountDeletedNotice = (() => {
     return set
   } catch { return false }
 })()
+
+// A typed /register (or bookmark) starts a new flow: forget a return path
+// left by an earlier, abandoned auth wall (S09). Once, at page load.
+dropReturnToOnFreshAuthLoad()
+
+// /login and /register end with their own Privacy · Terms · Contact footer,
+// so the site footer would be a second one there (S05). /privacy, /terms and
+// /reset-password have none and keep the site footer.
+const OWN_FOOTER_PATHS = ['/login', '/register']
+function hasOwnFooter(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return OWN_FOOTER_PATHS.includes(path)
+}
 
 // Where /login and /register send someone once they're signed in: the page
 // they were on before the auth wall, else home. Rendering the destination
@@ -101,6 +212,7 @@ function StatusScreen({ title, message, onSignOut }: { title: string; message: s
 }
 
 export default function App() {
+  usePushDeepLinks()
   const auth = useAuth()
   const navigate = useNavigate()
 
@@ -137,27 +249,34 @@ export default function App() {
     if (stored && stored.split('?')[0] !== here) clearReturnTo()
   }, [auth.status, location.pathname, location.search, isPublic])
 
-  if (auth.status === 'loading') {
-    return (
-      <div className="relative min-h-dvh bg-paper-dark flex items-center justify-center overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-20" />
-        <div className="relative flex flex-col items-center gap-5">
-          <div className="w-14 h-14 rounded-full border-4 border-night-700 border-t-sauce-400 animate-spin" />
-          <p className="font-display uppercase tracking-crowd text-cream-100 text-sm">Firing up the fryer…</p>
-        </div>
-      </div>
-    )
-  }
+  useKeyboardInsetVar()
+
+  // Warm up the likely next pages once the first one is idle (Q25), plus
+  // what this visitor needs next: the sign-in / sign-up screens when signed
+  // out, the badge celebration when signed in.
+  useEffect(() => { prefetchWhenIdle(LIKELY_NEXT_PAGES) }, [])
+  const signedOut = auth.status === 'unauthenticated'
+  const signedIn = auth.status === 'authorized'
+  useEffect(() => {
+    if (signedOut) prefetchWhenIdle([loadLogin, loadRegister])
+    else if (signedIn) prefetchWhenIdle([prefetchBadgeUnlockOverlay])
+  }, [signedOut, signedIn])
 
   const isAuthenticated = auth.status === 'authorized'
+  // Signed-out on "/": whether that's the public feed or the sign-in screen
+  // depends on site_settings, which arrives a round trip after the session
+  // check. Wait for it rather than flashing the sign-in screen first.
+  const settling = auth.status === 'loading'
+    || (auth.status === 'unauthenticated' && location.pathname === '/' && auth.siteSettings === null)
+  const showSiteFooter = !settling && location.pathname !== '/' && !hasOwnFooter(location.pathname)
 
   return (
     <AuthProvider auth={auth}>
     <AuthGateProvider isAuthenticated={isAuthenticated} onSignInGoogle={auth.signInWithGoogle}>
       <Toaster
-        position="top-center"
         gutter={8}
-        containerStyle={{ top: 'calc(20px + env(safe-area-inset-top))' }}
+        position="bottom-center"
+        containerStyle={{ bottom: TOASTER_BOTTOM }}
         toastOptions={{
           duration: 3000,
           style: {
@@ -195,6 +314,7 @@ export default function App() {
       <ScrollToTop />
 
       <ErrorBoundary>
+      {settling ? <AuthLoadingShell /> : (
       <Suspense fallback={<LazyFallback />}>
       <Routes>
         <Route path="/login" element={
@@ -303,10 +423,15 @@ export default function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
+      )}
       </ErrorBoundary>
 
+      {/* Privacy / Terms / Contact on every page that doesn't use Layout
+          (the home page has its own, bigger footer) */}
+      {showSiteFooter && <SiteFooter />}
+
       {/* Celebrates badge unlocks announced after review/crawl writes */}
-      <BadgeUnlockOverlay />
+      <LazyBadgeUnlockOverlay />
     </AuthGateProvider>
     </AuthProvider>
   )

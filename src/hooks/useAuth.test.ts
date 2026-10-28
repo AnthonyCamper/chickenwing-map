@@ -48,7 +48,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
-import { changePassword, deleteOwnAccount, hasPasswordLogin, verifyCurrentPassword } from './useAuth'
+import { changePassword, deleteOwnAccount, hasPasswordLogin, signOutOnce, verifyCurrentPassword } from './useAuth'
 
 beforeEach(() => {
   mocks.calls.length = 0
@@ -113,5 +113,21 @@ describe('hasPasswordLogin', () => {
     expect(hasPasswordLogin(u(['google', 'email']))).toBe(true)
     expect(hasPasswordLogin(u(['google']))).toBe(false)
     expect(hasPasswordLogin(null)).toBe(false)
+  })
+})
+
+describe('signOutOnce (S25)', () => {
+  it('shares one logout request between overlapping calls, and allows a new one afterwards', async () => {
+    let finish: (v: { error: null }) => void = () => {}
+    mocks.signOut.mockImplementation(() => new Promise(r => { finish = r }))
+    const a = signOutOnce()
+    const b = signOutOnce()
+    expect(a).toBe(b)
+    expect(mocks.signOut).toHaveBeenCalledTimes(1)
+    finish({ error: null })
+    await a
+    mocks.signOut.mockResolvedValue({ error: null })
+    await signOutOnce()
+    expect(mocks.signOut).toHaveBeenCalledTimes(2)
   })
 })

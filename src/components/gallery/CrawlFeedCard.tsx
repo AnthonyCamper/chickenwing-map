@@ -6,6 +6,7 @@ import AvatarImage from '../ui/AvatarImage'
 import { useAuthGate } from '../AuthGateModal'
 import { useAuthContext } from '../AuthProvider'
 import { toggleCrawlLike } from '../../lib/crawlActions'
+import { cleanUserText } from '../../lib/userText'
 import type { WingCrawlDetailed } from '../../lib/types'
 
 interface Props {
@@ -17,7 +18,13 @@ export default function CrawlFeedCard({ crawl }: Props) {
   const { requireAuth } = useAuthGate()
   const auth = useAuthContext()
   const authorLinkable = !crawl.author_is_private && crawl.author_username
-  const initial = (crawl.author_name ?? '?').charAt(0).toUpperCase()
+  const title = cleanUserText(crawl.title)
+  const description = cleanUserText(crawl.description)
+  // The view masks a private author's name ("Private wing-logger"); say it plainly.
+  const authorName = crawl.author_is_private && crawl.user_id !== auth?.user?.id
+    ? 'Private member'
+    : cleanUserText(crawl.author_name) || 'Unknown'
+  const initial = authorName.charAt(0).toUpperCase()
 
   const [liked, setLiked] = useState(crawl.is_liked_by_me)
   const [likeCount, setLikeCount] = useState(crawl.like_count)
@@ -52,8 +59,8 @@ export default function CrawlFeedCard({ crawl }: Props) {
         </div>
       ) : (
         <div className="aspect-[16/9] bg-gradient-to-br from-night-900 via-night-800 to-sauce-600 flex items-center justify-center px-6">
-          <p className="font-display uppercase text-cream-50 text-2xl text-center leading-tight tracking-tightest line-clamp-3 break-words [overflow-wrap:anywhere] min-w-0">
-            {crawl.title}
+          <p className="user-text font-display uppercase text-cream-50 text-2xl text-center leading-tight tracking-tightest line-clamp-3 break-words min-w-0">
+            {title}
           </p>
         </div>
       )}
@@ -65,11 +72,11 @@ export default function CrawlFeedCard({ crawl }: Props) {
           {!crawl.is_public && ' · 🔒 Private'}
           {' · '}{crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}
         </p>
-        <h3 className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words [overflow-wrap:anywhere]">
-          {crawl.title}
+        <h3 className="user-text font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words">
+          {title}
         </h3>
-        {crawl.description && (
-          <p className="text-sm text-charcoal-600 mt-2 line-clamp-2 break-words [overflow-wrap:anywhere]">{crawl.description}</p>
+        {description && (
+          <p className="user-text text-sm text-charcoal-600 mt-2 line-clamp-2 break-words">{description}</p>
         )}
 
         <div className="flex items-center gap-2 mt-3 text-xs">
@@ -92,10 +99,10 @@ export default function CrawlFeedCard({ crawl }: Props) {
               onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`/u/${crawl.author_username}`) }}
               className="min-w-0 min-h-[44px] -my-3 inline-flex items-center font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors"
             >
-              <span className="truncate">{crawl.author_name}</span>
+              <span className="user-text truncate">{authorName}</span>
             </button>
           ) : (
-            <span className="min-w-0 truncate font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
+            <span className="user-text min-w-0 truncate font-extrabold uppercase tracking-crowd text-night-800">{authorName}</span>
           )}
 
           <button

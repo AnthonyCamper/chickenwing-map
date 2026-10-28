@@ -35,6 +35,7 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
     if (!el) return
 
     let cancelled = false
+    let resizeObs: ResizeObserver | null = null
     import('leaflet').then(L => {
       if (cancelled || mapRef.current) return
       const map = L.map(el, {
@@ -51,10 +52,18 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
       mapRef.current = map
       layerGroupRef.current = L.layerGroup().addTo(map)
       map.on('zoomend', () => spreadRef.current?.())
+      // The editor mounts this map the moment the first spot is added, while
+      // the section is still laying out; Leaflet measured a 0-size box and
+      // never requested tiles (blank until reload). Re-measure on resize.
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObs = new ResizeObserver(() => map.invalidateSize())
+        resizeObs.observe(el)
+      }
     })
 
     return () => {
       cancelled = true
+      resizeObs?.disconnect()
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
@@ -134,7 +143,7 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
     <div
       ref={elRef}
       role="region"
-      aria-label="Crawl route map"
+      aria-label="Map of the spots in this list"
       className={className ?? 'w-full h-56 sm:h-72 rounded-xl border-2 border-night-900 overflow-hidden shadow-sticker'}
     />
   )

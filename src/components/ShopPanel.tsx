@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import StarRating from './ui/StarRating'
 import ReviewCard from './ReviewCard'
 import ReviewPhotoFan, { groupPhotosByReview } from './ui/ReviewPhotoFan'
+import { useHideFab } from '../hooks/useHideFab'
 import type { SpotWithReviews, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
+import { formatRating } from '../lib/formatRating'
 
 interface ShopPanelProps {
   spotData: SpotWithReviews
@@ -20,6 +22,9 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
   // Collapsed on every open; MapView keys this component by spot id so
   // selecting another spot resets it.
   const [showReviews, setShowReviews] = useState(false)
+  // The sheet is only mounted while open: keep the floating "Rate wings"
+  // button off it (it hid the expanded review text on phones).
+  useHideFab(true)
 
   // Swipe-down on the handle/header dismisses the sheet — the handle bar
   // promises draggability, so honor it. Panel follows the finger, snaps
@@ -54,8 +59,9 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel (MapView measures it to keep the selected pin above it) */}
       <div
+        data-spot-sheet
         className="absolute bottom-0 left-0 right-0 z-30 sm:left-auto sm:top-4 sm:right-4 sm:bottom-auto sm:w-80 bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up max-h-[72dvh] sm:max-h-[calc(100dvh-120px)] flex flex-col"
         style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : { transition: 'transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)' }}
       >
@@ -77,8 +83,8 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
             <p className="text-xs text-charcoal-500 mt-0.5 truncate">{spot.address}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="rating-wing">
-                🍗 <StarRating value={avg_rating} size="sm" />
-                <span className="ml-0.5">{avg_rating.toFixed(1)}</span>
+                🍗 <StarRating value={Number(formatRating(avg_rating))} size="sm" />
+                <span className="ml-0.5">{formatRating(avg_rating)}<span className="text-[10px] opacity-70">/10</span></span>
               </span>
               <span className="text-xs text-charcoal-500">
                 {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
@@ -95,13 +101,13 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
           </button>
         </div>
 
-        {/* Scrollable body — pb-safe-fab keeps the fixed FAB (same z-30,
-            later in DOM) from covering the last row of content */}
-        <div className="overflow-y-auto flex-1 overscroll-contain pb-safe-fab sm:pb-0">
+        {/* Scrollable body — the floating button hides while this sheet is
+            open (useHideFab), so only the home-indicator inset is needed */}
+        <div className="overflow-y-auto flex-1 overscroll-contain pb-[env(safe-area-inset-bottom)] sm:pb-0">
           {/* Photo strip — one fan per review */}
           {photos.length > 0 && (
             <div className="px-5 pt-4 pb-2">
-              <PhotoStrip photos={photos} onPhotoOpen={onPhotoOpen} />
+              <PhotoStrip spotName={spot.name} photos={photos} onPhotoOpen={onPhotoOpen} />
             </div>
           )}
 
@@ -155,10 +161,11 @@ export default function ShopPanel({ spotData, onClose, currentUserId, isAdmin, o
 
 interface PhotoStripProps {
   photos: ReviewPhoto[]
+  spotName: string
   onPhotoOpen: (photoId: string) => void
 }
 
-function PhotoStrip({ photos, onPhotoOpen }: PhotoStripProps) {
+function PhotoStrip({ photos, spotName, onPhotoOpen }: PhotoStripProps) {
   const groups = groupPhotosByReview(photos)
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -166,6 +173,7 @@ function PhotoStrip({ photos, onPhotoOpen }: PhotoStripProps) {
         <ReviewPhotoFan
           key={group[0].id}
           photos={group}
+          spotName={spotName}
           onOpen={() => onPhotoOpen(group[0].id)}
         />
       ))}

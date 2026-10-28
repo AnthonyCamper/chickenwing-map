@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuthContext } from '../components/AuthProvider'
 import { triggerPushDelivery } from '../lib/pushManager'
+import { cleanUserText } from '../lib/userText'
 import type { CrawlComment, CommentReaction, CommentContentType, AddCommentOptions } from '../lib/types'
 
 interface RawComment {
@@ -67,7 +68,14 @@ export function useCrawlComments(
         const reactions: CommentReaction[] = Array.from(aggregated.entries()).map(
           ([reaction_type, { count, is_mine }]) => ({ reaction_type, count, is_mine })
         )
-        return { ...c, reactions }
+        // Other people's text: strip bidi overrides / Zalgo before display
+        // (an RTL override in a comment flipped the visible text).
+        return {
+          ...c,
+          text: c.text == null ? null : cleanUserText(c.text),
+          commenter_name: c.commenter_name == null ? null : cleanUserText(c.commenter_name),
+          reactions,
+        }
       })
     },
     [currentUserId]

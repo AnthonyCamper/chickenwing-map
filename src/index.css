@@ -450,3 +450,11 @@
 img.img-broken {
   visibility: hidden;
 }
+
+/* Text other people typed (names, comments, titles): keep any right-to-left
+   run from reordering the surrounding UI, and let long unbroken strings wrap.
+   Pair with cleanUserText() from lib/userText. */
+.user-text {
+  unicode-bidi: isolate;
+  overflow-wrap: anywhere;
+}

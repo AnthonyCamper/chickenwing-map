@@ -37,7 +37,8 @@ const toastMock = vi.hoisted(() => {
 vi.mock('react-hot-toast', () => ({ default: toastMock }))
 
 import ReviewFormModal from './ReviewFormModal'
-import type { ReviewFormData } from '../lib/types'
+import { BADGES_UNLOCKED_EVENT, announceNewBadges } from '../lib/badgeUnlocks'
+import type { ReviewCreateData } from '../lib/reviewActions'
 
 const fetchMock = vi.fn()
 
@@ -62,7 +63,7 @@ function ReviewPage() {
   return <p>Review page {id}</p>
 }
 
-type SubmitFn = (data: ReviewFormData) => Promise<{ error: string | null; reviewId?: string }>
+type SubmitFn = (data: ReviewCreateData) => Promise<{ error: string | null; reviewId?: string }>
 
 function renderForm(props: Partial<React.ComponentProps<typeof ReviewFormModal>> = {}) {
   const onSubmit = (props.onSubmit ?? vi.fn<SubmitFn>(async () => ({ error: null, reviewId: 'rev-123' }))) as ReturnType<typeof vi.fn<SubmitFn>>
@@ -72,6 +73,7 @@ function renderForm(props: Partial<React.ComponentProps<typeof ReviewFormModal>>
       <Routes>
         <Route path="/" element={<ReviewFormModal onClose={onClose} {...props} onSubmit={onSubmit} />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
+        <Route path="/login" element={<p>Login page</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -172,6 +174,8 @@ describe('ReviewFormModal — existing spots and publishing', () => {
 
     await screen.findByText('Review page rev-123')
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      // Attached to the picked spot by id, not by name (m2 S03)
+      wing_spot_id: 's1',
       shop_name: 'Ale Marys',
       address: '1939 Fleet St, Baltimore, MD 21231',
       lat: '39.2847',
@@ -180,6 +184,28 @@ describe('ReviewFormModal — existing spots and publishing', () => {
     }))
     expect(toastMock.success).toHaveBeenCalledWith('Review published! 🍗', expect.anything())
     expect(sessionStorage.length).toBe(0)
+  })
+
+  it('editing the name after picking a WingMap spot no longer sends its id', async () => {
+    const { onSubmit } = renderForm()
+    await pickExistingSpot()
+    fireEvent.change(screen.getByLabelText('Wing spot name'), { target: { value: 'Ale Marys Annex' } })
+    expect(screen.queryByText(/Already on WingKingTony/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0].wing_spot_id ?? null).toBeNull()
+  })
+
+  it('reviewing from a spot page sends that spot\'s id', async () => {
+    const { onSubmit } = renderForm({
+      prefill: { wing_spot_id: 'spot-9', shop_name: 'Duffs famous wings ', address: '3090 Orchard Park Rd', lat: 42.8, lng: -78.8 },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0].wing_spot_id).toBe('spot-9')
   })
 
   it('waits for the history-backed modal to pop before navigating', async () => {
@@ -312,3 +338,125 @@ describe('ReviewFormModal — drafts', () => {
     expect(dirty.defaultPrevented).toBe(true)
   })
 })
+
+const PREFILL = { shop_name: 'Ale Marys', address: '1939 Fleet St', lat: 39.28, lng: -76.59 }
+
+describe('ReviewFormModal — validation stays visible (m1)', () => {
+  it('clears old step-1 errors as soon as the user starts typing a spot name', () => {
+    renderForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }))
+    expect(screen.getByText('Enter the address.')).toBeInTheDocument()
+    expect(screen.getByText(/Check the spot name, the address and the location above/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Wing spot name'), { target: { value: 'Kong Poc' } })
+    expect(screen.queryByText('Enter the address.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/We need the location/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Enter the name of the wing spot.')).not.toBeInTheDocument()
+  })
+
+  it('flags a future visit date right away, and Publish focuses it with a summary by the button', async () => {
+    const { onSubmit } = renderForm({ prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    const date = screen.getByLabelText('Date you visited')
+    fireEvent.change(date, { target: { value: '2099-12-31' } })
+    expect(screen.getByText(/can't be in the future/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('Check the visit date above.')).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(date))
+
+    fireEvent.change(date, { target: { value: localDateString() } })
+    expect(screen.queryByText(/can't be in the future/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Check the visit date above.')).not.toBeInTheDocument()
+  })
+
+  it('does not flag a year that is still being typed', () => {
+    renderForm({ prefill: PREFILL })
+    fireEvent.change(screen.getByLabelText('Date you visited'), { target: { value: '0020-12-31' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('never silently cuts pasted review text: counter, error and focus instead', async () => {
+    const { onSubmit } = renderForm({ prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    const text = screen.getByLabelText('Your review (optional)')
+    expect(text).not.toHaveAttribute('maxLength')
+    fireEvent.change(text, { target: { value: 'x'.repeat(620) } })
+    expect(text).toHaveValue('x'.repeat(620))
+    expect(screen.getByText(/620 \/ 500/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText(/120 characters too long/)).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(text))
+  })
+
+  it('says the review will be public, next to Publish', () => {
+    renderForm({ prefill: PREFILL })
+    expect(screen.getByText('Your review and photos will be public.')).toBeInTheDocument()
+  })
+})
+
+describe('ReviewFormModal — publishing (m1)', () => {
+  it('signed out mid-flow: says so, offers Sign in, and keeps the draft', async () => {
+    const onSubmit = vi.fn<SubmitFn>(async () => ({ error: 'signed-out' }))
+    renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.change(screen.getByLabelText('Your review (optional)'), { target: { value: 'Crispy!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByText(/You've been signed out. Sign in again to publish — your review is saved./)).toBeInTheDocument()
+    expect(toastMock.error).not.toHaveBeenCalled()
+    expect(sessionStorage.length).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+  })
+
+  it('treats a raw JWT / 401 error as signed out, not a connection problem', async () => {
+    const onSubmit = vi.fn<SubmitFn>(async () => ({ error: 'JWT expired' }))
+    renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    expect(toastMock.error).not.toHaveBeenCalled()
+  })
+
+  it('Cancel and Close do nothing while publishing', async () => {
+    let finish: (v: { error: null; reviewId: string }) => void = () => {}
+    const onSubmit = vi.fn<SubmitFn>(() => new Promise(res => { finish = res }))
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { onClose } = renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByRole('button', { name: 'Publishing…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Close'))
+    expect(onClose).not.toHaveBeenCalled()
+    await act(async () => { finish({ error: null, reviewId: 'rev-1' }) })
+    confirmSpy.mockRestore()
+  })
+
+  it('shows badge unlocks only after the published confirmation, tagged as such', async () => {
+    db.rows = [{ id: 'b1', name: 'First Wing', earned: true } as unknown as typeof db.rows[number]]
+    const seen: Array<{ reviewPublished?: boolean }> = []
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail)
+    window.addEventListener(BADGES_UNLOCKED_EVENT, listener)
+    try {
+      // The submit path diffs badges like createReview does.
+      const onSubmit = vi.fn<SubmitFn>(async () => {
+        await announceNewBadges(new Set())
+        return { error: null, reviewId: 'rev-7' }
+      })
+      renderForm({ onSubmit, prefill: PREFILL })
+      fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Review published! 🍗', expect.anything()))
+      expect(seen).toHaveLength(0)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      await waitFor(() => expect(seen).toHaveLength(1), { timeout: 2500 })
+      expect(seen[0].reviewPublished).toBe(true)
+    } finally {
+      window.removeEventListener(BADGES_UNLOCKED_EVENT, listener)
+    }
+  })
+})
+

@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { localDateString } from '../../lib/dates'
 import { isUuid } from '../../lib/reviewActions'
 import ReviewFeedCard from './ReviewFeedCard'
+import { _resetFeedLandingForTests, isFeedLandingSettled } from '../../lib/feedLanding'
 import type { GalleryReviewItem } from '../../lib/types'
 
 vi.mock('../UserProfileContext', () => ({ useUserProfile: () => ({ openProfile: vi.fn() }) }))
@@ -39,10 +40,10 @@ function makeItem(overrides: Partial<GalleryReviewItem> = {}): GalleryReviewItem
   }
 }
 
-function renderCard(item: GalleryReviewItem, onOpen = vi.fn()) {
+function renderCard(item: GalleryReviewItem, onOpen = vi.fn(), priority = false) {
   render(
     <MemoryRouter>
-      <ReviewFeedCard review={item} currentUserId="u1" isAdmin={false} onOpen={onOpen} onLike={vi.fn()} />
+      <ReviewFeedCard review={item} currentUserId="u1" isAdmin={false} onOpen={onOpen} onLike={vi.fn()} priority={priority} />
     </MemoryRouter>
   )
   return onOpen
@@ -81,6 +82,89 @@ describe('ReviewFeedCard', () => {
       { photo_id: 'p2', photo_url: 'https://example.com/b.jpg', display_order: 1, photo_created_at: '2026-10-27T22:00:00Z' },
     ] }))
     expect(screen.getByRole('button', { name: 'Photo 2' })).toHaveClass('w-11', 'h-11')
+  })
+})
+
+describe('ReviewFeedCard copy and photos', () => {
+  it('pluralises counts ("2 comments", "1 like")', () => {
+    renderCard(makeItem({ comment_count: 2, like_count: 1 }))
+    expect(screen.getByRole('button', { name: '2 comments' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Like/ })).toHaveTextContent('1 like')
+  })
+
+  it('describes the photo in its alt text', () => {
+    renderCard(makeItem())
+    expect(screen.getByAltText("Photo of wings at Pubwells, from Mo Bile's review")).toBeInTheDocument()
+  })
+
+  it('a missing photo collapses to a one-line note, not a full-height frame', () => {
+    renderCard(makeItem({ photos: [{ photo_id: 'p1', photo_url: 'data:image/svg+xml;base64,AAAA', display_order: 0, photo_created_at: '2026-10-27T22:00:00Z' }] }))
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument()
+  })
+
+  it('a photo that fails to load is dropped the same way', () => {
+    renderCard(makeItem())
+    fireEvent.error(screen.getByAltText(/Photo of wings/))
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument()
+  })
+
+  it('gives the name and spot links 44px tall tap targets', () => {
+    renderCard(makeItem())
+    expect(screen.getByRole('button', { name: 'Mo Bile' })).toHaveClass('min-h-[44px]')
+    expect(screen.getByRole('link', { name: 'Pubwells' })).toHaveClass('min-h-[44px]')
+  })
+})
+
+describe('ReviewFeedCard photo loading (S26)', () => {
+  const twoPhotos = () => makeItem({ photos: [
+    { photo_id: 'p1', photo_url: 'https://example.com/a.jpg', display_order: 0, photo_created_at: '2026-10-27T22:00:00Z' },
+    { photo_id: 'p2', photo_url: 'https://example.com/b.jpg', display_order: 1, photo_created_at: '2026-10-27T22:00:00Z' },
+  ] })
+
+  beforeEach(() => _resetFeedLandingForTests())
+
+  it('loads the top card\'s first photo eagerly at high priority, and tells waiting work when it is in', () => {
+    renderCard(makeItem(), vi.fn(), true)
+    const img = screen.getByAltText(/Photo of wings/)
+    expect(img).toHaveAttribute('loading', 'eager')
+    expect(img).toHaveAttribute('fetchpriority', 'high')
+    expect(isFeedLandingSettled()).toBe(false)
+    fireEvent.load(img)
+    expect(isFeedLandingSettled()).toBe(true)
+  })
+
+  it('other cards\' photos stay lazy with normal priority', () => {
+    renderCard(makeItem())
+    const img = screen.getByAltText(/Photo of wings/)
+    expect(img).toHaveAttribute('loading', 'lazy')
+    expect(img).not.toHaveAttribute('fetchpriority')
+  })
+
+  it('a failed landing photo does not hold the rest back either', () => {
+    renderCard(makeItem(), vi.fn(), true)
+    fireEvent.error(screen.getByAltText(/Photo of wings/))
+    expect(isFeedLandingSettled()).toBe(true)
+  })
+
+  it('requests the next carousel photo only when it is about to be shown', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ReviewFeedCard review={twoPhotos()} currentUserId="u1" isAdmin={false} onOpen={vi.fn()} onLike={vi.fn()} />
+      </MemoryRouter>
+    )
+    expect(container.querySelectorAll('img[src*="example.com"]')).toHaveLength(1)
+    expect(screen.queryByAltText(/Photo 2 of 2/)).not.toBeInTheDocument()
+    // A finger on the carousel: the next photo starts loading
+    fireEvent.touchStart(screen.getByAltText(/Photo 1 of 2/).parentElement!.parentElement!, { touches: [{ clientX: 100, clientY: 100 }] })
+    expect(screen.getByAltText(/Photo 2 of 2/)).toHaveAttribute('src', 'https://example.com/b.jpg')
+  })
+
+  it('a dot tap loads the photo it shows', () => {
+    renderCard(twoPhotos())
+    expect(screen.queryByAltText(/Photo 2 of 2/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Photo 2' }))
+    expect(screen.getByAltText(/Photo 2 of 2/)).toBeInTheDocument()
   })
 })
 

@@ -3,17 +3,38 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { AuthState } from '../hooks/useAuth'
 
 const mocks = vi.hoisted(() => ({
+  profileUpdate: vi.fn(),
+  profileUpdateResult: vi.fn(),
   deleteOwnAccount: vi.fn(),
   changePassword: vi.fn(),
   verifyCurrentPassword: vi.fn(),
+  // Username availability lookups: (table, username) → query result.
+  lookup: vi.fn(),
+  // Own renames in the last 30 days (count query on profile_username_history).
+  recentRenames: vi.fn(() => ({ count: 0, error: null })),
+  badges: vi.fn(),
 }))
 
 vi.mock('../lib/supabase', () => {
-  const countQuery = { select: () => countQuery, eq: () => Promise.resolve({ count: 0 }) }
-  return { supabase: { from: () => countQuery, storage: { from: () => ({}) } } }
+  const query = (table: string) => {
+    const q = {
+      select: () => q,
+      // Follower counts await eq() directly; username lookups add .limit().
+      eq: (_col: string, value: unknown) => Object.assign(Promise.resolve({ count: 0 }), {
+        limit: () => Promise.resolve(mocks.lookup(table, value)),
+        gt: () => Promise.resolve(mocks.recentRenames()),
+      }),
+      update: (values: unknown) => {
+        mocks.profileUpdate(values)
+        return { eq: () => ({ select: () => ({ maybeSingle: () => mocks.profileUpdateResult() }) }) }
+      },
+    }
+    return q
+  }
+  return { supabase: { from: (table: string) => query(table), storage: { from: () => ({}) } } }
 })
 vi.mock('../hooks/useBadges', () => ({
-  useBadges: () => ({ earned: [], locked: [], badges: [], loading: false }),
+  useBadges: () => mocks.badges(),
 }))
 vi.mock('../hooks/useLeaderboard', () => ({
   useLeaderboard: () => ({ rows: [], loading: false }),
@@ -24,9 +45,9 @@ vi.mock('../hooks/useAuth', async importOriginal => ({
   changePassword: mocks.changePassword,
   verifyCurrentPassword: mocks.verifyCurrentPassword,
 }))
-vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }))
 
-import ProfileModal from './ProfileModal'
+import ProfileModal, { DISCARD_PROFILE_CHANGES } from './ProfileModal'
 
 function makeAuth(overrides: Partial<AuthState> = {}, provider = 'email'): AuthState {
   return {
@@ -52,7 +73,12 @@ function makeAuth(overrides: Partial<AuthState> = {}, provider = 'email'): AuthS
   } as AuthState
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  sessionStorage.clear()
+  mocks.lookup.mockImplementation(() => ({ data: [], error: null }))
+  mocks.badges.mockImplementation(() => ({ earned: [], locked: [], badges: [], loading: false, refresh: vi.fn() }))
+})
 
 describe('ProfileModal', () => {
   it('does not show an "Approved" pill to a normal approved user (F03)', () => {
@@ -152,4 +178,192 @@ describe('ProfileModal', () => {
     expect(screen.getByText(/admin accounts can’t be deleted here/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete forever' })).toBeNull()
   })
+
+  it('says the admin can see the email too, like the Privacy Policy (Q33)', () => {
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    expect(screen.getByText('Only you and the site admin can see this. It’s never shown publicly.')).toBeInTheDocument()
+  })
+
+  it('shows the username and profile link (Q12)', () => {
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Username')).toHaveValue('sam')
+    expect(screen.getByText('wingkingtony.com/u/sam')).toBeInTheDocument()
+  })
+
+  it('checks a new username as you type: Save stays off and nothing is sent (m2 S08)', async () => {
+    const auth = makeAuth()
+    render(<ProfileModal auth={auth} onClose={vi.fn()} />)
+    for (const [value, problem] of [
+      ['ab', /at least 3 characters/i],
+      ['<b>', /only letters a–z/i],
+      ['admin', /reserved/i],
+      ['-admin-', /start or end with a hyphen/i],
+    ] as const) {
+      fireEvent.change(screen.getByLabelText('Username'), { target: { value } })
+      // Off at once, before the message appears.
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      expect(await screen.findByRole('alert')).toHaveTextContent(problem)
+      expect(screen.queryByText(/old link will keep working/i)).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    }
+    expect(mocks.lookup).not.toHaveBeenCalled()
+    expect(mocks.profileUpdate).not.toHaveBeenCalled()
+    expect(auth.updateProfile).not.toHaveBeenCalled()
+  })
+
+  it('turns spaces into hyphens and capitals into small letters while typing', () => {
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'Sam The Man' } })
+    expect(screen.getByLabelText('Username')).toHaveValue('sam-the-man')
+  })
+
+  it('looks up a taken username before Save and never sends it', async () => {
+    mocks.lookup.mockImplementation((table: string) =>
+      ({ data: table === 'profiles' ? [{ id: 'u2' }] : [], error: null }))
+    const auth = makeAuth()
+    render(<ProfileModal auth={auth} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'tony' } })
+    expect(screen.getByText(/checking if this username is free/i)).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/someone already uses that username.*add a number/i)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(mocks.lookup).toHaveBeenCalledWith('profiles', 'tony')
+    expect(mocks.profileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('says a 4th rename in 30 days is not allowed before Save', async () => {
+    mocks.lookup.mockImplementation(() => ({ data: [], error: null }))
+    mocks.recentRenames.mockReturnValueOnce({ count: 3, error: null })
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'fresh-name' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/up to 3 times in 30 days/i)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(mocks.profileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('drops spaces pasted around a username instead of turning them into hyphens', () => {
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    const field = screen.getByLabelText('Username')
+    fireEvent.change(field, { target: { value: '  spaced  ' } })
+    fireEvent.blur(field)
+    expect(field).toHaveValue('spaced')
+  })
+
+  it('treats someone else\'s old username as taken, but lets you take back your own', async () => {
+    mocks.lookup.mockImplementation((table: string, value: unknown) =>
+      ({ data: table === 'profile_username_history' ? [{ user_id: value === 'mine-before' ? 'u1' : 'u2' }] : [], error: null }))
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'their-old-name' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/someone already uses/i)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'mine-before' } })
+    expect(await screen.findByText(/this username is available/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('still explains a username the server refuses after the check (taken in between)', async () => {
+    mocks.profileUpdateResult.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "profiles_username_unique"' } })
+    const auth = makeAuth()
+    const onClose = vi.fn()
+    render(<ProfileModal auth={auth} onClose={onClose} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'tony' } })
+    await screen.findByText(/this username is available/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/someone already uses that username/i)
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/duplicate key/i)
+    expect(auth.updateProfile).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('saves a new username, then the rest, and refreshes the signed-in profile', async () => {
+    mocks.profileUpdateResult.mockResolvedValue({ data: { username: 'sam-s' }, error: null })
+    const auth = makeAuth()
+    const onClose = vi.fn()
+    render(<ProfileModal auth={auth} onClose={onClose} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'sam-s' } })
+    expect(await screen.findByText(/old link will keep working/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(mocks.profileUpdate).toHaveBeenCalledWith({ username: 'sam-s' })
+    expect(auth.updateProfile).toHaveBeenCalled()
+    expect(auth.refreshProfile).toHaveBeenCalled()
+  })
+
+  it('shows no badge count until badges have loaded, and refreshes on a new unlock (m2 S23)', async () => {
+    const refresh = vi.fn()
+    mocks.badges.mockImplementation(() => ({ earned: [], locked: [], badges: [], loading: true, refresh }))
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Badges' })).toBeInTheDocument()
+    expect(screen.queryByText(/badges · 0/i)).toBeNull()
+    window.dispatchEvent(new CustomEvent('badges-unlocked', { detail: { badges: [] } }))
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('saves an emptied bio instead of keeping the old one', async () => {
+    const auth = makeAuth()
+    auth.profile!.bio = 'old bio'
+    render(<ProfileModal auth={auth} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Bio'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(auth.updateProfile).toHaveBeenCalledWith(expect.objectContaining({ bio: '' })))
+  })
+
+  describe('unsaved changes (Q30)', () => {
+    it('closes straight away when nothing changed', () => {
+      const confirm = vi.spyOn(window, 'confirm')
+      const onClose = vi.fn()
+      render(<ProfileModal auth={makeAuth()} onClose={onClose} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(confirm).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
+      confirm.mockRestore()
+    })
+
+    it('asks before Cancel throws edits away', () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+      const onClose = vi.fn()
+      render(<ProfileModal auth={makeAuth()} onClose={onClose} />)
+      fireEvent.change(screen.getByLabelText('Bio'), { target: { value: 'new bio' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(confirm).toHaveBeenCalledWith(DISCARD_PROFILE_CHANGES)
+      expect(onClose).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      expect(onClose).toHaveBeenCalled()
+      confirm.mockRestore()
+    })
+
+    it('keeps edits that browser Back closed, and offers them next time', () => {
+      const first = render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+      fireEvent.change(screen.getByLabelText('Bio'), { target: { value: 'half-written bio' } })
+      // The opener (useHistoryModal) unmounts the sheet on Back.
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      first.unmount()
+
+      render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+      expect(screen.getByLabelText('Bio')).toHaveValue('half-written bio')
+      expect(screen.getByRole('status')).toHaveTextContent(/changes you didn’t save/i)
+    })
+
+    it('forgets the draft once the person discards it', () => {
+      sessionStorage.setItem('profile-edit-draft:u1', JSON.stringify({ displayName: 'Sam', bio: 'draft', isPrivate: false, username: 'sam' }))
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      const onClose = vi.fn()
+      render(<ProfileModal auth={makeAuth()} onClose={onClose} />)
+      expect(screen.getByLabelText('Bio')).toHaveValue('draft')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(onClose).toHaveBeenCalled()
+      expect(sessionStorage.getItem('profile-edit-draft:u1')).toBeNull()
+      confirm.mockRestore()
+    })
+
+    it('warns before a reload only while there are edits', () => {
+      render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+      const clean = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(clean)
+      expect(clean.defaultPrevented).toBe(false)
+      fireEvent.change(screen.getByLabelText('Bio'), { target: { value: 'new bio' } })
+      const dirty = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(dirty)
+      expect(dirty.defaultPrevented).toBe(true)
+    })
+  })
 })
+
