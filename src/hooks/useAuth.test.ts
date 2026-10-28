@@ -18,10 +18,12 @@ const mocks = vi.hoisted(() => {
     signOut: vi.fn(),
     signInWithPassword: vi.fn(),
     updateUser: vi.fn(),
+    stopAutoRefresh: vi.fn(),
   }
 })
 
 vi.mock('../lib/supabase', () => ({
+  AUTH_STORAGE_KEY: 'sb-test-auth-token',
   supabase: {
     storage: {
       from: (bucket: string) => ({
@@ -41,11 +43,12 @@ vi.mock('../lib/supabase', () => ({
       signOut: (...args: unknown[]) => { mocks.calls.push('signOut'); return mocks.signOut(...args) },
       signInWithPassword: mocks.signInWithPassword,
       updateUser: mocks.updateUser,
+      stopAutoRefresh: mocks.stopAutoRefresh,
     },
   },
 }))
 
-import { changePassword, deleteOwnAccount, hasPasswordLogin } from './useAuth'
+import { changePassword, deleteOwnAccount, hasPasswordLogin, verifyCurrentPassword } from './useAuth'
 
 beforeEach(() => {
   mocks.calls.length = 0
@@ -56,20 +59,24 @@ beforeEach(() => {
 describe('deleteOwnAccount', () => {
   it('removes the user\'s files (one folder level deep), then calls the RPC, then signs out locally', async () => {
     mocks.rpc.mockResolvedValue({ error: null })
+    localStorage.setItem('sb-test-auth-token', '{"access_token":"x"}')
     const res = await deleteOwnAccount('u1')
     expect(res.error).toBeNull()
     expect(mocks.removed).toContainEqual(['u1/rev1/a.jpg', 'u1/rev1/b.jpg'])
     expect(mocks.removed).toContainEqual(['u1/avatar.jpg'])
     expect(mocks.rpc).toHaveBeenCalledWith('delete_own_account')
     expect(mocks.calls.indexOf('rpc')).toBeGreaterThan(mocks.calls.lastIndexOf('remove user-avatars'))
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    // The session is dropped from storage without calling /auth/v1/logout,
+    // which answers 403 for a deleted user (r2 skeptic 2).
+    expect(localStorage.getItem('sb-test-auth-token')).toBeNull()
+    expect(mocks.signOut).not.toHaveBeenCalled()
   })
 
   it('reports an RPC failure and stays signed in', async () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'Admin accounts can\'t be deleted here.' } })
     const res = await deleteOwnAccount('u1')
     expect(res.error).toMatch(/admin/i)
-    expect(mocks.signOut).not.toHaveBeenCalled()
+    expect(mocks.stopAutoRefresh).not.toHaveBeenCalled()
   })
 })
 
@@ -86,6 +93,16 @@ describe('changePassword', () => {
     mocks.updateUser.mockResolvedValue({ error: null })
     expect((await changePassword('a@b.co', 'right', 'newpassword')).error).toBeNull()
     expect(mocks.updateUser).toHaveBeenCalledWith({ password: 'newpassword' })
+  })
+})
+
+describe('verifyCurrentPassword', () => {
+  it('returns a plain message for a wrong password and null for the right one', async () => {
+    mocks.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Invalid login credentials' } })
+    expect(await verifyCurrentPassword('a@b.co', 'wrong')).toMatch(/current password is not correct/i)
+    mocks.signInWithPassword.mockResolvedValueOnce({ error: null })
+    expect(await verifyCurrentPassword('a@b.co', 'right')).toBeNull()
+    expect(mocks.signInWithPassword).toHaveBeenLastCalledWith({ email: 'a@b.co', password: 'right' })
   })
 })
 

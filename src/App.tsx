@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
+import PageStateShell from './components/ui/PageStateShell'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
 import BadgeUnlockOverlay from './components/badges/BadgeUnlockOverlay'
@@ -31,15 +32,32 @@ const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const CrawlPage = lazy(() => import('./pages/CrawlPage'))
 
+// Shown while a lazy page's code downloads (3–5s on slow 3G). Keeps the app
+// header and brand on screen instead of a bare full-screen spinner.
 function LazyFallback() {
   return (
-    <div className="min-h-dvh bg-paper flex items-center justify-center">
-      <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-    </div>
+    <PageStateShell>
+      <div role="status" className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin">
+        <span className="sr-only">Loading…</span>
+      </div>
+    </PageStateShell>
   )
 }
 
 const ADMIN_EMAIL = 'anthonycap949@gmail.com'
+
+// ProfileModal sets this right before the full reload that follows deleting
+// an account. It is read once when this module loads, i.e. on the NEW page.
+// Reading it in an effect let the old page (still running until the reload
+// lands, seconds on a slow connection) take it and show the toast just before
+// unloading, so the reloaded page never showed it (r3 breaker: gone at ~3.5s).
+let accountDeletedNotice = (() => {
+  try {
+    const set = sessionStorage.getItem('account-deleted') === '1'
+    sessionStorage.removeItem('account-deleted')
+    return set
+  } catch { return false }
+})()
 
 // Where /login and /register send someone once they're signed in: the page
 // they were on before the auth wall, else home. Rendering the destination
@@ -93,12 +111,11 @@ export default function App() {
   // CrawlEditor's login bounce and AuthGateModal). Survives the Google OAuth
   // full-page round-trip because it lives in sessionStorage; entries older
   // than 15 minutes are ignored (see lib/authReturn).
-  // Confirmation after deleting an account (set right before the full reload).
+  // Confirmation after deleting an account (flag read at page load, below).
   useEffect(() => {
-    if (auth.status === 'loading') return
-    let deleted = false
-    try { deleted = sessionStorage.getItem('account-deleted') === '1'; sessionStorage.removeItem('account-deleted') } catch { /* ignore */ }
-    if (deleted) toast.success('Your account and everything you posted were deleted.', { duration: 8000 })
+    if (auth.status === 'loading' || !accountDeletedNotice) return
+    accountDeletedNotice = false
+    toast.success('Your account and everything you posted were deleted.', { duration: 8000 })
   }, [auth.status])
 
   useEffect(() => {
@@ -196,7 +213,7 @@ export default function App() {
 
         <Route path="/register" element={
           auth.status === 'unauthenticated' ? (
-            <Register onSignUp={auth.signUpWithEmail} isPublic={isPublic} />
+            <Register onSignUp={auth.signUpWithEmail} isPublic={isPublic} onSignInGoogle={auth.signInWithGoogle} />
           ) : (
             <AfterAuthRedirect />
           )

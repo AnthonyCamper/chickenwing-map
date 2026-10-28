@@ -471,8 +471,12 @@ function ShopCard({
                   </div>
                 ))}
                 {reviews.length > 4 && (
-                  <div className="w-6 h-6 rounded-full border-2 border-cream-50 bg-night-800 flex items-center justify-center">
-                    <span className="text-[9px] text-cream-50 font-extrabold">+{reviews.length - 4}</span>
+                  <div
+                    className="w-6 h-6 rounded-full border-2 border-cream-50 bg-night-800 flex items-center justify-center"
+                    title={`${reviews.length - 4} more ${reviews.length - 4 === 1 ? 'review' : 'reviews'}`}
+                  >
+                    <span aria-hidden="true" className="text-[9px] text-cream-50 font-extrabold">+{reviews.length - 4}</span>
+                    <span className="sr-only">{reviews.length - 4} more {reviews.length - 4 === 1 ? 'review' : 'reviews'}</span>
                   </div>
                 )}
               </div>
@@ -486,8 +490,17 @@ function ShopCard({
             <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 border-night-900 shadow-sticker-sm bg-cream-200">
               <img src={photos[0].url} alt="" className="w-full h-full object-cover" loading="lazy" />
               {photos.length > 1 && (
-                <span className="absolute bottom-0.5 right-0.5 bg-night-900/85 text-cream-50 text-[9px] font-extrabold uppercase tracking-crowd px-1 py-0.5 rounded">
-                  {photos.length}
+                <span
+                  className="absolute bottom-0.5 right-0.5 inline-flex items-center gap-0.5 bg-night-900/85 text-cream-50 text-[9px] font-extrabold uppercase tracking-crowd px-1 py-0.5 rounded"
+                  title={`${photos.length} photos`}
+                >
+                  {/* Camera glyph so the bare number reads as a photo count */}
+                  <svg aria-hidden="true" className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span aria-hidden="true">{photos.length}</span>
+                  <span className="sr-only">{photos.length} photos</span>
                 </span>
               )}
             </div>
@@ -514,20 +527,27 @@ function ShopCard({
 // Bits
 // ───────────────────────────────────────────────────────────────────────────
 
+// The review count sits next to the bordered pill, not inside it: inside,
+// it made the pill wider than a 375px card, so "· 1 / review" wrapped and the
+// card's chevron landed on the pill's border. Outside, it wraps as one unit.
+// The 10 stars alone are wider than a phone card's text column (next to a
+// photo), so phones get the number only; the stars show from sm up.
 function RatingChip({ rating, count, hot }: { rating: number; count: number; hot: boolean }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 border-night-900 shadow-sticker-sm
-        text-[12px] font-extrabold uppercase tracking-crowd
-        ${hot ? 'bg-sauce-400 text-cream-50' : 'bg-cream-50 text-night-900'}`}
-    >
-      <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
-      <StarRating value={rating} size="sm" />
-      <span>{rating.toFixed(1)}</span>
-      <span className="opacity-70 normal-case font-bold tracking-normal">
-        · {count} {count === 1 ? 'review' : 'reviews'}
+    <>
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border-2 border-night-900 shadow-sticker-sm
+          text-[12px] font-extrabold uppercase tracking-crowd whitespace-nowrap
+          ${hot ? 'bg-sauce-400 text-cream-50' : 'bg-cream-50 text-night-900'}`}
+      >
+        <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
+        <span className="hidden sm:inline-flex"><StarRating value={rating} size="sm" /></span>
+        <span>{rating.toFixed(1)}</span>
       </span>
-    </span>
+      <span className="text-[12px] font-bold text-charcoal-500 whitespace-nowrap">
+        {count} {count === 1 ? 'review' : 'reviews'}
+      </span>
+    </>
   )
 }
 

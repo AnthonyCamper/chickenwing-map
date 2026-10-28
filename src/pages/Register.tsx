@@ -32,9 +32,11 @@ interface Props {
   /** Public site: accounts work straight away. Private site: an admin
    *  approves each new account first, and the copy has to say so. */
   isPublic?: boolean
+  /** Same Google sign-in as the Login page; it creates the account on first use. */
+  onSignInGoogle?: () => Promise<void>
 }
 
-export default function Register({ onSignUp, isPublic = true }: Props) {
+export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -45,6 +47,7 @@ export default function Register({ onSignUp, isPublic = true }: Props) {
   const [done, setDone] = useState(false)
   const [needsEmail, setNeedsEmail] = useState(false)
   const [emailTouched, setEmailTouched] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Revoke any previously-created object URL when the preview changes or unmounts.
@@ -73,6 +76,12 @@ export default function Register({ onSignUp, isPublic = true }: Props) {
   const formProblem = signUpProblem({ displayName, email, password })
   const pwProblem = password ? passwordProblem(password) : null
   const showEmailError = emailTouched && email.trim() !== '' && !isValidEmail(email)
+
+  const handleGoogle = async () => {
+    if (!onSignInGoogle) return
+    setGoogleLoading(true)
+    await onSignInGoogle()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,6 +145,13 @@ export default function Register({ onSignUp, isPublic = true }: Props) {
       <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07] rotate-180" />
 
       <div className="relative w-full max-w-sm animate-fade-in">
+        {/* A way back for visitors who opened sign-up but want to keep browsing */}
+        <Link
+          to="/"
+          className="inline-flex items-center min-h-[44px] -mt-4 mb-2 px-1 -ml-1 text-xs font-extrabold uppercase tracking-crowd text-charcoal-600 hover:text-night-900"
+        >
+          {isPublic ? '← Back to WingKingTony' : '← Back to sign in'}
+        </Link>
         <div className="flex flex-col items-center text-center mb-8">
           <img
             src="/favicon.svg"
@@ -152,6 +168,28 @@ export default function Register({ onSignUp, isPublic = true }: Props) {
         </div>
 
         <div className="card px-6 py-7">
+          {onSignInGoogle && (
+            <div className="space-y-5 mb-5">
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={googleLoading || loading}
+                className="btn-primary w-full gap-3 py-3.5 text-base"
+              >
+                {googleLoading ? (
+                  <span className="w-5 h-5 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-night-900/15" />
+                <span className="text-[10px] text-charcoal-500 font-extrabold uppercase tracking-crowd">or sign up with email</span>
+                <div className="flex-1 h-px bg-night-900/15" />
+              </div>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Avatar picker */}
             <div className="flex flex-col items-center gap-3 pb-2">
@@ -322,5 +360,16 @@ export function LegalLinks() {
       <span aria-hidden>·</span>
       <Link to="/terms" className="inline-flex items-center min-h-[44px] px-1 hover:text-night-900">Terms</Link>
     </p>
+  )
+}
+
+export function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="rgba(255,255,255,0.9)"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="rgba(255,255,255,0.9)"/>
+      <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="rgba(255,255,255,0.9)"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="rgba(255,255,255,0.9)"/>
+    </svg>
   )
 }

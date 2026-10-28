@@ -274,7 +274,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
               <div className="text-5xl mb-4">🥁</div>
               <h3 className="font-display text-lg text-charcoal-700 mb-2">No reviews yet</h3>
               <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
-                Reviews with photos show here. Tap "Rate wings" to add the first one.
+                New reviews show here. Tap "Rate wings" to add the first one.
               </p>
             </>
           )}

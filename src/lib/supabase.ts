@@ -10,9 +10,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// Where the login session is kept in localStorage. This is supabase-js's own
+// default key, spelled out so the app can drop a session locally (after
+// deleting the account, when the server no longer knows the user).
+export const AUTH_STORAGE_KEY = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storageKey: AUTH_STORAGE_KEY,
   },
 })

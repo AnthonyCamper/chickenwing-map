@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
-import { supabase } from '../lib/supabase'
+import { AUTH_STORAGE_KEY, supabase } from '../lib/supabase'
 import { friendlyAuthError, isSchemaDriftError, SCHEMA_DRIFT_MESSAGE } from '../lib/authErrors'
 import { clearReturnTo } from '../lib/authReturn'
+import { AVATAR_MAX_SIDE, downscaleImage, imageExtension } from '../lib/imageResize'
 import type { AuthStatus, UserProfile, SiteSettings } from '../lib/types'
 
 export interface AuthState {
@@ -236,11 +237,11 @@ export function useAuth(): AuthState {
     // Upload avatar if provided and we have a user ID
     if (avatar && data.user) {
       try {
-        const ext = avatar.name.split('.').pop() ?? 'jpg'
-        const path = `${data.user.id}/avatar.${ext}`
+        const upload = await downscaleImage(avatar, { maxSide: AVATAR_MAX_SIDE })
+        const path = `${data.user.id}/avatar.${imageExtension(upload)}`
         const { error: uploadError } = await supabase.storage
           .from('user-avatars')
-          .upload(path, avatar, { upsert: true })
+          .upload(path, upload, { upsert: true, contentType: upload.type })
 
         if (!uploadError) {
           const { data: urlData } = supabase.storage
@@ -268,6 +269,11 @@ export function useAuth(): AuthState {
     if (!data.session) {
       return { error: null, needsEmailConfirmation: true }
     }
+
+    // The SIGNED_IN listener already read the profile, usually before the
+    // avatar and name above were saved, so the header showed the initial
+    // until a reload. Read it again now that they are.
+    if (data.user) await checkApproval(data.user)
 
     return { error: null }
   }
@@ -324,22 +330,28 @@ export function hasPasswordLogin(user: User | null | undefined): boolean {
   return user.app_metadata?.provider === 'email'
 }
 
+/**
+ * Re-check the signed-in user's password before a sensitive action (change
+ * password, delete account), so anyone at an unlocked, signed-in device can't
+ * do it. Returns a user-facing error, or null when the password is right.
+ */
+export async function verifyCurrentPassword(email: string, password: string): Promise<string | null> {
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (!error) return null
+  return error.message.toLowerCase().includes('invalid login')
+    ? 'Your current password is not correct.'
+    : friendlyAuthError(error.message)
+}
+
 /** Check the current password, then set a new one. */
 export async function changePassword(
   email: string,
   currentPassword: string,
   newPassword: string
 ): Promise<{ error: string | null }> {
-  // updateUser alone doesn't ask for the old password, so anyone at an
-  // unlocked, signed-in device could change it. Re-check it first.
-  const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
-  if (checkError) {
-    return {
-      error: checkError.message.toLowerCase().includes('invalid login')
-        ? 'Your current password is not correct.'
-        : friendlyAuthError(checkError.message),
-    }
-  }
+  // updateUser alone doesn't ask for the old password, so re-check it first.
+  const checkError = await verifyCurrentPassword(email, currentPassword)
+  if (checkError) return { error: checkError }
   const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) return { error: friendlyAuthError(error.message) }
   return { error: null }
@@ -375,7 +387,7 @@ async function removeUserFolder(bucket: string, userId: string): Promise<void> {
  * first (best effort: a failure there must not block deleting the account),
  * then the delete_own_account() RPC (migration 038) deletes the auth user and
  * the database cascades remove their profile and everything they posted.
- * Finally drops the local session.
+ * Finally drops the local session; the caller reloads the page.
  */
 export async function deleteOwnAccount(userId: string): Promise<{ error: string | null }> {
   for (const bucket of USER_BUCKETS) {
@@ -385,6 +397,12 @@ export async function deleteOwnAccount(userId: string): Promise<{ error: string 
   if (error) return { error: error.message || 'Could not delete your account. Please try again.' }
   clearReturnTo()
   // The user no longer exists server-side, so only clear the local session.
-  try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* ignore */ }
+  // Not signOut(): even with scope 'local' it calls /auth/v1/logout, which
+  // now answers 403 (user gone) and leaves an error in the browser console.
+  try {
+    await supabase.auth.stopAutoRefresh()
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    localStorage.removeItem(`${AUTH_STORAGE_KEY}-code-verifier`)
+  } catch { /* storage blocked: nothing to clear */ }
   return { error: null }
 }

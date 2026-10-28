@@ -87,9 +87,9 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
           type="button"
           onClick={onOpen}
           className="flex-shrink-0 flex flex-col items-center bg-sauce-400 text-cream-50 rounded-xl px-2.5 py-1.5 border-2 border-night-900 shadow-sticker-sm hover:bg-sauce-300 transition-colors"
-          aria-label={`Rating: ${review.overall_rating}/10`}
+          aria-label={`Rating: ${Number(review.overall_rating).toFixed(1)}/10`}
         >
-          <span className="font-display text-xl leading-none">{review.overall_rating}</span>
+          <span className="font-display text-xl leading-none">{Number(review.overall_rating).toFixed(1)}</span>
           <span className="text-[8px] uppercase tracking-crowd opacity-80 leading-none mt-0.5">/10</span>
         </button>
       </div>
@@ -134,14 +134,14 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
             className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sauce-400"
           />
 
-          {/* Multi-photo dots — tap targets expanded to 24px while keeping visible dot tiny */}
+          {/* Multi-photo dots — 44px tap targets while keeping the visible dot tiny */}
           {review.photos.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center z-10">
               {review.photos.map((_, i) => (
                 <button
                   key={i}
                   onClick={e => { e.stopPropagation(); setCarouselIndex(i) }}
-                  className="w-6 h-6 flex items-center justify-center"
+                  className="w-11 h-11 flex items-center justify-center"
                   aria-label={`Photo ${i + 1}`}
                 >
                   <span className={`block rounded-full transition-all ${
@@ -266,7 +266,7 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
         {/* Share — native sheet, clipboard, or a copyable link field */}
         <ShareButton
           title={`${review.spot_name} review`}
-          text={`A ${review.overall_rating}/10 wing review of ${review.spot_name}`}
+          text={`A ${Number(review.overall_rating).toFixed(1)}/10 wing review of ${review.spot_name}`}
           url={`${window.location.origin}/reviews/${review.review_id}`}
           className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold text-charcoal-500 hover:bg-cream-100 transition-colors ml-auto"
         />

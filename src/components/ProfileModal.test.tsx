@@ -5,6 +5,7 @@ import type { AuthState } from '../hooks/useAuth'
 const mocks = vi.hoisted(() => ({
   deleteOwnAccount: vi.fn(),
   changePassword: vi.fn(),
+  verifyCurrentPassword: vi.fn(),
 }))
 
 vi.mock('../lib/supabase', () => {
@@ -21,6 +22,7 @@ vi.mock('../hooks/useAuth', async importOriginal => ({
   ...(await importOriginal<typeof import('../hooks/useAuth')>()),
   deleteOwnAccount: mocks.deleteOwnAccount,
   changePassword: mocks.changePassword,
+  verifyCurrentPassword: mocks.verifyCurrentPassword,
 }))
 vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }))
 
@@ -106,17 +108,42 @@ describe('ProfileModal', () => {
 
   it('only deletes the account after DELETE is typed (F19)', async () => {
     mocks.deleteOwnAccount.mockResolvedValue({ error: 'boom' })
-    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    render(<ProfileModal auth={makeAuth({}, 'google')} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /delete account/i }))
     const confirm = screen.getByRole('button', { name: 'Delete forever' })
     expect(confirm).toBeDisabled()
     expect(screen.getByText(/can’t be undone/i)).toBeInTheDocument()
+    // Google-only accounts have no password to ask for.
+    expect(screen.queryByLabelText('Your password')).toBeNull()
 
     fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: 'delete' } })
     expect(confirm).toBeEnabled()
     fireEvent.click(confirm)
     await waitFor(() => expect(mocks.deleteOwnAccount).toHaveBeenCalledWith('u1'))
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
+    expect(mocks.verifyCurrentPassword).not.toHaveBeenCalled()
+  })
+
+  it('asks email/password accounts for their password before deleting (r2 skeptic 8)', async () => {
+    mocks.verifyCurrentPassword.mockResolvedValueOnce('Your current password is not correct.')
+    mocks.deleteOwnAccount.mockResolvedValue({ error: 'boom' })
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }))
+    const confirm = screen.getByRole('button', { name: 'Delete forever' })
+    fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: 'DELETE' } })
+    expect(confirm).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Your password'), { target: { value: 'wrongpass' } })
+    expect(confirm).toBeEnabled()
+    fireEvent.click(confirm)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/current password is not correct/i)
+    expect(mocks.verifyCurrentPassword).toHaveBeenCalledWith('sam@example.com', 'wrongpass')
+    expect(mocks.deleteOwnAccount).not.toHaveBeenCalled()
+
+    mocks.verifyCurrentPassword.mockResolvedValueOnce(null)
+    fireEvent.change(screen.getByLabelText('Your password'), { target: { value: 'rightpass' } })
+    fireEvent.click(confirm)
+    await waitFor(() => expect(mocks.deleteOwnAccount).toHaveBeenCalledWith('u1'))
   })
 
   it('does not let an admin delete their account here', () => {

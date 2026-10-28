@@ -106,7 +106,7 @@ export default function ReviewPage() {
 
   if (status === 'not-found') {
     return (
-      <PageStateShell>
+      <PageStateShell title="Review not found — WingKingTony">
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">Review not found</h1>
         <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">

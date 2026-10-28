@@ -46,6 +46,17 @@ export function badgeRarity(
   return { tier, label: LABELS[tier], pct, earnedCount, memberCount }
 }
 
+/**
+ * The one plain-English rarity line used everywhere a badge's rarity is
+ * shown. Always a count ("3 of 56 members have this"), never a percentage,
+ * so two badges side by side are easy to compare.
+ */
+export function rarityLine(rarity: BadgeRarity): string {
+  if (rarity.earnedCount === 0) return 'Nobody has this yet'
+  if (rarity.earnedCount === 1) return 'Only 1 member has this'
+  return `${rarity.earnedCount} of ${rarity.memberCount} members have this`
+}
+
 /** Tailwind classes for the rarity chip, per tier. */
 export const RARITY_CHIP_CLASSES: Record<RarityTier, string> = {
   first:     'bg-gold-300 text-night-900 border-night-900',

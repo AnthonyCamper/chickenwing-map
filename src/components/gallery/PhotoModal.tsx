@@ -240,12 +240,12 @@ export default function PhotoModal(props: Props) {
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           )}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center">
             {reviewData.photos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setPhotoIndex(i)}
-                className="w-6 h-6 flex items-center justify-center"
+                className="w-11 h-11 flex items-center justify-center"
                 aria-label={`Photo ${i + 1}`}
               >
                 <span className={`block rounded-full transition-all ${
@@ -535,12 +535,12 @@ export default function PhotoModal(props: Props) {
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
               )}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1">
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center">
                 {reviewData.photos.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setPhotoIndex(i)}
-                    className="w-6 h-6 flex items-center justify-center"
+                    className="w-11 h-11 flex items-center justify-center"
                     aria-label={`Photo ${i + 1}`}
                   >
                     <span className={`block rounded-full transition-all ${

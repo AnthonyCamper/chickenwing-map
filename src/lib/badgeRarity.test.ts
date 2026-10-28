@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { badgeRarity } from './badgeRarity'
+import { badgeRarity, rarityLine } from './badgeRarity'
 
 describe('badgeRarity', () => {
   it('returns null when stats are missing', () => {
@@ -37,5 +37,16 @@ describe('badgeRarity', () => {
 
   it('caps pct at 100 even if counts exceed members', () => {
     expect(badgeRarity(40, 34)?.pct).toBe(100)
+  })
+})
+
+describe('rarityLine', () => {
+  it('always uses "N of M members", never a percentage (r2 nonnative N7)', () => {
+    expect(rarityLine(badgeRarity(28, 56)!)).toBe('28 of 56 members have this')
+    expect(rarityLine(badgeRarity(9, 56)!)).toBe('9 of 56 members have this')
+    expect(rarityLine(badgeRarity(2, 56)!)).toBe('2 of 56 members have this')
+    expect(rarityLine(badgeRarity(1, 56)!)).toBe('Only 1 member has this')
+    expect(rarityLine(badgeRarity(0, 56)!)).toBe('Nobody has this yet')
+    for (const n of [2, 5, 9, 20, 40]) expect(rarityLine(badgeRarity(n, 56)!)).not.toMatch(/%/)
   })
 })

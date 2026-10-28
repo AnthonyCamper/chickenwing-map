@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Modal from './ui/Modal'
@@ -164,6 +165,9 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
   const [visitedAt, setVisitedAt] = useState(d?.visitedAt ?? today)
   const [photos, setPhotos] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
+  // Set (synchronously) just before navigating to the new review: the sheet
+  // leaves the screen first. See handleSubmit.
+  const [published, setPublished] = useState(false)
   // When pre-filled (e.g. checking in at an event stop) we skip step 1.
   const [step, setStep] = useState<1 | 2>(prefill ? 2 : d?.step ?? 1)
   const [geoLoading, setGeoLoading] = useState(false)
@@ -413,6 +417,11 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     toast.success('Review published! 🍗', { duration: 5000 })
     if (result.reviewId) {
       const reviewId = result.reviewId
+      // Take the sheet off screen before navigating. The review page is
+      // lazy-loaded: while its code downloads, Suspense only hides the old
+      // page, and this portaled sheet stayed on top of the new URL with a
+      // stale "Publishing…" button for up to a second (r3 mobile 3).
+      flushSync(() => setPublished(true))
       navigateAfterModalHistory(() => navigate(`/reviews/${reviewId}`))
     }
   }
@@ -464,6 +473,8 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       </div>
     </div>
   )
+
+  if (published) return null
 
   return (
     <Modal

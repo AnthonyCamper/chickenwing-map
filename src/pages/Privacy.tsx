@@ -47,9 +47,11 @@ export function Bullets({ items }: { items: ReactNode[] }) {
 }
 
 export function ContactLink() {
+  // On a narrow screen, wrap at the "@" (the <wbr>), not mid-word.
+  const [local, domain] = LEGAL_CONTACT_EMAIL.split('@')
   return (
-    <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="text-sauce-500 font-bold underline break-all">
-      {LEGAL_CONTACT_EMAIL}
+    <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="text-sauce-500 font-bold underline break-words">
+      {local}<wbr />@{domain}
     </a>
   )
 }
@@ -125,8 +127,6 @@ export default function Privacy() {
             Your browser loads these directly, so OpenStreetMap sees your IP address and what you
             search for.</>,
           <><strong>Google Fonts</strong>: the fonts on the site. Your browser loads them from Google.</>,
-          <><strong>unpkg.com</strong>: the map’s stylesheet (Leaflet) is loaded from this public code
-            host, so it sees your IP address.</>,
           <><strong>Klipy</strong>: the GIF search in comments. When you open it, your search words
             are sent to Klipy.</>,
           <><strong>Google</strong>: if you use “Continue with Google”. Also, members who signed in

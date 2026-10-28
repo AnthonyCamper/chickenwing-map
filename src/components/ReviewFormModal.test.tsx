@@ -192,6 +192,8 @@ describe('ReviewFormModal — existing spots and publishing', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
       await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
       expect(screen.queryByText('Review page rev-123')).not.toBeInTheDocument()
+      // The sheet is already off screen while the navigation waits (r3 mobile 3).
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
       expect(await screen.findByText('Review page rev-123')).toBeInTheDocument()
     } finally {

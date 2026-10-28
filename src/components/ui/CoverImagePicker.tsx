@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import toast from 'react-hot-toast'
+import { MAX_IMAGE_MB, validateImageFile } from '../../lib/imageValidation'
 
 interface Props {
   preview: string | null
@@ -14,23 +15,25 @@ interface Props {
  * the actual upload after onChange fires with the picked File.
  */
 export default function CoverImagePicker({
-  // Default suits uncompressed upload paths (event covers). Callers whose
-  // pipeline compresses (crawl covers) pass a higher cap.
-  preview, onChange, onClear, maxBytes = 5 * 1024 * 1024,
+  // Both callers downscale before uploading (lib/imageResize), so this only
+  // caps what the browser has to decode.
+  preview, onChange, onClear, maxBytes = MAX_IMAGE_MB * 1024 * 1024,
 }: Props) {
   const maxMb = Math.round(maxBytes / 1024 / 1024)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
+    e.target.value = '' // let the same file be picked again after an error
     if (!f) return
-    if (f.size > maxBytes) {
-      toast.error(`That image is too big (max ${maxMb} MB)`)
-      e.target.value = ''
+    // Same checks and messages as the avatar and review-photo pickers:
+    // not a photo, too big, or can't be opened.
+    const problem = await validateImageFile(f, maxMb)
+    if (problem) {
+      toast.error(problem, { duration: 6000 })
       return
     }
     onChange(f)
-    e.target.value = ''
   }
 
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import BadgeIcon from './BadgeIcon'
 import { BADGES_UNLOCKED_EVENT, BadgesUnlockedDetail } from '../../lib/badgeUnlocks'
-import { badgeRarity, RARITY_CHIP_CLASSES } from '../../lib/badgeRarity'
+import { badgeRarity, rarityLine, RARITY_CHIP_CLASSES } from '../../lib/badgeRarity'
 import type { BadgeWithEarned } from '../../lib/types'
 
 const CONFETTI_COLORS = ['#f73d2a', '#f1c12d', '#fdedb0', '#ff6e60', '#fffdf5', '#cf9b14']
@@ -48,13 +48,7 @@ function rarityText(badge: BadgeWithEarned): { chip: string | null; tierClass: s
   const rarity = badgeRarity(badge.earned_count, badge.member_count)
   if (!rarity) return null
   if (rarity.earnedCount <= 1) return { chip: null, tierClass: '', text: '🏆 First to earn this!' }
-  const text =
-    rarity.tier === 'common'
-      ? `${rarity.earnedCount} of ${rarity.memberCount} members have this`
-      : rarity.tier === 'uncommon'
-        ? `${rarity.pct}% of members have this`
-        : `Only ${rarity.pct}% of members have this`
-  return { chip: rarity.label, tierClass: RARITY_CHIP_CLASSES[rarity.tier], text }
+  return { chip: rarity.label, tierClass: RARITY_CHIP_CLASSES[rarity.tier], text: rarityLine(rarity) }
 }
 
 /**

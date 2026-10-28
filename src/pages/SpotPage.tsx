@@ -47,12 +47,18 @@ function SpotMap({ lat, lng, name }: { lat: number; lng: number; name: string })
         attribution: '© OpenStreetMap',
       }).addTo(map)
       const icon = L.divIcon({
-        html: `<div style="width:32px;height:32px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)">🍗</div>`,
+        html: `<div aria-hidden="true" style="width:32px;height:32px;border-radius:50%;background:#fa5a2e;color:white;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)">🍗</div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         className: '',
       })
-      L.marker([lat, lng], { icon, title: name }).addTo(map)
+      // The pin only marks the spot (tapping it does nothing), so it's not a
+      // button. Name it with setAttribute: the spot name is user text and
+      // must never go into the icon's HTML string.
+      const marker = L.marker([lat, lng], { icon, title: name, interactive: false, keyboard: false }).addTo(map)
+      const pin = marker.getElement()
+      pin?.setAttribute('role', 'img')
+      pin?.setAttribute('aria-label', `Map pin for ${name}`)
     })
   }, [lat, lng, name])
 
@@ -176,7 +182,7 @@ export default function SpotPage() {
 
   if (status === 'not-found') {
     return (
-      <PageStateShell>
+      <PageStateShell title="Spot not found — WingKingTony">
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">Spot not found</h1>
         <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">

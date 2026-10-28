@@ -205,7 +205,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
           {stats.map(s => (
             <div key={s.label}>
               <p className="font-display text-2xl text-sauce-500 leading-none">{s.value}</p>
-              <p className="text-[10px] font-extrabold uppercase tracking-crowd text-charcoal-500 mt-1">{s.label}</p>
+              {/* nowrap: "check-ins" broke at its hyphen ("CHECK- / INS") at 375px */}
+              <p className="text-[10px] font-extrabold uppercase tracking-wide whitespace-nowrap text-charcoal-500 mt-1">{s.label}</p>
             </div>
           ))}
         </div>

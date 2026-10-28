@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { downscaleImage, imageExtension } from '../../lib/imageResize'
 import { useAdminEvents } from '../../hooks/useAdminEvents'
 import BusinessAutocomplete from '../ui/BusinessAutocomplete'
 import CoverImagePicker from '../ui/CoverImagePicker'
 import type { WingEvent, EventStop, EventFormData, WingSpot } from '../../lib/types'
 
-async function uploadEventCover(slug: string, file: File): Promise<string | null> {
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${slug}/cover.${ext}`
+async function uploadEventCover(slug: string, original: File): Promise<string | null> {
+  const file = await downscaleImage(original)
+  const path = `${slug}/cover.${imageExtension(file)}`
   const { error } = await supabase.storage
     .from('event-covers')
     .upload(path, file, { upsert: true, contentType: file.type })

@@ -44,7 +44,8 @@ describe('BadgeUnlockOverlay', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('First Flight')).toBeInTheDocument()
     expect(screen.getByText('Rare')).toBeInTheDocument()
-    expect(screen.getByText(/Only 12% of members/)).toBeInTheDocument()
+    // Same count format as everywhere else, never a percentage (r2 nonnative N7).
+    expect(screen.getByText('4 of 34 members have this')).toBeInTheDocument()
   })
 
   it('labels a badge half the members hold as Common, not Uncommon', () => {

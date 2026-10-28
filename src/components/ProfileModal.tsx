@@ -8,9 +8,10 @@ import { useLeaderboard } from '../hooks/useLeaderboard'
 import BadgeGrid from './badges/BadgeGrid'
 import BadgeIcon from './badges/BadgeIcon'
 import AvatarImage from './ui/AvatarImage'
-import { changePassword, deleteOwnAccount, hasPasswordLogin, type AuthState } from '../hooks/useAuth'
+import { changePassword, deleteOwnAccount, hasPasswordLogin, verifyCurrentPassword, type AuthState } from '../hooks/useAuth'
 import { displayNameProblem, MIN_PASSWORD_LENGTH, passwordProblem } from '../lib/authErrors'
 import { validateImageFile } from '../lib/imageValidation'
+import { AVATAR_MAX_SIDE, downscaleImage, imageExtension } from '../lib/imageResize'
 
 interface Props {
   auth: AuthState
@@ -100,10 +101,10 @@ export default function ProfileModal({ auth, onClose }: Props) {
     try {
       let avatarUrl: string | undefined
       if (avatarFile) {
-        const ext = avatarFile.name.split('.').pop() ?? 'jpg'
-        const path = `${user.id}/avatar.${ext}`
+        const upload = await downscaleImage(avatarFile, { maxSide: AVATAR_MAX_SIDE })
+        const path = `${user.id}/avatar.${imageExtension(upload)}`
         const { error: uploadError } = await supabase.storage
-          .from('user-avatars').upload(path, avatarFile, { upsert: true })
+          .from('user-avatars').upload(path, upload, { upsert: true, contentType: upload.type })
         if (uploadError) { toast.error('Failed to upload photo') }
         else {
           const { data } = supabase.storage.from('user-avatars').getPublicUrl(path)
@@ -242,6 +243,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
             {tab === 'profile' && panel === 'delete' && user && (
               <DeleteAccountPanel
                 userId={user.id}
+                email={email}
+                needsPassword={hasPasswordLogin(user)}
                 isAdmin={auth.isAdmin}
                 onCancel={() => setPanel(null)}
               />
@@ -403,7 +406,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     <div className="grid grid-cols-2 gap-2.5">
                       <StatCard emoji="🍗" label="Reviews posted" value={myRow.review_count} />
                       <StatCard emoji="📍" label="Unique spots"   value={myRow.unique_spots} />
-                      <StatCard emoji="⭐" label="Avg rating"     value={myRow.avg_rating ?? '—'} />
+                      <StatCard emoji="⭐" label="Avg rating"     value={myRow.avg_rating != null ? Number(myRow.avg_rating).toFixed(1) : '—'} />
                       <StatCard emoji="💬" label="Comments"       value={myRow.comment_count} />
                       <StatCard emoji="🏅" label="Badges earned"  value={myRow.badge_count} />
                       <StatCard emoji="❤️" label="Likes received" value={myRow.total_likes_received} />
@@ -540,17 +543,33 @@ function ChangePasswordPanel({ email, onDone }: { email: string; onDone: () => v
   )
 }
 
-function DeleteAccountPanel({ userId, isAdmin, onCancel }: { userId: string; isAdmin: boolean; onCancel: () => void }) {
+function DeleteAccountPanel({ userId, email, needsPassword, isAdmin, onCancel }: {
+  userId: string
+  email: string
+  /** Email/password accounts confirm with their password, like Change password. */
+  needsPassword: boolean
+  isAdmin: boolean
+  onCancel: () => void
+}) {
   const [typed, setTyped] = useState('')
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const confirmed = typed.trim().toUpperCase() === DELETE_CONFIRM_WORD
+  const confirmed = typed.trim().toUpperCase() === DELETE_CONFIRM_WORD && (!needsPassword || !!password)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!confirmed || busy || isAdmin) return
     setBusy(true)
     setError(null)
+    if (needsPassword) {
+      const wrong = await verifyCurrentPassword(email, password)
+      if (wrong) {
+        setBusy(false)
+        setError(wrong)
+        return
+      }
+    }
     const { error } = await deleteOwnAccount(userId)
     if (error) {
       setBusy(false)
@@ -589,6 +608,13 @@ function DeleteAccountPanel({ userId, isAdmin, onCancel }: { userId: string; isA
         <>
           {error && (
             <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
+          )}
+          {needsPassword && (
+            <div>
+              <label className="label" htmlFor="delete-password">Your password</label>
+              <input id="delete-password" type="password" autoComplete="current-password" className="input"
+                value={password} onChange={e => setPassword(e.target.value)} disabled={busy} />
+            </div>
           )}
           <div>
             <label className="label" htmlFor="delete-confirm">Type {DELETE_CONFIRM_WORD} to confirm</label>

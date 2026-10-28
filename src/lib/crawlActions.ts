@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { compressImage } from './reviewActions'
+import { downscaleImage } from './imageResize'
 import type { CrawlFormData, WingCrawl, WingCrawlItem } from './types'
 
 export async function createCrawl(
@@ -90,15 +90,16 @@ export async function uploadCrawlCover(
   file: File
 ): Promise<{ error: string | null; url?: string }> {
   try {
-    const compressed = await compressImage(file)
+    const compressed = await downscaleImage(file)
     // Stable filename + upsert=true so re-uploads replace the prior cover
-    // in place instead of orphaning it in storage.
+    // in place instead of orphaning it in storage. (A GIF or a small file is
+    // kept as-is; the content type, not the name, tells browsers what it is.)
     const path = `${userId}/${crawlId}/cover.jpg`
 
     const { error: uploadErr } = await supabase.storage
       .from('crawl-covers')
-      .upload(path, compressed, { contentType: 'image/jpeg', upsert: true })
-    if (uploadErr) return { error: uploadErr.message }
+      .upload(path, compressed, { contentType: compressed.type || 'image/jpeg', upsert: true })
+    if (uploadErr) return { error: friendlyUploadError(uploadErr.message) }
 
     const { data: { publicUrl } } = supabase.storage
       .from('crawl-covers')
@@ -111,12 +112,20 @@ export async function uploadCrawlCover(
       .from('wing_crawls')
       .update({ cover_image_url: bustedUrl })
       .eq('id', crawlId)
-    if (updateErr) return { error: updateErr.message }
+    if (updateErr) return { error: friendlyUploadError(updateErr.message) }
 
     return { error: null, url: bustedUrl }
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Upload failed' }
+    return { error: friendlyUploadError(e instanceof Error ? e.message : '') }
   }
+}
+
+// Storage and network errors are raw ("Failed to fetch", "The object exceeded
+// the maximum allowed size"); say what happened in plain words.
+function friendlyUploadError(message: string): string {
+  if (/size|too large|exceed/i.test(message)) return 'That image is too big to upload. Choose a smaller photo.'
+  if (/mime|type|format/i.test(message)) return 'That file type can’t be used as a cover. Choose a JPG, PNG or WebP photo.'
+  return 'Couldn’t upload the cover. Check your connection and try again.'
 }
 
 export async function deleteCrawlCover(

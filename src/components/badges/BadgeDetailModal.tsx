@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
 import Modal from '../ui/Modal'
 import BadgeIcon from './BadgeIcon'
-import { badgeRarity, RARITY_CHIP_CLASSES } from '../../lib/badgeRarity'
+import { badgeRarity, rarityLine, RARITY_CHIP_CLASSES } from '../../lib/badgeRarity'
 import { badgeTeaser } from '../../lib/badgeHints'
 import type { BadgeWithEarned } from '../../lib/types'
 
@@ -104,11 +104,7 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
               {rarity.label}
             </span>
             <span className="text-[11px] text-charcoal-500 font-bold">
-              {rarity.earnedCount === 0
-                ? 'Nobody has this yet'
-                : rarity.earnedCount === 1
-                  ? 'Only 1 member has this'
-                  : `${rarity.earnedCount} of ${rarity.memberCount} members have this`}
+              {rarityLine(rarity)}
             </span>
           </div>
         )}

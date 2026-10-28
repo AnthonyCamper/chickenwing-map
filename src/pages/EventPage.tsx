@@ -181,7 +181,7 @@ export default function EventPage({ auth }: Props) {
   if (!evt.event && slug) {
     // A specific event was asked for and doesn't exist — a 404, not "no crawl".
     return (
-      <PageStateShell>
+      <PageStateShell title="Event not found — WingKingTony">
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">Event not found</h1>
         <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">

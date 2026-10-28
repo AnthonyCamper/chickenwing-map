@@ -35,6 +35,7 @@ export default function NotificationBell({ notifications }: Props) {
         onClick={() => setOpen(!open)}
         className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-night-700 active:bg-night-600 transition-colors relative"
         aria-label={`Notifications${notifications.unreadCount > 0 ? ` (${notifications.unreadCount} unread)` : ''}`}
+        title="Notifications"
         aria-expanded={open}
       >
         {/* Bell icon */}

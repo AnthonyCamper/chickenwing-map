@@ -134,6 +134,16 @@ export interface GalleryPhoto {
   event_id: string | null
   event_slug: string | null
   event_name: string | null
+  /** Present once migration 040 adds it to gallery_feed */
+  wing_size?: string | null
+}
+
+/** A raw gallery_feed row. Since migration 040 a review without photos gets
+ *  one row whose photo columns are NULL. */
+export type GalleryFeedRow = Omit<GalleryPhoto, 'photo_id' | 'photo_url' | 'display_order'> & {
+  photo_id: string | null
+  photo_url: string | null
+  display_order: number | null
 }
 
 /** A review-level gallery item grouping all photos belonging to one review. */
@@ -160,7 +170,9 @@ export interface GalleryReviewItem {
   event_id: string | null
   event_slug: string | null
   event_name: string | null
-  /** All photos attached to this review, ordered by display_order. */
+  wing_size?: string | null
+  /** All photos attached to this review, ordered by display_order.
+   *  Empty for a rating-only review (shown as a text card). */
   photos: Array<{
     photo_id: string
     photo_url: string

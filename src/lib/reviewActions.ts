@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast'
 import { supabase } from './supabase'
+import { downscaleImage, imageExtension } from './imageResize'
 import { triggerPushDelivery } from './pushManager'
 import { announceNewBadges, snapshotEarnedBadgeIds } from './badgeUnlocks'
 import { invalidateGalleryFeedCache } from '../hooks/useGallery'
@@ -10,31 +11,6 @@ import type { ReviewFormData, ReviewUpdateData } from './types'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function isUuid(value: string | null | undefined): value is string {
   return !!value && UUID_RE.test(value)
-}
-
-export async function compressImage(file: File): Promise<Blob> {
-  const MAX_WIDTH = 1200
-  const QUALITY = 0.85
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      const scale = Math.min(1, MAX_WIDTH / img.naturalWidth)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.naturalWidth * scale)
-      canvas.height = Math.round(img.naturalHeight * scale)
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        blob => blob ? resolve(blob) : reject(new Error('Compression failed')),
-        'image/jpeg',
-        QUALITY
-      )
-    }
-    img.onerror = reject
-    img.src = url
-  })
 }
 
 /**
@@ -49,10 +25,10 @@ function toFlavorArray(flavor: string | undefined | null): string[] {
 }
 
 /**
- * Compress and upload one photo, then record it in review_photos.
- * If the canvas can't decode the file (e.g. HEIC outside Safari) the original
- * file is uploaded as-is. If the DB insert fails, the freshly uploaded storage
- * object is removed again. Returns true on success.
+ * Downscale and upload one photo, then record it in review_photos.
+ * GIFs, small files and anything the browser can't re-encode are uploaded
+ * as-is (see downscaleImage). If the DB insert fails, the freshly uploaded
+ * storage object is removed again. Returns true on success.
  */
 async function uploadReviewPhoto(
   file: File,
@@ -60,16 +36,9 @@ async function uploadReviewPhoto(
   reviewId: string,
   displayOrder: number
 ): Promise<boolean> {
-  let blob: Blob = file
-  let contentType = file.type || 'image/jpeg'
-  let ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-  try {
-    blob = await compressImage(file)
-    contentType = 'image/jpeg'
-    ext = 'jpg'
-  } catch {
-    // Fall back to uploading the original file untouched
-  }
+  const blob = await downscaleImage(file)
+  const contentType = blob.type || 'image/jpeg'
+  const ext = imageExtension(blob)
 
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
   const path = `${userId}/${reviewId}/${filename}`

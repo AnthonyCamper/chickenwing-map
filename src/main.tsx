@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import App from './App'
 import { registerServiceWorker } from './lib/pushManager'
+// Leaflet's stylesheet is bundled (no third-party CDN request) and must come
+// before index.css so the app's Leaflet overrides there win on equal specificity.
+import 'leaflet/dist/leaflet.css'
 import './index.css'
 
 // Register service worker for push notifications

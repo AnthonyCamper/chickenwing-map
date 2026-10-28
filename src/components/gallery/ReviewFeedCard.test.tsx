@@ -69,6 +69,19 @@ describe('ReviewFeedCard', () => {
     expect(screen.getByRole('button', { name: /^Comment/ })).toHaveTextContent('Comment')
     expect(screen.getByRole('button', { name: /^Share/ })).toHaveTextContent('Share')
   })
+
+  it('shows a whole-number rating with one decimal, like the review page ("8.0", not "8")', () => {
+    renderCard(makeItem({ overall_rating: 8 }))
+    expect(screen.getByRole('button', { name: 'Rating: 8.0/10' })).toHaveTextContent('8.0')
+  })
+
+  it('gives multi-photo dots a 44px tap area', () => {
+    renderCard(makeItem({ photos: [
+      { photo_id: 'p1', photo_url: 'https://example.com/a.jpg', display_order: 0, photo_created_at: '2026-10-27T22:00:00Z' },
+      { photo_id: 'p2', photo_url: 'https://example.com/b.jpg', display_order: 1, photo_created_at: '2026-10-27T22:00:00Z' },
+    ] }))
+    expect(screen.getByRole('button', { name: 'Photo 2' })).toHaveClass('w-11', 'h-11')
+  })
 })
 
 describe('isUuid (review permalink guard)', () => {

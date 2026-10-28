@@ -78,4 +78,12 @@ describe('Register', () => {
     renderPage()
     expect(screen.getByLabelText('Password')).not.toHaveAttribute('placeholder', expect.stringContaining('•'))
   })
+
+  it('has a way back to the site and the same "Continue with Google" as Login (r2 skeptic 11)', () => {
+    const onSignInGoogle = vi.fn().mockResolvedValue(undefined)
+    renderPage({ onSignInGoogle })
+    expect(screen.getByRole('link', { name: /back to wingkingtony/i })).toHaveAttribute('href', '/')
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    expect(onSignInGoogle).toHaveBeenCalledTimes(1)
+  })
 })

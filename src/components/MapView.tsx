@@ -307,6 +307,7 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
           onClick={handleLocateMe}
           disabled={locating}
           aria-label="Show my location"
+          title="Show my location"
           className="absolute z-[20] right-3 w-11 h-11 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
           style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
         >

@@ -232,7 +232,7 @@ export default function CrawlPage() {
 
   if (status === 'not-found') {
     return (
-      <PageStateShell>
+      <PageStateShell title="List not found — WingKingTony">
         <p className="eyebrow">404</p>
         <h1 className="font-display uppercase text-3xl text-night-900">List not found</h1>
         <p className="text-sm text-charcoal-600 max-w-xs leading-relaxed">
@@ -645,12 +645,12 @@ function CrawlItemPhotoCarousel({
       )}
 
       {photos.length > 1 && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 z-10">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center z-10">
           {photos.map((_, i) => (
             <button
               key={i}
               onClick={e => { e.stopPropagation(); setIndex(i) }}
-              className="w-6 h-6 flex items-center justify-center"
+              className="w-11 h-11 flex items-center justify-center"
               aria-label={`Photo ${i + 1}`}
             >
               <span className={`block rounded-full transition-all ${

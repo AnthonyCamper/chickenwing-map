@@ -77,6 +77,15 @@ describe('groupByReview', () => {
     expect(items[1].review_id).toBe('r2')
   })
 
+  it('turns a photo-less row (migration 040) into a review with no photos, once', () => {
+    const textOnly = { ...makePhoto({ review_id: 'r9' }), photo_id: null, photo_url: null, display_order: null, wing_size: 'large' }
+    const items = groupByReview([textOnly, { ...textOnly }])
+    expect(items).toHaveLength(1)
+    expect(items[0].review_id).toBe('r9')
+    expect(items[0].photos).toEqual([])
+    expect(items[0].wing_size).toBe('large')
+  })
+
   it('drops duplicate photo rows from overlapping pages', () => {
     const items = groupByReview([
       makePhoto({ photo_id: 'p1' }),

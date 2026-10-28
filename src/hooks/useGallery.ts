@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { triggerPushDelivery } from '../lib/pushManager'
-import type { GalleryPhoto, GalleryReviewItem } from '../lib/types'
+import type { GalleryFeedRow, GalleryReviewItem } from '../lib/types'
 
 const PAGE_SIZE = 21 // 3-column multiples look clean
 
@@ -32,7 +32,7 @@ function readSavedDepth(followingOnly: boolean): number {
  * Cleared naturally on full page reload.
  */
 interface FeedCache {
-  photos: GalleryPhoto[]
+  photos: GalleryFeedRow[]
   offset: number
   hasMore: boolean
 }
@@ -51,16 +51,19 @@ export function invalidateGalleryFeedCache() {
 
 /**
  * Group flat gallery_feed rows (one per photo) into review-level items.
- * Photos within each review are sorted by display_order.
+ * Photos within each review are sorted by display_order. A review without
+ * photos arrives as one row with NULL photo columns and becomes an item with
+ * no photos.
  */
-export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
+export function groupByReview(photos: GalleryFeedRow[]): GalleryReviewItem[] {
   const map = new Map<string, GalleryReviewItem>()
   const seenPhotoIds = new Set<string>()
 
   for (const p of photos) {
     // Pages can overlap when rows shift between fetches — never show a photo twice
-    if (seenPhotoIds.has(p.photo_id)) continue
-    seenPhotoIds.add(p.photo_id)
+    const rowKey = p.photo_id ?? `review:${p.review_id}`
+    if (seenPhotoIds.has(rowKey)) continue
+    seenPhotoIds.add(rowKey)
 
     let item = map.get(p.review_id)
     if (!item) {
@@ -87,6 +90,7 @@ export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
         event_id: p.event_id,
         event_slug: p.event_slug,
         event_name: p.event_name,
+        wing_size: p.wing_size ?? null,
         photos: [],
       }
       map.set(p.review_id, item)
@@ -96,12 +100,14 @@ export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
     item.is_liked_by_me = p.is_liked_by_me
     item.comment_count = p.comment_count
 
-    item.photos.push({
-      photo_id: p.photo_id,
-      photo_url: p.photo_url,
-      display_order: p.display_order,
-      photo_created_at: p.photo_created_at,
-    })
+    if (p.photo_id && p.photo_url) {
+      item.photos.push({
+        photo_id: p.photo_id,
+        photo_url: p.photo_url,
+        display_order: p.display_order ?? 0,
+        photo_created_at: p.photo_created_at,
+      })
+    }
   }
 
   for (const item of map.values()) {
@@ -114,7 +120,7 @@ export function groupByReview(photos: GalleryPhoto[]): GalleryReviewItem[] {
 interface UseGalleryReturn {
   reviews: GalleryReviewItem[]
   /** @deprecated Use reviews instead */
-  photos: GalleryPhoto[]
+  photos: GalleryFeedRow[]
   loading: boolean
   loadingMore: boolean
   hasMore: boolean
@@ -132,7 +138,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
 
   // Seed from cache so a remount paints the full list immediately (no spinner,
   // no top-snap) — this is what makes swipe-back scroll restoration work.
-  const [photos, setPhotos] = useState<GalleryPhoto[]>(cached?.photos ?? [])
+  const [photos, setPhotos] = useState<GalleryFeedRow[]>(cached?.photos ?? [])
   const [loading, setLoading] = useState(!cached)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(cached?.hasMore ?? true)
@@ -197,7 +203,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
       // Stale response — the feed was switched while this fetch was in flight
       if (loadedKeyRef.current !== key) return
 
-      const rows = (data ?? []) as GalleryPhoto[]
+      const rows = (data ?? []) as GalleryFeedRow[]
       setHasMore(rows.length === requestedSize)
       setPhotos(prev => {
         if (!append) return rows
