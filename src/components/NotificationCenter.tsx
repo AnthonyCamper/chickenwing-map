@@ -162,7 +162,7 @@ export default function NotificationCenter({ notifications, onClose }: Props) {
               <p className={`text-sm leading-snug user-text ${
                 notif.read ? 'text-charcoal-500' : 'text-night-800 font-medium'
               }`}>
-                {notif.preview_text ? cleanUserText(notif.preview_text) : getDefaultText(notif)}
+                {notificationText(notif)}
               </p>
               {notif.shop_name && notif.type === 'new_review' && (
                 <p className="text-xs text-charcoal-500 mt-0.5 truncate user-text">
@@ -222,6 +222,18 @@ function NotificationIcon({ type }: { type: string }) {
     default:
       return <div className={`${iconClass} bg-cream-100`}>🔔</div>
   }
+}
+
+/**
+ * Reaction notifications store only the emoji as preview_text ("❤️"), which
+ * says nothing on its own. When the stored text has no letters or digits,
+ * use the plain sentence and append the emoji.
+ */
+export function notificationText(notif: Notification): string {
+  const preview = notif.preview_text ? cleanUserText(notif.preview_text).trim() : ''
+  if (!preview) return getDefaultText(notif)
+  if (/[\p{L}\p{N}]/u.test(preview)) return preview
+  return `${getDefaultText(notif)}: ${preview}`
 }
 
 function getDefaultText(notif: Notification): string {

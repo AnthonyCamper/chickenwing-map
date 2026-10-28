@@ -107,11 +107,13 @@ export default function ListView({
   useHistoryModal(!!photoDetail.review, photoDetail.close)
 
   const [search, setSearch] = useState('')
-  // While the search field is focused on a phone the keyboard covers the
-  // bottom ~260px, and the sort/filter rows pushed the first result under
-  // it. Hide those rows while typing and lift the field to just under the
-  // sticky header so matches show above the keyboard.
-  const [searchFocused, setSearchFocused] = useState(false)
+  // On a phone the keyboard covers the bottom ~260px, and the sort/filter
+  // rows pushed the first result under it. Lift the field to just under the
+  // sticky header on focus, and tuck the rows away while there is a query.
+  // Keyed on the query, not on focus: un-hiding them on blur moved every
+  // result down 124px under the finger, so the tap that closed the keyboard
+  // missed the card it was aimed at. Clearing the search brings them back.
+  const searching = search.trim() !== ''
   const searchRef = useRef<HTMLInputElement>(null)
   const liftSearchField = () => {
     const el = searchRef.current
@@ -238,8 +240,7 @@ export default function ListView({
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-              onFocus={() => { setSearchFocused(true); liftSearchField() }}
-              onBlur={() => setSearchFocused(false)}
+              onFocus={liftSearchField}
               maxLength={100}
               placeholder="Search spots, addresses, flavors…"
               data-reveal-handled
@@ -251,7 +252,7 @@ export default function ListView({
                 type="button"
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center
+                className="absolute right-0.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center
                            rounded-full text-night-700 hover:text-night-900 hover:bg-cream-200
                            text-xl font-extrabold leading-none transition-colors cursor-pointer"
               >
@@ -261,8 +262,8 @@ export default function ListView({
           </div>
         )}
 
-        {/* Controls — tucked away while typing a search (see searchFocused) */}
-        {hasAnyOnBoard && !searchFocused && (
+        {/* Controls — tucked away while there is a search query (see searching) */}
+        {hasAnyOnBoard && !searching && (
           <div className="mb-5 flex items-center gap-3 flex-wrap">
             {/* Sort toggle */}
             <div className="flex items-center gap-2">
@@ -563,7 +564,10 @@ function RatingChip({ rating, count, hot }: { rating: number; count: number; hot
           ${hot ? 'bg-sauce-400 text-cream-50' : 'bg-cream-50 text-night-900'}`}
       >
         <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
-        <span className="hidden sm:inline-flex"><StarRating value={Number(formatRating(rating))} size="sm" /></span>
+        {/* Amber stars vanish on the red "hot" chip, so they sit on a cream inset there */}
+        <span className={`hidden sm:inline-flex ${hot ? 'bg-cream-50 rounded px-1 py-0.5' : ''}`}>
+          <StarRating value={Number(formatRating(rating))} size="sm" />
+        </span>
         <span>{formatRating(rating)}</span>
       </span>
       <span className="text-[12px] font-bold text-charcoal-500 whitespace-nowrap">

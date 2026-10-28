@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import NotificationCenter from './NotificationCenter'
+import NotificationCenter, { notificationText } from './NotificationCenter'
 import type { Notification } from '../lib/types'
 import type { UseNotificationsReturn } from '../hooks/useNotifications'
 
@@ -71,5 +71,20 @@ describe('NotificationCenter', () => {
     renderCenter([notif({ type: 'photo_like', photo_id: 'p1', preview_text: 'Someone liked your photo' })])
     fireEvent.click(screen.getByText('Someone liked your photo'))
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/reviews/r5'))
+  })
+})
+
+describe('notificationText', () => {
+  const base = {
+    id: 'n1', recipient_id: 'u1', actor_id: 'u2', review_id: 'r1', photo_id: null, comment_id: null,
+    crawl_id: null, read: false, push_sent: false, created_at: '2026-10-28T12:00:00Z',
+  }
+  it('turns an emoji-only reaction preview into a plain sentence', () => {
+    expect(notificationText({ ...base, type: 'review_reaction', shop_name: 'Anchor Bar', preview_text: '❤️' }))
+      .toBe('New reaction on your Anchor Bar review: ❤️')
+  })
+  it('keeps previews that already say something', () => {
+    expect(notificationText({ ...base, type: 'photo_comment', shop_name: 'Anchor Bar', preview_text: 'Ana commented: "yum"' }))
+      .toBe('Ana commented: "yum"')
   })
 })

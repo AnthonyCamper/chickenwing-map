@@ -16,7 +16,34 @@ export interface SpotCandidate {
   id: string
   name: string
   address: string
+  lat?: number | null
+  lng?: number | null
   created_at?: string | null
+}
+
+export interface LatLng { lat: number; lng: number }
+
+/**
+ * Same name typed with a differently written address ("1047 Main St, Buffalo,
+ * NY" vs the stored "… NY 14209") is still the same restaurant when the pins
+ * are this close. Small enough that two different places on one block with
+ * the same name (rare) are the only false match.
+ */
+export const SAME_PLACE_METERS = 150
+
+export function metersBetween(a: LatLng, b: LatLng): number {
+  const R = 6371000
+  const rad = (d: number) => (d * Math.PI) / 180
+  const dLat = rad(b.lat - a.lat)
+  const dLng = rad(b.lng - a.lng)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+function isNear(c: SpotCandidate, near: LatLng | undefined): boolean {
+  if (!near || !Number.isFinite(near.lat) || !Number.isFinite(near.lng)) return false
+  if (c.lat == null || c.lng == null) return false
+  return metersBetween({ lat: Number(c.lat), lng: Number(c.lng) }, near) <= SAME_PLACE_METERS
 }
 
 /** Same place: same normalized name and address. */
@@ -29,16 +56,21 @@ export function isSameSpotText(
 }
 
 /**
- * The existing spot for this name + address, or null. When the site already
- * has duplicates of the same place, the oldest one wins so new reviews keep
+ * The existing spot for this name + address, or null. The name must match
+ * (normalized); the address must match too, or — when `near` is given — the
+ * spot's pin must be within SAME_PLACE_METERS. When the site already has
+ * duplicates of the same place, the oldest one wins so new reviews keep
  * landing on the original.
  */
 export function pickMatchingSpot<T extends SpotCandidate>(
   candidates: readonly T[],
   name: string,
   address: string,
+  near?: LatLng,
 ): T | null {
-  const matches = candidates.filter(c => isSameSpotText(c, { name, address }))
+  const matches = candidates.filter(c =>
+    isSameSpotText(c, { name, address })
+    || (normalizeSpotText(c.name) === normalizeSpotText(name) && isNear(c, near)))
   if (!matches.length) return null
   return [...matches].sort(byOldest)[0]
 }
@@ -79,6 +111,7 @@ export function escapeLike(s: string): string {
 export async function findExistingSpot(
   name: string,
   address: string,
+  near?: LatLng,
 ): Promise<{ spot: SpotCandidate | null; error: { message: string; code?: string } | null }> {
   const core = name.trim().replace(/\s+/g, ' ')
   if (!core) return { spot: null, error: null }
@@ -86,9 +119,9 @@ export async function findExistingSpot(
   const pattern = `%${core.split(' ').map(escapeLike).join('%')}%`
   const { data, error } = await supabase
     .from('wing_spots')
-    .select('id, name, address, created_at')
+    .select('id, name, address, lat, lng, created_at')
     .ilike('name', pattern)
     .limit(50)
   if (error) return { spot: null, error }
-  return { spot: pickMatchingSpot((data ?? []) as SpotCandidate[], name, address), error: null }
+  return { spot: pickMatchingSpot((data ?? []) as SpotCandidate[], name, address, near), error: null }
 }

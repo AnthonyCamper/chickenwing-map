@@ -123,6 +123,20 @@ export default function ProfileModal({ auth, onClose }: Props) {
     defaultMaxHeight: 'calc(92dvh - env(safe-area-inset-top))',
   })
   const panelRef = useFocusTrap<HTMLDivElement>()
+  // Escape closes like Cancel (asking first when there are unsaved edits).
+  // Skipped while a nested dialog (e.g. a badge's details) owns focus.
+  const requestCloseRef = useRef(requestClose)
+  requestCloseRef.current = requestClose
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      const panel = panelRef.current
+      if (panel && document.activeElement && !panel.contains(document.activeElement) && document.activeElement !== document.body) return
+      requestCloseRef.current()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [panelRef])
   useHideFab(true)
 
   // Phone keyboard: lift the sheet above it (same as ui/Modal), and bring a
@@ -418,7 +432,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     id="profile-display-name"
                     type="text"
                     value={displayName}
-                    onChange={e => { setDisplayName(e.target.value); setNameError(null) }}
+                    onChange={e => { setDisplayName(e.target.value); setNameError(displayNameProblem(e.target.value.trim())) }}
                     placeholder="Your name"
                     className="input"
                     maxLength={60}
@@ -438,7 +452,8 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       id="profile-username"
                       type="text"
                       value={username}
-                      onChange={e => { setUsername(e.target.value.toLowerCase().replace(/\s+/g, '-')); setUsernameError(null) }}
+                      onChange={e => { setUsername(e.target.value.toLowerCase().replace(/^\s+/, '').replace(/\s+/g, '-')); setUsernameError(null) }}
+                      onBlur={() => setUsername(u => u.replace(/-+$/, ''))}
                       onFocus={revealField}
                       data-reveal-handled
                       className="input rounded-l-none min-w-0"
@@ -691,6 +706,10 @@ type UsernameCheck =
   | { status: 'problem'; message: string }
 
 const USERNAME_CHECK_DELAY_MS = 400
+// Mirrors migration 042: at most 3 username changes in 30 days (non-admins).
+const MAX_RENAMES = 3
+const RENAME_WINDOW_DAYS = 30
+const RENAME_LIMIT_MESSAGE = 'You can change your username up to 3 times in 30 days. Try again later.'
 
 /**
  * Whether `name` (null = unchanged, nothing to check) can be saved. Format
@@ -715,9 +734,16 @@ function useUsernameCheck(name: string | null, userId: string | undefined, isAdm
         return
       }
       try {
-        const [current, old] = await Promise.all([
+        // Renames in the last 30 days: the server (042) refuses a 4th for
+        // non-admins, so say so now instead of after Save.
+        const since = new Date(Date.now() - RENAME_WINDOW_DAYS * 86_400_000).toISOString()
+        const [current, old, recent] = await Promise.all([
           supabase.from('profiles').select('id').eq('username', name).limit(1),
           supabase.from('profile_username_history').select('user_id').eq('username', name).limit(1),
+          !isAdmin && userId
+            ? supabase.from('profile_username_history').select('username', { count: 'exact', head: true })
+                .eq('user_id', userId).gt('changed_at', since)
+            : Promise.resolve({ count: 0, error: null }),
         ])
         if (cancelled) return
         if (current.error || old.error) throw current.error ?? old.error
@@ -726,14 +752,16 @@ function useUsernameCheck(name: string | null, userId: string | undefined, isAdm
           ?? null
         const result: UsernameCheck = owner && owner !== userId
           ? { status: 'problem', message: USERNAME_TAKEN_MESSAGE }
-          : { status: 'ok', message: null }
+          : (recent.count ?? 0) >= MAX_RENAMES
+            ? { status: 'problem', message: RENAME_LIMIT_MESSAGE }
+            : { status: 'ok', message: null }
         setSettled({ name, result })
       } catch {
         if (!cancelled) setSettled({ name, result: { status: 'ok', message: null } })
       }
     }, USERNAME_CHECK_DELAY_MS)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [name, userId, formatProblem, reservedOnly])
+  }, [name, userId, isAdmin, formatProblem, reservedOnly])
 
   if (name === null) return { status: 'ok', message: null }
   if (settled?.name === name) return settled.result
@@ -913,7 +941,7 @@ function DeleteAccountPanel({ userId, email, needsPassword, isAdmin, onCancel }:
       <div className="text-sm text-charcoal-700 leading-relaxed space-y-2">
         <p>This permanently deletes your account and everything you posted:</p>
         <ul className="list-disc pl-5 space-y-0.5 text-[13px]">
-          <li>your profile, photo and bio</li>
+          <li>your profile, photo and bio, and your profile links (old usernames too)</li>
           <li>your reviews and review photos</li>
           <li>your comments, likes and reactions</li>
           <li>your wing lists, follows, event RSVPs and check-ins</li>

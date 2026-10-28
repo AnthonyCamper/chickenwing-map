@@ -1,7 +1,8 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
 import { useHideFab } from '../hooks/useHideFab'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import type { UseNotificationsReturn } from '../hooks/useNotifications'
 import { needsHomeScreenInstall, isIOS, getPermissionState } from '../lib/pushManager'
 
@@ -28,6 +29,13 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
   })
   const titleId = useId()
   useHideFab(true)
+  // Keyboard users: focus moves into the sheet, and Escape closes it.
+  const panelRef = useFocusTrap<HTMLDivElement>()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const handleTogglePush = async () => {
     setSaving(true)
@@ -65,6 +73,8 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
       {/* Sheet */}
       <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}

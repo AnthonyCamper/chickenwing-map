@@ -85,3 +85,23 @@ describe('dedupeOsmSuggestions (m2 S13)', () => {
     expect(out).toHaveLength(2)
   })
 })
+
+describe('pickMatchingSpot with a nearby pin', () => {
+  const anchor = { id: 'anchor', name: 'Anchor Bar', address: '1047 Main St, Buffalo, NY 14209', lat: 42.9013, lng: -78.8709, created_at: '2024-01-01T00:00:00Z' }
+
+  it('matches the same name in another case when the pin is on the same corner', () => {
+    expect(pickMatchingSpot([anchor], 'anchor BAR', '1047 Main St, Buffalo, NY', { lat: 42.9015, lng: -78.8711 })?.id).toBe('anchor')
+  })
+
+  it('does not match the same name far away (another branch)', () => {
+    expect(pickMatchingSpot([anchor], 'Anchor Bar', '100 Other Rd, Rochester, NY', { lat: 43.1566, lng: -77.6088 })).toBeNull()
+  })
+
+  it('does not match a different name at the same spot', () => {
+    expect(pickMatchingSpot([anchor], 'Duffs', '1047 Main St, Buffalo, NY', { lat: 42.9013, lng: -78.8709 })).toBeNull()
+  })
+
+  it('ignores candidates without coordinates for the distance check', () => {
+    expect(pickMatchingSpot([{ ...anchor, lat: null, lng: null }], 'Anchor Bar', 'elsewhere', { lat: 42.9013, lng: -78.8709 })).toBeNull()
+  })
+})

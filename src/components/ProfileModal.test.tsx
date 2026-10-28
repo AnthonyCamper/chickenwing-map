@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   verifyCurrentPassword: vi.fn(),
   // Username availability lookups: (table, username) → query result.
   lookup: vi.fn(),
+  // Own renames in the last 30 days (count query on profile_username_history).
+  recentRenames: vi.fn(() => ({ count: 0, error: null })),
   badges: vi.fn(),
 }))
 
@@ -20,6 +22,7 @@ vi.mock('../lib/supabase', () => {
       // Follower counts await eq() directly; username lookups add .limit().
       eq: (_col: string, value: unknown) => Object.assign(Promise.resolve({ count: 0 }), {
         limit: () => Promise.resolve(mocks.lookup(table, value)),
+        gt: () => Promise.resolve(mocks.recentRenames()),
       }),
       update: (values: unknown) => {
         mocks.profileUpdate(values)
@@ -225,6 +228,24 @@ describe('ProfileModal', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(mocks.lookup).toHaveBeenCalledWith('profiles', 'tony')
     expect(mocks.profileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('says a 4th rename in 30 days is not allowed before Save', async () => {
+    mocks.lookup.mockImplementation(() => ({ data: [], error: null }))
+    mocks.recentRenames.mockReturnValueOnce({ count: 3, error: null })
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'fresh-name' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/up to 3 times in 30 days/i)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(mocks.profileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('drops spaces pasted around a username instead of turning them into hyphens', () => {
+    render(<ProfileModal auth={makeAuth()} onClose={vi.fn()} />)
+    const field = screen.getByLabelText('Username')
+    fireEvent.change(field, { target: { value: '  spaced  ' } })
+    fireEvent.blur(field)
+    expect(field).toHaveValue('spaced')
   })
 
   it('treats someone else\'s old username as taken, but lets you take back your own', async () => {

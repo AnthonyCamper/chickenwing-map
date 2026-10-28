@@ -250,13 +250,20 @@ describe('ListView spot cards and search (phone layout)', () => {
     expect(onViewOnMap).toHaveBeenCalledWith('s1')
   })
 
-  it('tucks the sort and reviewer rows away while the search field is focused', () => {
+  it('tucks the sort and reviewer rows away while there is a search query', () => {
     renderList()
     expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
     const search = screen.getByRole('textbox', { name: /Search spots/ })
     fireEvent.focus(search)
+    // Focus alone doesn't move anything
+    expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'duff' } })
     expect(screen.queryByRole('button', { name: 'A–Z' })).toBeNull()
+    // Closing the keyboard must not re-insert the rows above the results
+    // (that shifted the cards under the finger and the tap missed)
     fireEvent.blur(search)
+    expect(screen.queryByRole('button', { name: 'A–Z' })).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear search' })[0])
     expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument()
   })
 

@@ -119,7 +119,8 @@ async function resolveSpotId(
   // existing spot just by submitting different lat/lng for the same name.
   const spotName = data.shop_name.trim()
   const spotAddress = data.address.trim()
-  const found = await findExistingSpot(spotName, spotAddress)
+  const near = { lat: parseFloat(data.lat), lng: parseFloat(data.lng) }
+  const found = await findExistingSpot(spotName, spotAddress, near)
   if (found.error) return { id: null, error: found.error }
   if (found.spot) return { id: found.spot.id, error: null }
 
@@ -131,7 +132,7 @@ async function resolveSpotId(
   if (inserted.data) return { id: (inserted.data as { id: string }).id, error: null }
   // Lost a race with someone adding the same spot: use theirs.
   if (inserted.error?.code === '23505') {
-    const again = await findExistingSpot(spotName, spotAddress)
+    const again = await findExistingSpot(spotName, spotAddress, near)
     if (again.spot) return { id: again.spot.id, error: null }
   }
   return { id: null, error: inserted.error }

@@ -7,9 +7,10 @@ const ago = (sec: number) => new Date(now.getTime() - sec * 1000)
 describe('compactTimeAgo', () => {
   it('uses now / minutes / hours / days', () => {
     expect(compactTimeAgo(ago(5), now)).toBe('now')
-    expect(compactTimeAgo(ago(5 * 60), now)).toBe('5m')
-    expect(compactTimeAgo(ago(3 * 3600), now)).toBe('3h')
-    expect(compactTimeAgo(ago(2 * 86400), now)).toBe('2d')
+    expect(compactTimeAgo(ago(5 * 60), now)).toBe('5 min')
+    expect(compactTimeAgo(ago(3 * 3600), now)).toBe('3 hr')
+    expect(compactTimeAgo(ago(2 * 86400), now)).toBe('2 days')
+    expect(compactTimeAgo(ago(86400), now)).toBe('1 day')
   })
 
   it('switches to a short date after a week', () => {

@@ -126,7 +126,7 @@ describe('Comment header time', () => {
         loading={false} currentUserId="u1" isAdmin={false}
         onAdd={noop} onDelete={noop} onToggleLike={noop} onToggleReaction={noop} onFetchReplies={async () => []} />
     )
-    const time = screen.getByText('5m')
+    const time = screen.getByText('5 min')
     expect(time.tagName).toBe('TIME')
     expect(time).toHaveAttribute('dateTime', created)
     expect(time.getAttribute('aria-label')).toMatch(/^\w+ \d{1,2}, \d{4} at \d{1,2}:\d{2} [AP]M$/)

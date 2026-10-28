@@ -726,7 +726,7 @@ function AddSpotForm({
     const address = newAddr.trim()
     // Already on the site under a slightly different spelling (case, extra
     // spaces)? Use that spot instead of creating a twin.
-    const found = await findExistingSpot(name, address)
+    const found = await findExistingSpot(name, address, { lat, lng })
     if (found.spot) {
       setCreating(false)
       setNewName(''); setNewAddr(''); setNewLat(''); setNewLng('')
@@ -743,7 +743,7 @@ function AddSpotForm({
       if (error.code === '23505') {
         // Spot already exists — reuse it. Never overwrite an existing spot's
         // coordinates from this form (that corrupts shared data).
-        spotId = (await findExistingSpot(name, address)).spot?.id
+        spotId = (await findExistingSpot(name, address, { lat, lng })).spot?.id
       }
       if (!spotId) {
         setCreating(false)

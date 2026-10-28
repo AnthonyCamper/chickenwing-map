@@ -178,7 +178,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
               role="tab"
               aria-selected={feed === f}
               onClick={() => setFeed(f)}
-              className={`px-4 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
+              className={`min-h-11 px-4 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-all ${
                 feed === f
                   ? 'bg-night-900 border-night-900 text-cream-50'
                   : 'border-night-900/20 text-charcoal-600 hover:border-night-900/40'

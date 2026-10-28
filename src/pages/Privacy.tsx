@@ -175,8 +175,8 @@ export default function Privacy() {
 
       <Section heading="Keeping and deleting your data">
         <p>
-          We keep your data while you have an account. You can edit or delete any review or comment
-          at any time. To delete everything, tap your picture in the top corner → <strong>Edit
+          We keep your data while you have an account. You can edit or delete any of your reviews, and
+          delete any of your comments, at any time. To delete everything, tap your picture in the top corner → <strong>Edit
           profile</strong> and choose <strong>Delete account</strong>. This permanently removes your account,
           profile, reviews, photos, comments, likes, reactions, follows, lists, RSVPs, check-ins,
           badges and notifications, and your old usernames, so none of your profile links work
