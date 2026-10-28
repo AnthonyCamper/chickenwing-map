@@ -6,9 +6,11 @@
 -- name on every comment (crawl_comments_detailed already prefers
 -- display_name). Same columns and order as before, so CREATE OR REPLACE is
 -- safe; commenter_email stays NULL (email is not exposed to clients).
+-- WITH (security_invoker) must be restated: CREATE OR REPLACE VIEW replaces
+-- the view's options, and without it the view would bypass RLS.
 -- ============================================================================
 
-CREATE OR REPLACE VIEW public.review_comments_detailed AS
+CREATE OR REPLACE VIEW public.review_comments_detailed WITH (security_invoker = true) AS
 SELECT
   rc.id,
   rc.review_id,

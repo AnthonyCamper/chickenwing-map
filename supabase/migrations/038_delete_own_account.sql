@@ -11,7 +11,9 @@
 --                notification_preferences, push_subscriptions, DMs
 -- and the two references that should outlive the user are SET NULL:
 --   events.created_by, notifications.actor_id (other people's notifications).
--- Nothing is ON DELETE RESTRICT / NO ACTION, so nothing blocks the delete.
+-- The one exception in production is the unused legacy direct_messages
+-- table (sender_id is NO ACTION), so the caller's sent messages are removed
+-- first; otherwise anyone who ever sent a DM couldn't delete their account.
 --
 -- Files in Storage are not covered by FKs; the client removes the user's own
 -- folders (review-photos, user-avatars, crawl-covers) before calling this.
@@ -36,6 +38,10 @@ begin
   if exists (select 1 from public.profiles where id = v_uid and is_admin) then
     raise exception 'Admin accounts can''t be deleted here. Remove admin rights first.'
       using errcode = '42501';
+  end if;
+
+  if to_regclass('public.direct_messages') is not null then
+    execute 'delete from public.direct_messages where sender_id = $1' using v_uid;
   end if;
 
   delete from auth.users where id = v_uid;
