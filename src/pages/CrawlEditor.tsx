@@ -32,6 +32,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { WingCrawl, WingCrawlItem, WingSpot } from '../lib/types'
 import { rememberReturnTo } from '../lib/authReturn'
+import { cleanUserText } from '../lib/userText'
 
 interface ItemWithSpot extends WingCrawlItem {
   spot: WingSpot | null
@@ -386,7 +387,7 @@ export default function CrawlEditor() {
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
-        <title>{isNew ? 'New list' : `Edit: ${crawl?.title ?? 'List'}`} — WingKingTony</title>
+        <title>{isNew ? 'New list — WingKingTony' : `Edit: ${cleanUserText(crawl?.title) || 'List'} — WingKingTony`}</title>
       </Helmet>
 
       <AppHeader />
@@ -404,8 +405,10 @@ export default function CrawlEditor() {
         <div className="max-w-3xl mx-auto px-5 py-6 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="eyebrow mb-1">{isNew ? 'New list' : 'Editing'}</p>
-            <h1 className="font-display uppercase text-3xl text-night-900 leading-none tracking-tightest">
-              {isNew ? 'Start a new list' : crawl?.title ?? 'List'}
+            {/* user-text: a long unbroken title wraps instead of running off
+                the right edge (the View page already did this) */}
+            <h1 className="user-text font-display uppercase text-3xl text-night-900 leading-none tracking-tightest break-words">
+              {isNew ? 'Start a new list' : cleanUserText(crawl?.title) || 'List'}
             </h1>
           </div>
           {!isNew && saveState !== 'idle' && (
@@ -427,8 +430,9 @@ export default function CrawlEditor() {
           <h2 className="font-display text-lg text-charcoal-800">List details</h2>
 
           <div>
-            <label className="label">Title</label>
+            <label htmlFor="crawl-title" className="label">Title</label>
             <input
+              id="crawl-title"
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -439,16 +443,18 @@ export default function CrawlEditor() {
           </div>
 
           <div>
-            <label className="label">Description</label>
+            <label htmlFor="crawl-description" className="label">Description (optional)</label>
             <textarea
+              id="crawl-description"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Why this list? What's the through-line?"
+              placeholder="What do these spots have in common? Why did you pick them?"
               rows={3}
               maxLength={600}
+              aria-describedby="crawl-description-count"
               className="input resize-none"
             />
-            <p className="mt-1 text-[11px] text-charcoal-500">{description.length} / 600</p>
+            <p id="crawl-description-count" className="mt-1 text-[11px] text-charcoal-500">{description.length} / 600 characters</p>
           </div>
 
           {!isNew && crawl && (
@@ -460,7 +466,7 @@ export default function CrawlEditor() {
             />
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -470,7 +476,7 @@ export default function CrawlEditor() {
               />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-night-800">Ranked</p>
-                <p className="text-[11px] text-charcoal-400 leading-tight">Numbered top → bottom</p>
+                <p className="text-[11px] text-charcoal-500 leading-tight">Number the spots from best (1) down</p>
               </div>
             </label>
             <label className="card-soft px-3 py-2.5 flex items-center gap-2 cursor-pointer">
@@ -482,7 +488,11 @@ export default function CrawlEditor() {
               />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-night-800">Public</p>
-                <p className="text-[11px] text-charcoal-400 leading-tight">Shareable link</p>
+                {/* Matches what RLS does: a private list is visible only to
+                    its owner (404 for everyone else, hidden from Lists). */}
+                <p className="text-[11px] text-charcoal-500 leading-tight">
+                  Anyone can see this list, and it shows in the Lists tab. Turn off to keep it private: only you can see it.
+                </p>
               </div>
             </label>
           </div>

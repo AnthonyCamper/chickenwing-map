@@ -400,7 +400,7 @@ export default function EventPage({ auth }: Props) {
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
           <h1 className="font-display uppercase text-lg text-night-900 tracking-tightest flex-1 truncate hidden sm:block">{e.name}</h1>
           <span className="flex-1 sm:hidden text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 truncate">
-            {startsAt ? format(startsAt, 'EEE MMM d') : 'Date TBA'} · {goingCount} going
+            {startsAt ? format(startsAt, 'EEE MMM d') : 'Date not set yet'} · {goingCount} {phase === 'wrapped' ? 'went' : 'going'}
           </span>
           <ShareButton
             title={e.name}

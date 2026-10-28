@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate } from '../lib/dates'
+import { cleanUserText } from '../lib/userText'
+import { useAuthContext } from '../components/AuthProvider'
+import { useHistoryModal } from '../hooks/useHistoryModal'
 import AvatarImage from '../components/ui/AvatarImage'
 import BadgeGrid from '../components/badges/BadgeGrid'
 import BadgeIcon from '../components/badges/BadgeIcon'
@@ -11,6 +14,9 @@ import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import { useAuthGate } from '../components/AuthGateModal'
 import type { UserProfile, Review, WingSpot, BadgeWithEarned, WingCrawlDetailed } from '../lib/types'
+
+// Only the owner ever opens it from here; keep it out of this page's chunk.
+const ProfileModal = lazy(() => import('../components/ProfileModal'))
 
 interface Stats {
   reviewCount: number
@@ -40,7 +46,31 @@ export default function UserProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followBusy, setFollowBusy] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [editing, setEditing] = useState(false)
   const { requireAuth } = useAuthGate()
+  const auth = useAuthContext()
+  const navigate = useNavigate()
+  useHistoryModal(editing, () => setEditing(false))
+
+  // The signed-in person's own profile, as the app currently knows it. Edit
+  // profile → Save updates this straight away, so the page shows the new
+  // name, photo and bio without a reload.
+  const myProfile = auth?.profile ?? null
+  const myUsername = myProfile?.username ?? null
+
+  // Own username just changed (Edit profile): move to the new link. While
+  // the edit sheet's history entry is still on top, wait for it to be popped
+  // (its close calls history.back()), or that pop would undo this replace.
+  useEffect(() => {
+    if (!data?.isOwner || !myUsername || !username) return
+    if (data.profile.id !== myProfile?.id || myUsername === username) return
+    const go = () => navigate(`/u/${myUsername}`, { replace: true })
+    if ((window.history.state as { _modal?: boolean } | null)?._modal) {
+      window.addEventListener('popstate', go, { once: true })
+      return () => window.removeEventListener('popstate', go)
+    }
+    go()
+  }, [data?.isOwner, data?.profile.id, myProfile?.id, myUsername, username, navigate])
 
   useEffect(() => {
     if (!username) return
@@ -57,7 +87,25 @@ export default function UserProfilePage() {
 
       if (cancelled) return
       if (profileErr) { setStatus('error'); return }
-      if (!profile) { setStatus('not-found'); return }
+      if (!profile) {
+        // An old username (changed in Edit profile) sends people on to the
+        // current one. The history table is new (042); any error = not found.
+        const { data: old } = await supabase
+          .from('profile_username_history')
+          .select('user_id')
+          .eq('username', username)
+          .maybeSingle()
+        const { data: current } = old?.user_id
+          ? await supabase.from('profiles').select('username').eq('id', old.user_id).maybeSingle()
+          : { data: null }
+        if (cancelled) return
+        if (current?.username && current.username !== username) {
+          navigate(`/u/${current.username}`, { replace: true })
+          return
+        }
+        setStatus('not-found')
+        return
+      }
 
       const { data: { session } } = await supabase.auth.getSession()
       const viewerId = session?.user?.id ?? ''
@@ -168,7 +216,7 @@ export default function UserProfilePage() {
 
     load()
     return () => { cancelled = true }
-  }, [username, reloadKey])
+  }, [username, reloadKey, navigate])
 
   async function handleFollowToggle() {
     if (!data) return
@@ -194,7 +242,7 @@ export default function UserProfilePage() {
       // revert
       setIsFollowing(!next)
       setData(d => d ? { ...d, followerCount: d.followerCount + (next ? -1 : 1) } : d)
-      toast.error('Could not update follow')
+      toast.error('Could not update follow. Check your connection and try again.')
     } finally {
       setFollowBusy(false)
     }
@@ -228,7 +276,7 @@ export default function UserProfilePage() {
           <title>Private profile — WingKingTony</title>
           <meta name="description" content="This person has set their profile to private." />
         </Helmet>
-        <p className="eyebrow">Members only</p>
+        <p className="eyebrow">Private</p>
         <h1 className="font-display uppercase text-3xl text-night-900">Private profile</h1>
         <p className="text-sm text-charcoal-600 max-w-prose">This person made their profile private, so their reviews aren't shown here.</p>
         <Link to="/" className="btn-secondary">Back home</Link>
@@ -251,8 +299,20 @@ export default function UserProfilePage() {
     )
   }
 
-  const { profile, reviews, spotsById, badges, crawls, stats, followerCount, followingCount, isOwner } = data
-  const displayName = profile.display_name ?? profile.full_name ?? profile.username ?? 'Unknown'
+  const { reviews, spotsById, badges, crawls, stats, followerCount, followingCount, isOwner } = data
+  const profile: UserProfile = isOwner && myProfile && myProfile.id === data.profile.id
+    ? {
+        ...data.profile,
+        display_name: myProfile.display_name,
+        full_name: myProfile.full_name,
+        username: myProfile.username ?? data.profile.username,
+        avatar_url: myProfile.avatar_url,
+        bio: myProfile.bio,
+        is_private: myProfile.is_private,
+      }
+    : data.profile
+  const displayName = cleanUserText(profile.display_name || profile.full_name || profile.username) || 'Unknown'
+  const bio = cleanUserText(profile.bio)
   const description = stats.reviewCount > 0
     ? `${displayName} on WingKingTony — ${stats.reviewCount} wing ${stats.reviewCount === 1 ? 'review' : 'reviews'}${stats.avgRating != null ? ` · avg ${stats.avgRating.toFixed(1)}/10` : ''}.`
     : `${displayName} on WingKingTony.`
@@ -285,8 +345,17 @@ export default function UserProfilePage() {
               }
             />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display uppercase text-3xl text-night-900 leading-[1.15] pt-0.5 tracking-tightest truncate">{displayName}</h1>
+              <h1 className="user-text font-display uppercase text-3xl text-night-900 leading-[1.15] pt-0.5 tracking-tightest truncate">{displayName}</h1>
               <p className="text-xs text-charcoal-500 mt-1 truncate">@{profile.username}</p>
+              {isOwner && auth && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="btn-secondary mt-2 px-3 py-1 text-xs"
+                >
+                  Edit profile
+                </button>
+              )}
             </div>
             {!isOwner && (
               <button
@@ -299,14 +368,19 @@ export default function UserProfilePage() {
             )}
           </div>
 
-          {profile.bio && (
-            <p className="text-sm text-charcoal-700 mt-4 max-w-prose whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{profile.bio}</p>
+          {bio && (
+            <p className="user-text text-sm text-charcoal-700 mt-4 max-w-prose whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{bio}</p>
+          )}
+          {isOwner && profile.is_private && (
+            <p className="text-xs text-charcoal-600 mt-3">
+              🔒 Your profile is private: other people see “Private profile” instead of this page.
+            </p>
           )}
 
           <div className="flex gap-6 mt-5 text-sm flex-wrap">
             <Stat label="Reviews" value={stats.reviewCount} />
             <Stat label="Spots" value={stats.uniqueSpots} />
-            <Stat label="Avg" value={stats.avgRating != null ? stats.avgRating.toFixed(1) : '—'} />
+            <Stat label="Average rating" value={stats.avgRating != null ? stats.avgRating.toFixed(1) : '—'} />
             {badges.length > 0 ? (
               <a href="#badges" className="flex flex-col hover:text-sauce-500 transition-colors group">
                 <span className="flex items-center gap-1">
@@ -355,7 +429,7 @@ export default function UserProfilePage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="eyebrow">Lists</h2>
               {isOwner && (
-                <Link to="/lists/new" className="text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600">
+                <Link to="/lists/new" className="inline-flex items-center min-h-[44px] px-2 -mr-2 text-xs font-extrabold uppercase tracking-crowd text-sauce-500 hover:text-sauce-600">
                   + New list
                 </Link>
               )}
@@ -375,7 +449,7 @@ export default function UserProfilePage() {
                         <img src={c.cover_image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
                       </div>
                     )}
-                    <p className="font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words [overflow-wrap:anywhere]">{c.title}</p>
+                    <p className="user-text font-display uppercase text-lg text-night-900 leading-tight tracking-tightest line-clamp-2 break-words [overflow-wrap:anywhere]">{cleanUserText(c.title)}</p>
                     <p className="text-xs text-charcoal-500 mt-1">
                       {c.item_count} {c.item_count === 1 ? 'spot' : 'spots'}
                       {c.is_ranked && ' · Ranked'}
@@ -383,7 +457,7 @@ export default function UserProfilePage() {
                       {c.like_count > 0 && ` · ♥ ${c.like_count}`}
                     </p>
                     {c.description && (
-                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-2 break-words [overflow-wrap:anywhere]">{c.description}</p>
+                      <p className="user-text text-sm text-charcoal-700 mt-2 line-clamp-2 break-words [overflow-wrap:anywhere]">{cleanUserText(c.description)}</p>
                     )}
                   </Link>
                 ))}
@@ -408,17 +482,17 @@ export default function UserProfilePage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-display uppercase text-lg text-night-900 truncate">{spot?.name ?? 'Unknown spot'}</p>
-                        <p className="text-xs text-charcoal-500 truncate">
+                        <p className="user-text font-display uppercase text-lg text-night-900 truncate">{spot ? cleanUserText(spot.name) : 'Unknown spot'}</p>
+                        <p className="user-text text-xs text-charcoal-500 truncate">
                           {formatVisitDate(r.visited_at)}
-                          {r.wing_flavor ? ` · ${r.wing_flavor}` : ''}
+                          {r.wing_flavor ? ` · ${cleanUserText(r.wing_flavor)}` : ''}
                           {r.wing_size ? ` · Size: ${r.wing_size}` : ''}
                         </p>
                       </div>
                       <div className="font-display text-2xl text-night-900 shrink-0">{Number(r.overall_rating).toFixed(1)}</div>
                     </div>
                     {r.review_text && (
-                      <p className="text-sm text-charcoal-700 mt-2 line-clamp-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{r.review_text}</p>
+                      <p className="user-text text-sm text-charcoal-700 mt-2 line-clamp-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{cleanUserText(r.review_text)}</p>
                     )}
                   </Link>
                 )
@@ -427,6 +501,12 @@ export default function UserProfilePage() {
           )}
         </section>
       </main>
+
+      <Suspense fallback={null}>
+        {editing && auth && (
+          <ProfileModal auth={auth} onClose={() => setEditing(false)} />
+        )}
+      </Suspense>
     </div>
   )
 }

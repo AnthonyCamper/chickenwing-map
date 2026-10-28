@@ -101,6 +101,84 @@ const BADGE_TEASERS: Record<string, string> = {
   'canadiana-honey-garlic': "You don't have to write a treaty about it. Just order it.",
 }
 
+/** The playful teaser. Badges without one fall back to the plain
+ *  instruction (the old "you'll have to find it" contradicted it). */
 export function badgeTeaser(badge: Badge | BadgeWithEarned): string {
-  return BADGE_TEASERS[badge.slug] ?? `There's a specific way to unlock "${badge.name}" — you'll have to find it.`
+  return BADGE_TEASERS[badge.slug] ?? howToEarn(badge)
 }
+
+// Hints stored with event badges say "crawl review" / "crawl stop"; "crawl"
+// (a walk between restaurants) is the jargon non-native readers trip on.
+function plainHint(hint: string): string {
+  return hint
+    .replace(/\bon a crawl review\b/gi, 'on a review during the event')
+    .replace(/\bin a crawl review\b/gi, 'in a review during the event')
+    .replace(/\bduring the crawl\b/gi, 'during the event')
+    .replace(/\bat a crawl stop\b/gi, 'at a stop on the event route')
+}
+
+/** One literal sentence saying how to earn a badge. Badge names and teasers
+ *  can be jokes or cultural references; this line never is (m1 nonnative 3). */
+export function howToEarn(b: Badge | BadgeWithEarned): string {
+  const cfg = b.criteria_config ?? {}
+  // Some criteria types exist in the database but not (yet) in the
+  // BadgeCriteriaType union, so switch on the plain string.
+  switch (b.criteria_type as string) {
+    case 'first_review':        return 'Post your first review.'
+    case 'review_count':        return `Post ${cfg.count ?? '?'} reviews.`
+    case 'wing_size_variety':   return 'Review wings of every size: small, medium, large, and jumbo.'
+    case 'event_rsvp':              return 'RSVP "I\'m in" to the event.'
+    case 'event_rsvp_with_guests':  return 'RSVP "I\'m in" to the event and bring guests.'
+    case 'event_checkin_count':     return cfg.count === 1 ? 'Check in to any stop on the event route.' : `Check in to ${cfg.count} stops on the event route.`
+    case 'event_complete':          return 'Check in to every stop on the event route.'
+    case 'event_first_checkin':     return 'Be the first person to check in at any stop on the event route.'
+    case 'event_review_count':      return 'Leave at least one review during the event.'
+    case 'event_review_all':        return 'Leave a review at every stop you check into.'
+    case 'unique_spots':            return `Review wings at ${cfg.count ?? '?'} different spots.`
+    case 'flavor_variety':      return `Try ${cfg.count ?? '?'} different wing flavors.`
+    case 'lemon_pepper':        return 'Review a spot specifically for lemon pepper wings.'
+    case 'ranch_fan':           return 'Review wings with ranch in the flavor.'
+    case 'heat_seeker':         return 'Review ghost pepper, reaper, habanero, scorpion, or carolina wings.'
+    case 'comment_count':       return `Leave ${cfg.count ?? '?'} comment${cfg.count === 1 ? '' : 's'} on reviews.`
+    case 'avg_rating_high':     return `Maintain an average rating of ${cfg.min_avg ?? 9}+ across ${cfg.min_reviews ?? 5}+ reviews.`
+    case 'avg_rating_low':      return `Maintain an average rating of ${cfg.max_avg ?? 4} or lower across ${cfg.min_reviews ?? 5}+ reviews.`
+    case 'perfect_ten':         return 'Give a perfect 10/10 rating to a wing spot.'
+    case 'takeout_count':       return `Review ${cfg.count ?? '?'} takeout orders.`
+    case 'loyal_regular':       return `Review the same spot ${cfg.count ?? 3}+ times.`
+    case 'jumbo_fan':             return 'Review a spot for jumbo wings.'
+    case 'review_text_contains':  return cfg.hint ? plainHint(cfg.hint)
+      : (cfg.word ? `Mention "${cfg.word}" in a review.`
+        : b.slug === 'bone-in-purist' ? 'Mention "bone-in" wings in a review.'
+        : 'Use a specific word in a review.')
+    case 'review_text_long':      return `Write a review with at least ${cfg.min_length ?? 300} characters.`
+    case 'review_text_short':     return `Write a review with ${cfg.max_length ?? 15} characters or fewer.`
+    case 'single_rating_low':     return `Give a rating of ${cfg.max_rating ?? 2}.0 or below on any review.`
+    case 'rating_floor':          return `Never give below a ${cfg.min_rating ?? 8}.0, with at least ${cfg.min_reviews ?? 5} reviews.`
+    case 'rating_no_decimals':    return `Give at least ${cfg.min_reviews ?? 3} reviews and never use a decimal — whole numbers only.`
+    case 'rating_uses_decimals':  return 'Use a decimal rating at least once (e.g. 7.5, 8.3).'
+    case 'rating_exact':          return cfg.hint ? plainHint(cfg.hint) : `Give a rating of exactly ${cfg.value ?? '?'}.`
+    case 'flavor_contains':       return cfg.hint ? plainHint(cfg.hint) : `Review wings with ${cfg.text ?? 'a specific'} flavor.`
+    case 'rating_at_or_below':    return (cfg.count ?? 1) <= 1
+      ? `Give a rating of ${cfg.max_rating ?? '?'} or lower on any review.`
+      : `Give a rating of ${cfg.max_rating ?? '?'} or lower on ${cfg.count} reviews.`
+    case 'rating_at_or_above':    return (cfg.count ?? 1) <= 1
+      ? `Give a rating of ${cfg.min_rating ?? '?'} or higher on any review.`
+      : `Give a rating of ${cfg.min_rating ?? '?'} or higher on ${cfg.count} reviews.`
+    // "Crawl" badges are about lists of wing spots.
+    case 'first_crawl':           return 'Make your first list of wing spots.'
+    case 'crawl_count':           return `Make ${cfg.count ?? '?'} lists of wing spots.`
+    case 'crawl_with_n_spots':    return `Make a list with ${cfg.min_items ?? '?'} or more wing spots.`
+    case 'crawl_with_n_likes':    return `Get ${cfg.min_likes ?? '?'} likes on one of your lists.`
+    case 'crawl_comment_count':   return (cfg.count ?? 1) <= 1
+      ? 'Leave a comment on a list.'
+      : `Leave ${cfg.count} comments on lists.`
+    case 'crawl_comment_on_others': return "Leave a comment on someone else's list."
+    case 'crawl_comment_gif':     return 'Reply to a list with a GIF.'
+    case 'crawl_comment_contains': return cfg.hint
+      ?? (b.slug === 'crawl-hot-take' ? 'Leave a comment on a list that calls it "overrated", "mid" or "trash".'
+        : b.slug === 'crawl-hype-beast' ? 'Leave a comment on a list that praises it, with a word like "fire", "elite" or "goat".'
+        : 'Use a specific word in a comment on a list.')
+    default:                      return b.description ?? ''
+  }
+}
+

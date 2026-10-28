@@ -4,7 +4,15 @@ import RatingPicker from './ui/RatingPicker'
 import PhotoUpload from './ui/PhotoUpload'
 import WingFlavorPicker from './ui/WingFlavorPicker'
 import { localDateString } from '../lib/dates'
-import { MIN_VISIT_DATE } from './ReviewFormModal'
+import { holdBadgeAnnouncements } from '../lib/badgeUnlocks'
+import {
+  MIN_VISIT_DATE,
+  ReviewTextCounter,
+  errorSummary,
+  focusField,
+  reviewTextProblem,
+  visitDateProblem,
+} from './ReviewFormModal'
 import type { Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
 
 interface Props {
@@ -36,6 +44,11 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
 
   const [submitting, setSubmitting] = useState(false)
   const [dateError, setDateError] = useState<string | null>(null)
+  const [textError, setTextError] = useState<string | null>(null)
+  const summary = errorSummary({
+    ...(textError ? { reviewText: textError } : {}),
+    ...(dateError ? { visitedAt: dateError } : {}),
+  })
 
   const remainingExisting = existingPhotos.filter(p => !deletedPhotoIds.includes(p.id))
   const totalPhotos = remainingExisting.length + newPhotos.length
@@ -49,38 +62,56 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting) return
-    if (!visitedAt || visitedAt < MIN_VISIT_DATE || visitedAt > today) {
-      setDateError('Choose a date between Jan 1, 2000 and today.')
+    const textProblem = reviewTextProblem(reviewText)
+    const dateProblem = visitDateProblem(visitedAt, today)
+    setTextError(textProblem)
+    setDateError(dateProblem)
+    // Bring the first problem into view and focus it (m1 breaker 1).
+    if (textProblem || dateProblem) {
+      requestAnimationFrame(() => focusField(textProblem ? 'edit-review-text' : 'edit-visited'))
       return
     }
     setSubmitting(true)
-    await onSubmit({
-      overall_rating: overallRating > 0 ? overallRating : 5,
-      wing_size: wingSize || undefined,
-      wing_flavor: wingFlavor || undefined,
-      is_takeout: isTakeout,
-      takeout_container: isTakeout ? takeoutContainer || undefined : '',
-      review_text: reviewText || undefined,
-      visited_at: visitedAt,
-      photos_to_delete: deletedPhotoIds,
-      new_photos: newPhotos,
-    })
-    setSubmitting(false)
+    // Any badge this edit unlocks shows after the sheet has closed, not over
+    // a "Saving…" button.
+    const releaseBadges = holdBadgeAnnouncements()
+    try {
+      await onSubmit({
+        overall_rating: overallRating > 0 ? overallRating : 5,
+        wing_size: wingSize || undefined,
+        wing_flavor: wingFlavor || undefined,
+        is_takeout: isTakeout,
+        takeout_container: isTakeout ? takeoutContainer || undefined : '',
+        review_text: reviewText || undefined,
+        visited_at: visitedAt,
+        photos_to_delete: deletedPhotoIds,
+        new_photos: newPhotos,
+      })
+    } finally {
+      setSubmitting(false)
+      setTimeout(() => releaseBadges(), 600)
+    }
   }
 
   return (
     <Modal
       title="Edit your review"
-      onClose={onClose}
+      // Closing mid-save would leave the user unsure whether it was saved.
+      onClose={() => { if (!submitting) onClose() }}
       size="md"
       footer={
-        <div className="flex gap-3">
-          <button type="button" onClick={onClose} className="btn-secondary px-5">
-            Cancel
-          </button>
-          <button type="submit" form="review-edit-form" disabled={submitting} className="btn-primary flex-1 whitespace-nowrap">
-            {submitting ? 'Saving…' : 'Save changes'}
-          </button>
+        <div className="space-y-2">
+          {summary && (
+            <p className="text-xs font-bold text-red-600 text-center" role="status">{summary}</p>
+          )}
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} disabled={submitting} className="btn-secondary px-5">
+              Cancel
+            </button>
+            <button type="submit" form="review-edit-form" disabled={submitting} className="btn-primary flex-1 whitespace-nowrap">
+              {submitting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
         </div>
       }
     >
@@ -153,15 +184,24 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
 
         <div>
           <label className="label" htmlFor="edit-review-text">Your review (optional)</label>
+          {/* No maxLength: it silently cut pasted text; see ReviewFormModal. */}
           <textarea
             id="edit-review-text"
             className="input resize-none"
             rows={4}
-            maxLength={500}
             value={reviewText}
-            onChange={e => setReviewText(e.target.value)}
+            onChange={e => {
+              setReviewText(e.target.value)
+              if (!reviewTextProblem(e.target.value)) setTextError(null)
+            }}
             placeholder="What did you think of the wings?"
+            aria-invalid={!!textError || undefined}
+            aria-describedby="edit-review-text-count edit-review-text-error"
           />
+          <ReviewTextCounter length={reviewText.length} id="edit-review-text-count" />
+          {textError && (
+            <p id="edit-review-text-error" className="text-xs text-red-600 mt-1" role="alert">{textError}</p>
+          )}
         </div>
 
         <div>
@@ -171,14 +211,19 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
             type="date"
             className="input"
             value={visitedAt}
-            onChange={e => { setVisitedAt(e.target.value); setDateError(null) }}
+            onChange={e => {
+              setVisitedAt(e.target.value)
+              setDateError(visitDateProblem(e.target.value, today, { typing: true }))
+            }}
+            onBlur={e => setDateError(visitDateProblem(e.target.value, today))}
             min={MIN_VISIT_DATE}
             max={today}
             required
             aria-invalid={!!dateError || undefined}
+            aria-describedby={dateError ? 'edit-visited-error' : undefined}
           />
           {dateError && (
-            <p className="text-xs text-red-600 mt-1" role="alert">{dateError}</p>
+            <p id="edit-visited-error" className="text-xs text-red-600 mt-1" role="alert">{dateError}</p>
           )}
         </div>
 
@@ -224,15 +269,16 @@ export default function ReviewEditModal({ review, onClose, onSubmit }: Props) {
           )}
 
           {/* Add new photos (only if slots remain) */}
-          {remainingSlots > 0 && (
+          {(remainingSlots > 0 || newPhotos.length > 0) && (
             <PhotoUpload
               files={newPhotos}
               onChange={setNewPhotos}
-              max={remainingSlots}
+              max={newPhotos.length + remainingSlots}
+              perReview={5}
             />
           )}
 
-          {remainingSlots === 0 && totalPhotos >= 5 && (
+          {remainingSlots === 0 && totalPhotos >= 5 && newPhotos.length === 0 && (
             <p className="text-xs text-charcoal-400 mt-1">
               You can have up to 5 photos. Remove one to add another.
             </p>

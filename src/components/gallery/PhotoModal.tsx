@@ -6,6 +6,8 @@ import ExpandableText from '../ui/ExpandableText'
 import CommentSection from './CommentSection'
 import HeartIcon from './HeartIcon'
 import GifPicker from './GifPicker'
+import CommentComposer, { commentTooLong, replyPlaceholder } from './CommentComposer'
+import { cleanUserText } from '../../lib/userText'
 import { Lightbox } from '../ui/PhotoGallery'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { useAuthGate } from '../AuthGateModal'
@@ -174,7 +176,7 @@ export default function PhotoModal(props: Props) {
   }, [])
 
   const handleMobilePost = async () => {
-    if ((!mobileText.trim() && !mobileSelectedGif) || mobilePosting) return
+    if ((!mobileText.trim() && !mobileSelectedGif) || mobilePosting || commentTooLong(mobileText)) return
     if (!requireAuth()) return
     setMobilePosting(true)
     await addComment({
@@ -193,7 +195,9 @@ export default function PhotoModal(props: Props) {
 
   const visitedDate = formatVisitDate(reviewData.visited_at)
 
-  const reviewerName = reviewData.reviewer_name ?? reviewData.reviewer_email?.split('@')[0] ?? 'Unknown'
+  const reviewerName = cleanUserText(reviewData.reviewer_name ?? reviewData.reviewer_email?.split('@')[0] ?? 'Unknown') || 'Unknown'
+  const spotName = cleanUserText(reviewData.spot_name)
+  const photoAlt = `Photo of wings at ${spotName}, from ${reviewerName}'s review`
 
   const fetchLikers = useCallback(() => fetchReviewLikers(reviewData.review_id), [reviewData.review_id])
 
@@ -213,7 +217,7 @@ export default function PhotoModal(props: Props) {
           <img
             key={p.photo_id}
             src={p.photo_url}
-            alt={reviewData.spot_name}
+            alt={photoAlt}
             loading="lazy"
             draggable={false}
             className="w-full h-full flex-shrink-0 object-cover cursor-zoom-in"
@@ -263,7 +267,7 @@ export default function PhotoModal(props: Props) {
     <button
       type="button"
       onClick={() => openProfile(reviewData.reviewer_id)}
-      className="flex items-center gap-2 mb-2 group text-left hover:opacity-80 transition-opacity"
+      className="flex items-center gap-2 mb-2 min-h-[44px] group text-left hover:opacity-80 transition-opacity"
     >
       <div className="w-7 h-7 rounded-full overflow-hidden bg-warmgray-200 flex-shrink-0 flex items-center justify-center">
         <AvatarImage
@@ -274,7 +278,7 @@ export default function PhotoModal(props: Props) {
         />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-charcoal-700 truncate group-hover:text-sauce-500 transition-colors">{reviewerName}</p>
+        <p className="text-xs font-semibold text-charcoal-700 truncate group-hover:text-sauce-500 transition-colors user-text">{reviewerName}</p>
         <p className="text-xs text-charcoal-400">{visitedDate}</p>
       </div>
     </button>
@@ -294,7 +298,7 @@ export default function PhotoModal(props: Props) {
       <LikedByOverlay fetchUsers={fetchLikers} count={reviewData.like_count} label="Likes">
         <button
           onClick={() => { if (requireAuth()) onLike() }}
-          className="flex items-center gap-1.5 group"
+          className="flex items-center gap-1.5 min-h-[44px] -my-2.5 group"
           aria-label={reviewData.is_liked_by_me ? 'Unlike' : 'Like'}
         >
           <HeartIcon
@@ -348,9 +352,9 @@ export default function PhotoModal(props: Props) {
           {...headerSwipeHandlers}
         >
           <div className="min-w-0">
-            <p className="font-display text-sm font-semibold text-charcoal-800 truncate">{reviewData.spot_name}</p>
+            <p className="font-display text-sm font-semibold text-charcoal-800 truncate user-text">{spotName}</p>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-              <p className="text-xs text-charcoal-400 truncate">{reviewData.spot_address}</p>
+              <p className="text-xs text-charcoal-400 truncate user-text">{cleanUserText(reviewData.spot_address)}</p>
               {onViewOnMap && (
                 <button
                   onClick={() => onViewOnMap(reviewData.wing_spot_id)}
@@ -385,7 +389,7 @@ export default function PhotoModal(props: Props) {
           {(reviewData.wing_flavor || reviewData.review_text) && (
             <div className="px-4 py-2.5 border-b border-warmgray-100 space-y-1">
               {reviewData.wing_flavor && (
-                <p className="text-xs font-medium text-charcoal-500">🌶️ {reviewData.wing_flavor}</p>
+                <p className="text-xs font-medium text-charcoal-500 user-text"><span aria-hidden="true">🌶️ </span>{cleanUserText(reviewData.wing_flavor)}</p>
               )}
               {reviewData.review_text && (
                 <ExpandableText text={reviewData.review_text} />
@@ -427,20 +431,20 @@ export default function PhotoModal(props: Props) {
           <div className="flex-shrink-0 border-t border-warmgray-100 px-4 py-2 bg-warmgray-50 flex items-center gap-2 flex-wrap">
             {mobileReplyingTo && (
               <span className="text-xs text-charcoal-500">
-                Replying to <span className="font-semibold">{mobileReplyingTo.name}</span>
+                Replying to <span className="font-semibold user-text">{mobileReplyingTo.name}</span>
                 <button
                   onClick={() => setMobileReplyingTo(null)}
-                  className="ml-1 inline-flex items-center justify-center w-7 h-7 -my-2 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-charcoal-500"
+                  className="ml-1 inline-flex items-center justify-center w-11 h-11 -my-3.5 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-charcoal-500"
                   aria-label="Cancel reply"
                 >×</button>
               </span>
             )}
             {mobileSelectedGif && (
               <div className="relative">
-                <img src={mobileSelectedGif} alt="GIF" className="h-12 rounded-md" />
+                <img src={mobileSelectedGif} alt="Chosen GIF" className="h-12 rounded-md" />
                 <button
                   onClick={() => setMobileSelectedGif(null)}
-                  className="absolute -top-2.5 -right-2.5 w-7 h-7 flex items-center justify-center"
+                  className="absolute -top-3.5 -right-3.5 w-11 h-11 flex items-center justify-center"
                   aria-label="Remove GIF"
                 >
                   <span className="w-4 h-4 rounded-full bg-charcoal-700 text-white text-[10px] flex items-center justify-center">×</span>
@@ -450,45 +454,19 @@ export default function PhotoModal(props: Props) {
           </div>
         )}
 
-        <div
-          className="flex-shrink-0 border-t border-night-900/10 px-3 py-2.5 flex items-end gap-2 bg-cream-50"
-          style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}
-        >
-          <button
-            type="button"
-            onClick={() => { if (requireAuth()) setMobileShowGif(prev => !prev) }}
-            className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xs font-extrabold uppercase tracking-crowd transition-colors ${
-              mobileShowGif ? 'bg-sauce-100 text-sauce-600' : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
-            }`}
-            title="GIF"
-            aria-label="Add a GIF"
-          >
-            GIF
-          </button>
-          <textarea
-            value={mobileText}
-            onChange={e => setMobileText(e.target.value)}
-            onFocus={e => { if (!requireAuth()) e.target.blur() }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleMobilePost()
-              }
-            }}
-            placeholder={mobileReplyingTo ? `Reply to ${mobileReplyingTo.name}…` : 'Add a comment…'}
-            maxLength={500}
-            rows={1}
-            className="flex-1 resize-none rounded-xl border border-night-900/15 bg-cream-100 px-3 py-2.5 text-base text-night-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900/30 transition-colors"
-            style={{ maxHeight: '96px', minHeight: '44px', overflowY: 'auto' }}
-          />
-          <button
-            onClick={handleMobilePost}
-            disabled={(!mobileText.trim() && !mobileSelectedGif) || mobilePosting}
-            className="btn-primary px-4 min-h-[44px] text-sm flex-shrink-0 disabled:opacity-40"
-          >
-            {mobilePosting ? '…' : 'Post'}
-          </button>
-        </div>
+        <CommentComposer
+          className="flex-shrink-0"
+          style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+          value={mobileText}
+          onChange={setMobileText}
+          onSubmit={handleMobilePost}
+          posting={mobilePosting}
+          hasAttachment={!!mobileSelectedGif}
+          placeholder={mobileReplyingTo ? replyPlaceholder(mobileReplyingTo.name) : 'Add a comment…'}
+          gifOpen={mobileShowGif}
+          onToggleGif={() => { if (requireAuth()) setMobileShowGif(prev => !prev) }}
+          onFocusGate={requireAuth}
+        />
       </div>
 
       {/* DESKTOP LAYOUT (≥ 640px) */}
@@ -508,7 +486,7 @@ export default function PhotoModal(props: Props) {
               <img
                 key={p.photo_id}
                 src={p.photo_url}
-                alt={reviewData.spot_name}
+                alt={photoAlt}
                 loading="lazy"
                 draggable={false}
                 className="w-full h-full flex-shrink-0 object-cover cursor-zoom-in"
@@ -557,9 +535,9 @@ export default function PhotoModal(props: Props) {
           <div className="px-4 pt-4 pb-3 border-b border-warmgray-100 flex items-start justify-between gap-3 flex-shrink-0">
             <div className="min-w-0">
               {reviewerHeader}
-              <p className="font-display text-sm font-semibold text-charcoal-800 truncate">{reviewData.spot_name}</p>
+              <p className="font-display text-sm font-semibold text-charcoal-800 truncate user-text">{spotName}</p>
               <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                <p className="text-xs text-charcoal-400 truncate">{reviewData.spot_address}</p>
+                <p className="text-xs text-charcoal-400 truncate user-text">{cleanUserText(reviewData.spot_address)}</p>
                 {onViewOnMap && (
                   <button
                     onClick={() => onViewOnMap(reviewData.wing_spot_id)}
@@ -589,7 +567,7 @@ export default function PhotoModal(props: Props) {
           {(reviewData.wing_flavor || reviewData.review_text) && (
             <div className="px-4 py-2.5 border-b border-warmgray-100 flex-shrink-0 space-y-1">
               {reviewData.wing_flavor && (
-                <p className="text-xs font-medium text-charcoal-500">🌶️ {reviewData.wing_flavor}</p>
+                <p className="text-xs font-medium text-charcoal-500 user-text"><span aria-hidden="true">🌶️ </span>{cleanUserText(reviewData.wing_flavor)}</p>
               )}
               {reviewData.review_text && (
                 <ExpandableText text={reviewData.review_text} />
@@ -635,6 +613,7 @@ export default function PhotoModal(props: Props) {
             }))}
             initialIndex={photoIndex}
             onClose={() => setShowLightbox(false)}
+            alt={photoAlt}
           />
         </div>
       )}

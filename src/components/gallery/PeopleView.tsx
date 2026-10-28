@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { useUserProfile } from '../UserProfileContext'
 import { useAuthGate } from '../AuthGateModal'
 import AvatarImage from '../ui/AvatarImage'
+import { cleanUserText } from '../../lib/userText'
+import { noteFollowChange } from '../../hooks/useFollow'
 
 interface UserRow {
   user_id: string
@@ -88,16 +90,16 @@ export default function PeopleView({ currentUserId }: Props) {
       else next.add(targetId)
       return next
     })
-    if (isFollowing) {
-      await supabase.from('follows').delete().match({ follower_id: currentUserId, following_id: targetId })
-    } else {
-      await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetId })
-    }
+    const { error } = isFollowing
+      ? await supabase.from('follows').delete().match({ follower_id: currentUserId, following_id: targetId })
+      : await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetId })
+    if (!error) noteFollowChange(currentUserId, !isFollowing)
   }
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
+      // Fill the screen so the footer doesn't jump when the list arrives
+      <div className="flex justify-center pt-20 min-h-[100dvh]" role="status" aria-label="Loading people">
         <div className="w-8 h-8 rounded-full border-2 border-amber-300 border-t-amber-400 animate-spin" />
       </div>
     )
@@ -143,7 +145,7 @@ export default function PeopleView({ currentUserId }: Props) {
           {filtered.map(u => {
             const isMe = u.user_id === currentUserId
             const isFollowing = followingIds.has(u.user_id)
-            const name = u.display_name ?? 'Unknown'
+            const name = cleanUserText(u.display_name) || 'Unknown'
             return (
               <li
                 key={u.user_id}
@@ -161,7 +163,7 @@ export default function PeopleView({ currentUserId }: Props) {
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-extrabold uppercase tracking-crowd text-night-900 truncate leading-tight">
-                    {name}
+                    <span className="user-text">{name}</span>
                     {isMe && <span className="ml-1.5 text-sauce-400 text-[10px]">YOU</span>}
                   </p>
                   <p className="text-[11px] text-charcoal-500 font-medium mt-0.5">

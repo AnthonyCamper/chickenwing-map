@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
+import { useHideFab } from '../hooks/useHideFab'
 import type { UseNotificationsReturn } from '../hooks/useNotifications'
 import { needsHomeScreenInstall, isIOS, getPermissionState } from '../lib/pushManager'
 
@@ -25,6 +26,8 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(85dvh - env(safe-area-inset-top))',
   })
+  const titleId = useId()
+  useHideFab(true)
 
   const handleTogglePush = async () => {
     setSaving(true)
@@ -62,6 +65,9 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
       {/* Sheet */}
       <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
           className="w-full sm:max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated overflow-hidden animate-slide-up flex flex-col"
           style={sheetStyle}
         >
@@ -84,10 +90,10 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
             style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display uppercase tracking-wide text-xl text-night-900">Notifications</h2>
+              <h2 id={titleId} className="font-display uppercase tracking-wide text-xl text-night-900">Notifications</h2>
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 transition-colors text-2xl leading-none"
+                className="w-11 h-11 -mr-1.5 rounded-full flex items-center justify-center text-charcoal-500 hover:bg-cream-100 hover:text-night-800 transition-colors text-2xl leading-none"
                 aria-label="Close"
               >×</button>
             </div>
@@ -103,22 +109,12 @@ export default function NotificationSettings({ notifications, onClose }: Props) 
                       : 'Get alerts even when the app is closed'}
                   </p>
                 </div>
-                <button
+                <Switch
+                  checked={pushSubscribed}
                   onClick={handleTogglePush}
                   disabled={saving || !pushSupported}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-                    pushSubscribed ? 'bg-sauce-400' : 'bg-night-900/20'
-                  } ${!pushSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  aria-label={pushSubscribed ? 'Disable push' : 'Enable push'}
-                  role="switch"
-                  aria-checked={pushSubscribed}
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                      pushSubscribed ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
+                  label={pushSubscribed ? 'Disable push' : 'Enable push'}
+                />
               </div>
 
               {/* Platform-specific messages */}
@@ -267,21 +263,48 @@ function ToggleRow({
         <p className="text-sm font-medium text-night-800">{label}</p>
         <p className="text-xs text-charcoal-500 mt-0.5">{description}</p>
       </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+      <Switch checked={checked} onClick={() => onChange(!checked)} label={label} />
+    </div>
+  )
+}
+
+// ── Switch ───────────────────────────────────────────────────────────────────
+
+/**
+ * On/off switch: a 44×24 track with the knob pinned inside it (left-0.5 →
+ * slides 20px to the right end when on). The button itself is 48×44 so the
+ * whole thing is a full-size tap target; the track is centred in it.
+ */
+function Switch({
+  checked, onClick, label, disabled = false,
+}: {
+  checked: boolean
+  onClick: () => void
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`relative w-12 h-11 -my-2.5 -mr-0.5 flex items-center justify-center flex-shrink-0 ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`relative block w-11 h-6 rounded-full transition-colors duration-200 ${
           checked ? 'bg-sauce-400' : 'bg-night-900/20'
         }`}
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
       >
         <span
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-            checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            checked ? 'translate-x-5' : 'translate-x-0'
           }`}
         />
-      </button>
-    </div>
+      </span>
+    </button>
   )
 }

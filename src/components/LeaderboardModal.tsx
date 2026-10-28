@@ -3,6 +3,8 @@ import { useUserProfile } from './UserProfileContext'
 import type { LeaderboardRow } from '../lib/types'
 import AvatarImage from './ui/AvatarImage'
 import { MIN_REVIEWS_FOR_AVG_RANK } from '../hooks/useLeaderboard'
+import { useHideFab } from '../hooks/useHideFab'
+import { cleanUserText } from '../lib/userText'
 
 const n = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`
 
@@ -23,6 +25,8 @@ const CATEGORIES: { key: LeaderboardCategory; label: string; emoji: string; stat
 export default function LeaderboardModal({ currentUserId, onClose }: Props) {
   const { rows, loading, category, setCategory, myRank } = useLeaderboard(currentUserId)
   const { openProfile } = useUserProfile()
+  // Own bottom sheet (not ui/Modal): keep the floating button off it
+  useHideFab(true)
 
   const catDef = CATEGORIES.find(c => c.key === category)!
 
@@ -118,7 +122,7 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
                           className="w-full h-full object-cover"
                           fallback={
                             <span className="text-sm font-extrabold text-cream-50 uppercase">
-                              {(row.display_name ?? '?').charAt(0)}
+                              {(cleanUserText(row.display_name) || '?').charAt(0)}
                             </span>
                           }
                         />
@@ -126,8 +130,8 @@ export default function LeaderboardModal({ currentUserId, onClose }: Props) {
 
                       {/* Name + stat */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-extrabold uppercase tracking-crowd text-night-900 truncate">
-                          {row.display_name ?? 'Anonymous'}
+                        <p className="user-text text-sm font-extrabold uppercase tracking-crowd text-night-900 truncate">
+                          {cleanUserText(row.display_name) || 'Anonymous'}
                           {isMe && <span className="ml-1.5 text-sauce-400 text-[10px]">YOU</span>}
                         </p>
                         <p className="text-[11px] text-charcoal-500 font-medium">

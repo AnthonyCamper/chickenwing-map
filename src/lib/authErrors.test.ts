@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
+  authErrorKind,
   displayNameProblem,
   friendlyAuthError,
   isSchemaDriftError,
   isValidEmail,
   passwordProblem,
+  SCHEMA_DRIFT_MESSAGE,
   signUpProblem,
 } from './authErrors'
 
@@ -53,8 +55,39 @@ describe('friendlyAuthError', () => {
     expect(friendlyAuthError('Email address "me@gmail.con" is invalid')).toMatch(/check it for typos/i)
   })
 
-  it('passes other errors through untouched', () => {
-    expect(friendlyAuthError('Invalid login credentials')).toBe('Invalid login credentials')
+  it('never shows the raw "already registered" / "invalid credentials" text (Q27)', () => {
+    expect(friendlyAuthError('User already registered')).toBe(
+      'An account with this email already exists. Sign in instead, or reset your password.'
+    )
+    expect(friendlyAuthError('Invalid login credentials')).toBe(
+      'Email or password is wrong. Try again or reset your password.'
+    )
+    expect(authErrorKind('User already registered')).toBe('already-registered')
+    expect(authErrorKind('Invalid login credentials')).toBe('wrong-credentials')
+    expect(authErrorKind('email rate limit exceeded')).toBeNull()
+  })
+
+  it('knows the kind again from an already-friendly message (pages map twice safely)', () => {
+    expect(authErrorKind(friendlyAuthError('User already registered'))).toBe('already-registered')
+    expect(friendlyAuthError(friendlyAuthError('Invalid login credentials'))).toMatch(/^Email or password is wrong/)
+  })
+
+  it('rewrites other common Supabase auth errors into plain steps', () => {
+    expect(friendlyAuthError('Email not confirmed')).toMatch(/confirm your email/i)
+    expect(friendlyAuthError('New password should be different from the old password.')).toMatch(/different from your old/i)
+    expect(friendlyAuthError('For security purposes, you can only request this after 37 seconds.')).toMatch(/wait a minute/i)
+    expect(friendlyAuthError('TypeError: Failed to fetch')).toMatch(/internet connection/i)
+    expect(friendlyAuthError('Auth session missing!')).toMatch(/expired/i)
+  })
+
+  it('leaves the app\'s own messages alone', () => {
+    expect(friendlyAuthError(SCHEMA_DRIFT_MESSAGE)).toBe(SCHEMA_DRIFT_MESSAGE)
+    const once = friendlyAuthError('Database error saving new user')
+    expect(friendlyAuthError(once)).toBe(once)
+  })
+
+  it('wraps unknown errors in a plain sentence', () => {
+    expect(friendlyAuthError('Database error saving new user')).toMatch(/^Something went wrong\. Please try again\./)
   })
 
   it('falls back to a generic message when there is no message', () => {

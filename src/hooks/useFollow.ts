@@ -16,6 +16,57 @@ interface UseFollowReturn {
   toggle: () => Promise<void>
 }
 
+// ── "Does this user follow anyone?" ─────────────────────────────────────────
+// Decides the default feed tab: someone who follows nobody would land on an
+// empty Following tab, so they get Discover instead. Cached per user for the
+// SPA session; follow/unfollow actions keep it current.
+const followsAnyoneCache = new Map<string, boolean>()
+
+/** Record a follow/unfollow so the next feed visit picks the right tab. */
+export function noteFollowChange(userId: string, nowFollowing: boolean) {
+  if (!userId) return
+  if (nowFollowing) followsAnyoneCache.set(userId, true)
+  else followsAnyoneCache.delete(userId) // may still follow others: re-check
+}
+
+/** Test helper */
+export function _resetFollowsAnyoneCache() {
+  followsAnyoneCache.clear()
+}
+
+/**
+ * true / false once known, null while loading. Signed out → false.
+ * On a failed query it answers true (the old default: Following).
+ */
+export function useFollowsAnyone(userId: string): boolean | null {
+  const [value, setValue] = useState<boolean | null>(() =>
+    !userId ? false : followsAnyoneCache.get(userId) ?? null
+  )
+
+  useEffect(() => {
+    if (!userId) { setValue(false); return }
+    const cached = followsAnyoneCache.get(userId)
+    if (cached !== undefined) { setValue(cached); return }
+    setValue(null)
+    let cancelled = false
+    // A 1-row GET, not a HEAD count: count requests get aborted on navigation
+    supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId)
+      .limit(1)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        const follows = error ? true : (data ?? []).length > 0
+        if (!error) followsAnyoneCache.set(userId, follows)
+        setValue(follows)
+      })
+    return () => { cancelled = true }
+  }, [userId])
+
+  return value
+}
+
 export function useFollow(currentUserId: string, targetUserId: string): UseFollowReturn {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
@@ -60,6 +111,8 @@ export function useFollow(currentUserId: string, targetUserId: string): UseFollo
       setIsFollowing(wasFollowing)
       setFollowerCount(c => c + (wasFollowing ? 1 : -1))
       toast.error(wasFollowing ? 'Could not unfollow' : 'Could not follow')
+    } else {
+      noteFollowChange(currentUserId, !wasFollowing)
     }
   }, [currentUserId, targetUserId, isFollowing, isSelf])
 

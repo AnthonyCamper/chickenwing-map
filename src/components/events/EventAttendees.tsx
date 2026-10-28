@@ -1,6 +1,7 @@
 import BadgeIcon from '../badges/BadgeIcon'
 import AvatarImage from '../ui/AvatarImage'
 import type { EventRsvp } from '../../lib/types'
+import { cleanUserText } from '../../lib/userText'
 
 export interface CheckinAttendee {
   user_id: string
@@ -56,13 +57,13 @@ export function WhosComing({ rsvps, signedIn, goingCount }: WhosComingProps) {
                 className="w-5 h-5 flex-shrink-0 rounded-full object-cover"
                 fallback={
                   <span className="w-5 h-5 flex-shrink-0 rounded-full bg-night-700 flex items-center justify-center text-xs font-bold text-cream-50">
-                    {(r.user_name ?? r.user_email ?? '?').charAt(0).toUpperCase()}
+                    {(cleanUserText(r.user_name ?? r.user_email) || '?').charAt(0).toUpperCase()}
                   </span>
                 }
               />
             )}
-            <span className="text-xs font-bold text-charcoal-600 truncate">
-              {r.is_private ? 'Private' : (r.user_name ?? r.user_email)}
+            <span className="user-text text-xs font-bold text-charcoal-600 truncate">
+              {r.is_private ? 'Private member' : cleanUserText(r.user_name ?? r.user_email)}
             </span>
           </li>
         ))}
@@ -107,7 +108,7 @@ export function CheckedInFeed({
                 }
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-night-900 truncate">{a.display_name}</p>
+                <p className="user-text text-sm font-bold text-night-900 truncate">{cleanUserText(a.display_name)}</p>
                 <p className="text-xs text-charcoal-500">
                   {a.stop_count}/{totalStops} {a.stop_count === 1 ? 'stop' : 'stops'}
                 </p>
@@ -159,8 +160,8 @@ export function CheckedInFeed({
             </div>
             {isAdmin && resetConfirmUserId === a.user_id && (
               <div className="ml-12 flex items-center gap-2 py-2 px-3 bg-sauce-50 border-2 border-sauce-300 rounded-xl">
-                <p className="text-xs font-semibold text-sauce-700 flex-1">
-                  Reset {a.display_name}'s check-ins, reviews & badges?
+                <p className="user-text text-xs font-semibold text-sauce-700 flex-1">
+                  Reset {cleanUserText(a.display_name)}'s check-ins, reviews & badges?
                 </p>
                 <button
                   onClick={() => onToggleResetConfirm(null)}

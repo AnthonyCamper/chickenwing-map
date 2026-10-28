@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { imageExtension } from '../lib/imageResize'
 import type { WingEvent, EventStop, EventFormData } from '../lib/types'
+
+/** One year: event covers are immutable files (see eventCoverPath). */
+export const EVENT_COVER_CACHE_SECONDS = '31536000'
+
+/**
+ * Storage path for a newly uploaded event cover: a new file name per upload,
+ * so the cover can be cached for a year and a replacement still shows at
+ * once (new URL). Re-using `cover.png` meant `no-cache`, and visitors
+ * re-downloaded the whole poster on every visit.
+ */
+export function eventCoverPath(slug: string, file: File, now = Date.now()): string {
+  return `${slug}/cover-${now.toString(36)}.${imageExtension(file)}`
+}
 
 export interface UseAdminEventsReturn {
   events: WingEvent[]

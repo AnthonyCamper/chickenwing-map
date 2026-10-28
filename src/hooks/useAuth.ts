@@ -26,7 +26,7 @@ export interface AuthState {
   ) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>
   signOut: () => Promise<void>
   /** Resolves true when the row was saved; on failure it has already shown a toast. */
-  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }) => Promise<boolean>
+  updateProfile: (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string; username?: string }) => Promise<boolean>
   refreshProfile: () => Promise<void>
 }
 
@@ -278,11 +278,17 @@ export function useAuth(): AuthState {
     return { error: null }
   }
 
+  // Resolves only after /auth/v1/logout has answered (supabase-js revokes
+  // the session on the server first, then clears it locally), so callers can
+  // safely navigate afterwards. If the request fails (offline), the session
+  // is kept and supabase-js returns an error — say so instead of silently
+  // leaving the user signed in.
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) toast.error("Couldn't sign you out. Check your internet connection and try again.")
   }
 
-  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string }): Promise<boolean> => {
+  const updateProfile = async (updates: { display_name?: string; avatar_url?: string; is_private?: boolean; bio?: string; username?: string }): Promise<boolean> => {
     const userId = session?.user?.id
     if (!userId) return false
 
@@ -294,7 +300,9 @@ export function useAuth(): AuthState {
       .maybeSingle()
 
     if (error || !data) {
-      toast.error(error?.message ?? 'Could not update profile')
+      // Never show raw backend text (e.g. a Postgres constraint message)
+      if (error) console.error('[auth] profile update failed:', error)
+      toast.error('Your profile could not be saved. Check your connection and try again.')
       return false
     }
     setProfile(prev => prev ? { ...prev, ...updates } : prev)

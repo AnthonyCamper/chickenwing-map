@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { friendlyAuthError } from '../lib/authErrors'
 
 type Stage = 'checking' | 'ready' | 'no-session'
 
@@ -50,11 +51,11 @@ export default function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError('Your password needs at least 8 characters.')
       return
     }
     if (password !== confirm) {
-      setError("Passwords don't match")
+      setError("Passwords don't match. Type the same password in both fields.")
       return
     }
     setError(null)
@@ -62,7 +63,7 @@ export default function ResetPassword() {
     const { error: updateError } = await supabase.auth.updateUser({ password })
     setSaving(false)
     if (updateError) {
-      setError(updateError.message)
+      setError(friendlyAuthError(updateError.message))
       return
     }
     toast.success('Password updated — welcome back')
@@ -130,7 +131,7 @@ export default function ResetPassword() {
                   type="password"
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
-                  placeholder="Same again"
+                  placeholder="Type it again"
                   className="input"
                   autoComplete="new-password"
                   disabled={saving}

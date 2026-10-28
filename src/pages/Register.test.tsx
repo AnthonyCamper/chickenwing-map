@@ -4,6 +4,23 @@ import { MemoryRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Register from './Register'
 
+// The profile-link preview looks up usernames already in use.
+const taken = vi.hoisted(() => ({ profiles: [] as string[], history: [] as string[] }))
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    from: (table: string) => ({
+      select: () => ({
+        like: () => ({
+          limit: () => Promise.resolve({
+            data: (table === 'profiles' ? taken.profiles : taken.history).map(username => ({ username })),
+            error: null,
+          }),
+        }),
+      }),
+    }),
+  },
+}))
+
 function renderPage(props: Partial<React.ComponentProps<typeof Register>> = {}) {
   const onSignUp = vi.fn().mockResolvedValue({ error: null })
   render(
@@ -67,7 +84,7 @@ describe('Register', () => {
 
   it('has consent links, says what is public, and "Sign in" opens the sign-in form (F18, F42)', () => {
     renderPage()
-    expect(screen.getByText(/by creating an account you agree/i)).toBeInTheDocument()
+    expect(screen.getByText(/by creating an account you confirm you are 13 or older and agree/i)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /^terms$/i })[0]).toHaveAttribute('href', '/terms')
     expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/privacy')
     expect(screen.getByText(/reviews, photos and comments are public/i)).toBeInTheDocument()
@@ -86,4 +103,33 @@ describe('Register', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(onSignInGoogle).toHaveBeenCalledTimes(1)
   })
+
+  it('shows the profile link the display name will become, with -2 when taken (Q12)', async () => {
+    taken.profiles = ['sam-skeptic']
+    taken.history = []
+    renderPage()
+    expect(screen.getByText(/used for your profile link/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Sam Skeptic' } })
+    expect(screen.getByText('wingkingtony.com/u/sam-skeptic')).toBeInTheDocument()
+    expect(await screen.findByText('wingkingtony.com/u/sam-skeptic-2')).toBeInTheDocument()
+    expect(screen.getByText(/you can change it later/i)).toBeInTheDocument()
+  })
+
+  it('says "already exists" in plain words with Sign in / Reset password links (Q27)', async () => {
+    const onSignUp = vi.fn().mockResolvedValue({ error: 'User already registered' })
+    renderPage({ onSignUp })
+    fill('Tony', 'tony@example.com', 'longenough')
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('An account with this email already exists. Sign in instead, or reset your password.')
+    expect(alert).not.toHaveTextContent(/user already registered/i)
+    expect(screen.getAllByRole('link', { name: 'Sign in' })[0]).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Reset password' })).toHaveAttribute('href', '/login')
+  })
+
+  it('uses plain words, not "Join the wing council" (Q40)', () => {
+    renderPage()
+    expect(screen.queryByText(/wing council/i)).toBeNull()
+  })
 })
+

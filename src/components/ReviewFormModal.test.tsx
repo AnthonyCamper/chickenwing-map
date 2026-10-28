@@ -37,6 +37,7 @@ const toastMock = vi.hoisted(() => {
 vi.mock('react-hot-toast', () => ({ default: toastMock }))
 
 import ReviewFormModal from './ReviewFormModal'
+import { BADGES_UNLOCKED_EVENT, announceNewBadges } from '../lib/badgeUnlocks'
 import type { ReviewFormData } from '../lib/types'
 
 const fetchMock = vi.fn()
@@ -72,6 +73,7 @@ function renderForm(props: Partial<React.ComponentProps<typeof ReviewFormModal>>
       <Routes>
         <Route path="/" element={<ReviewFormModal onClose={onClose} {...props} onSubmit={onSubmit} />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
+        <Route path="/login" element={<p>Login page</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -312,3 +314,125 @@ describe('ReviewFormModal — drafts', () => {
     expect(dirty.defaultPrevented).toBe(true)
   })
 })
+
+const PREFILL = { shop_name: 'Ale Marys', address: '1939 Fleet St', lat: 39.28, lng: -76.59 }
+
+describe('ReviewFormModal — validation stays visible (m1)', () => {
+  it('clears old step-1 errors as soon as the user starts typing a spot name', () => {
+    renderForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }))
+    expect(screen.getByText('Enter the address.')).toBeInTheDocument()
+    expect(screen.getByText(/Check the spot name, the address and the location above/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Wing spot name'), { target: { value: 'Kong Poc' } })
+    expect(screen.queryByText('Enter the address.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/We need the location/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Enter the name of the wing spot.')).not.toBeInTheDocument()
+  })
+
+  it('flags a future visit date right away, and Publish focuses it with a summary by the button', async () => {
+    const { onSubmit } = renderForm({ prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    const date = screen.getByLabelText('Date you visited')
+    fireEvent.change(date, { target: { value: '2099-12-31' } })
+    expect(screen.getByText(/can't be in the future/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('Check the visit date above.')).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(date))
+
+    fireEvent.change(date, { target: { value: localDateString() } })
+    expect(screen.queryByText(/can't be in the future/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Check the visit date above.')).not.toBeInTheDocument()
+  })
+
+  it('does not flag a year that is still being typed', () => {
+    renderForm({ prefill: PREFILL })
+    fireEvent.change(screen.getByLabelText('Date you visited'), { target: { value: '0020-12-31' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('never silently cuts pasted review text: counter, error and focus instead', async () => {
+    const { onSubmit } = renderForm({ prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    const text = screen.getByLabelText('Your review (optional)')
+    expect(text).not.toHaveAttribute('maxLength')
+    fireEvent.change(text, { target: { value: 'x'.repeat(620) } })
+    expect(text).toHaveValue('x'.repeat(620))
+    expect(screen.getByText(/620 \/ 500/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText(/120 characters too long/)).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(text))
+  })
+
+  it('says the review will be public, next to Publish', () => {
+    renderForm({ prefill: PREFILL })
+    expect(screen.getByText('Your review and photos will be public.')).toBeInTheDocument()
+  })
+})
+
+describe('ReviewFormModal — publishing (m1)', () => {
+  it('signed out mid-flow: says so, offers Sign in, and keeps the draft', async () => {
+    const onSubmit = vi.fn<SubmitFn>(async () => ({ error: 'signed-out' }))
+    renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.change(screen.getByLabelText('Your review (optional)'), { target: { value: 'Crispy!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByText(/You've been signed out. Sign in again to publish — your review is saved./)).toBeInTheDocument()
+    expect(toastMock.error).not.toHaveBeenCalled()
+    expect(sessionStorage.length).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+  })
+
+  it('treats a raw JWT / 401 error as signed out, not a connection problem', async () => {
+    const onSubmit = vi.fn<SubmitFn>(async () => ({ error: 'JWT expired' }))
+    renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    expect(toastMock.error).not.toHaveBeenCalled()
+  })
+
+  it('Cancel and Close do nothing while publishing', async () => {
+    let finish: (v: { error: null; reviewId: string }) => void = () => {}
+    const onSubmit = vi.fn<SubmitFn>(() => new Promise(res => { finish = res }))
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { onClose } = renderForm({ onSubmit, prefill: PREFILL })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    expect(await screen.findByRole('button', { name: 'Publishing…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Close'))
+    expect(onClose).not.toHaveBeenCalled()
+    await act(async () => { finish({ error: null, reviewId: 'rev-1' }) })
+    confirmSpy.mockRestore()
+  })
+
+  it('shows badge unlocks only after the published confirmation, tagged as such', async () => {
+    db.rows = [{ id: 'b1', name: 'First Wing', earned: true } as unknown as typeof db.rows[number]]
+    const seen: Array<{ reviewPublished?: boolean }> = []
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail)
+    window.addEventListener(BADGES_UNLOCKED_EVENT, listener)
+    try {
+      // The submit path diffs badges like createReview does.
+      const onSubmit = vi.fn<SubmitFn>(async () => {
+        await announceNewBadges(new Set())
+        return { error: null, reviewId: 'rev-7' }
+      })
+      renderForm({ onSubmit, prefill: PREFILL })
+      fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Review published! 🍗', expect.anything()))
+      expect(seen).toHaveLength(0)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      await waitFor(() => expect(seen).toHaveLength(1), { timeout: 2500 })
+      expect(seen[0].reviewPublished).toBe(true)
+    } finally {
+      window.removeEventListener(BADGES_UNLOCKED_EVENT, listener)
+    }
+  })
+})
+

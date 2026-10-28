@@ -4,12 +4,15 @@ import { Helmet } from 'react-helmet-async'
 import {
   EMAIL_FORMAT_MESSAGE,
   MIN_PASSWORD_LENGTH,
+  authErrorKind,
   friendlyAuthError,
   isValidEmail,
   passwordProblem,
   signUpProblem,
 } from '../lib/authErrors'
 import { validateImageFile } from '../lib/imageValidation'
+import { PROFILE_LINK_PREFIX, firstFreeHandle, slugifyName } from '../lib/profileHandle'
+import { supabase } from '../lib/supabase'
 
 function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
   if (!pw) return { score: 0, label: '' }
@@ -49,6 +52,7 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
   const [emailTouched, setEmailTouched] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const handle = useHandlePreview(displayName)
 
   // Revoke any previously-created object URL when the preview changes or unmounts.
   useEffect(() => {
@@ -135,8 +139,10 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
     return null // Auth state change in useAuth will re-render App with pending screen
   }
 
+  // Small phones: compact header and card so the email form starts on the
+  // first screen (a 375×667 phone showed only the logo and Google button).
   return (
-    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-start sm:justify-center px-4 sm:px-6 py-3 sm:py-12 overflow-hidden">
       <Helmet>
         <title>Create account — WingKingTony</title>
       </Helmet>
@@ -148,33 +154,35 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
         {/* A way back for visitors who opened sign-up but want to keep browsing */}
         <Link
           to="/"
-          className="inline-flex items-center min-h-[44px] -mt-4 mb-2 px-1 -ml-1 text-xs font-extrabold uppercase tracking-crowd text-charcoal-600 hover:text-night-900"
+          className="inline-flex items-center min-h-[44px] sm:-mt-4 sm:mb-2 px-1 -ml-1 text-xs font-extrabold uppercase tracking-crowd text-charcoal-600 hover:text-night-900"
         >
           {isPublic ? '← Back to WingKingTony' : '← Back to sign in'}
         </Link>
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex flex-row sm:flex-col items-center gap-3 sm:gap-0 text-left sm:text-center mb-3 sm:mb-8">
           <img
             src="/favicon.svg"
             alt=""
-            className="w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5"
+            className="w-12 h-12 sm:w-20 sm:h-20 flex-shrink-0 -rotate-2 rounded-xl sm:rounded-2xl border-2 border-night-900 shadow-sticker-sm sm:shadow-sticker sm:mb-5"
           />
-          <span className="eyebrow">Join the wing council</span>
-          <h1 className="h-poster-sm mt-1">Create account</h1>
-          <p className="text-sm text-charcoal-600 mt-3 leading-relaxed">
-            {isPublic
-              ? 'It’s free, and your account works right away. Then you can rate wing spots, post photos and comment.'
-              : 'It’s free. An admin approves new accounts before you can see the site.'}
-          </p>
+          <div className="min-w-0">
+            <span className="eyebrow hidden sm:inline">Free account</span>
+            <h1 className="h-poster-sm sm:mt-1">Create account</h1>
+            <p className="text-xs sm:text-sm text-charcoal-600 mt-1 sm:mt-3 leading-snug sm:leading-relaxed">
+              {isPublic
+                ? 'It’s free, and your account works right away. Then you can rate wing spots, post photos and comment.'
+                : 'It’s free. An admin approves new accounts before you can see the site.'}
+            </p>
+          </div>
         </div>
 
-        <div className="card px-6 py-7">
+        <div className="card px-5 py-5 sm:px-6 sm:py-7">
           {onSignInGoogle && (
-            <div className="space-y-5 mb-5">
+            <div className="space-y-3 sm:space-y-5 mb-4 sm:mb-5">
               <button
                 type="button"
                 onClick={handleGoogle}
                 disabled={googleLoading || loading}
-                className="btn-primary w-full gap-3 py-3.5 text-base"
+                className="btn-primary w-full gap-3 py-2.5 sm:py-3.5 text-sm sm:text-base tracking-wide sm:tracking-crowd"
               >
                 {googleLoading ? (
                   <span className="w-5 h-5 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />
@@ -190,36 +198,7 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
               </div>
             </div>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Avatar picker */}
-            <div className="flex flex-col items-center gap-3 pb-2">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-20 h-20 -rotate-2 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 shadow-sticker hover:border-sauce-400 transition-colors flex items-center justify-center text-cream-100 flex-shrink-0"
-              >
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-3xl">👤</span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="min-h-[44px] px-2 text-xs text-sauce-500 font-bold hover:underline"
-              >
-                {avatarPreview ? 'Change photo' : 'Add profile photo (optional)'}
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarChange}
-              />
-            </div>
-
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             <div>
               <label className="label" htmlFor="register-name">Display name</label>
               <input
@@ -233,8 +212,15 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
                 disabled={loading}
                 required
                 maxLength={60}
+                aria-describedby="register-handle"
               />
-              <p className="text-[11px] text-charcoal-500 mt-1">Shown publicly next to your reviews.</p>
+              {/* The username is made from the display name when the account is
+                  created (DB trigger set_profile_username), so say so here. */}
+              <p id="register-handle" className="text-[11px] text-charcoal-500 mt-1 break-words" aria-live="polite">
+                {handle
+                  ? <>Shown publicly next to your reviews. Your profile link will be <strong className="text-night-900 font-bold [overflow-wrap:anywhere]">{PROFILE_LINK_PREFIX}{handle}</strong> (you can change it later in Edit profile).</>
+                  : 'Shown publicly next to your reviews, and used for your profile link.'}
+              </p>
             </div>
 
             <div>
@@ -305,9 +291,37 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
               )}
             </div>
 
-            {error && (
-              <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
-            )}
+            {/* Optional profile photo: last, so the required fields come first */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label={avatarPreview ? 'Change profile photo' : 'Add profile photo'}
+                className="w-12 h-12 -rotate-2 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 shadow-sticker-sm hover:border-sauce-400 transition-colors flex items-center justify-center text-cream-100 flex-shrink-0"
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xl" aria-hidden>👤</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="min-h-[44px] px-1 text-xs text-sauce-500 font-bold hover:underline text-left"
+              >
+                {avatarPreview ? 'Change photo' : 'Add profile photo (optional)'}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+            </div>
+
+            {error && <AuthErrorAlert message={error} email={email} />}
 
             <button
               type="submit"
@@ -328,7 +342,7 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
 
             <div className="text-[11px] text-charcoal-500 leading-relaxed text-center space-y-1">
               <p>
-                By creating an account you agree to the{' '}
+                By creating an account you confirm you are 13 or older and agree to the{' '}
                 <Link to="/terms" target="_blank" className="text-sauce-500 font-bold hover:underline">Terms</Link>
                 {' '}and{' '}
                 <Link to="/privacy" target="_blank" className="text-sauce-500 font-bold hover:underline">Privacy Policy</Link>.
@@ -349,6 +363,77 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
       </div>
     </div>
   )
+}
+
+/**
+ * An auth error in plain words, plus the next step as a link when there is
+ * one (the address already has an account → sign in / reset password).
+ * Pass a message that already went through friendlyAuthError().
+ */
+export function AuthErrorAlert({ message, email, onResetPassword }: {
+  message: string
+  email?: string
+  /** On the sign-in page: switch to its own reset form instead of a link. */
+  onResetPassword?: () => void
+}) {
+  const kind = authErrorKind(message)
+  const linkClass = 'inline-flex items-center min-h-[44px] px-1 -my-2 underline underline-offset-2 hover:text-night-900'
+  const state = email ? { email } : undefined
+  return (
+    <div role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">
+      <p>{message}</p>
+      {kind === 'already-registered' && (
+        <p className="mt-1 flex flex-wrap gap-x-3">
+          <Link to="/login" state={state} className={linkClass}>Sign in</Link>
+          <Link to="/login" state={{ ...state, forgot: true }} className={linkClass}>Reset password</Link>
+        </p>
+      )}
+      {kind === 'wrong-credentials' && (
+        <p className="mt-1 flex flex-wrap gap-x-3">
+          {onResetPassword ? (
+            <button type="button" onClick={onResetPassword} className={linkClass}>Reset password</button>
+          ) : (
+            <Link to="/login" state={{ ...state, forgot: true }} className={linkClass}>Reset password</Link>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The username the sign-up trigger will give this display name: its slug, or
+ * slug-2, slug-3… if that is already used (or was someone's old username).
+ * The lookup is best effort — if it fails, show the plain slug.
+ */
+function useHandlePreview(displayName: string): string {
+  const base = slugifyName(displayName.trim())
+  const [taken, setTaken] = useState<{ base: string; names: string[] } | null>(null)
+
+  useEffect(() => {
+    if (!base) return
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      try {
+        const [current, old] = await Promise.all([
+          supabase.from('profiles').select('username').like('username', `${base}%`).limit(500),
+          supabase.from('profile_username_history').select('username').like('username', `${base}%`).limit(500),
+        ])
+        if (cancelled) return
+        const names = [
+          ...((current.data ?? []) as { username: string | null }[]),
+          ...((old.data ?? []) as { username: string | null }[]),
+        ].map(r => r.username ?? '')
+        setTaken({ base, names })
+      } catch {
+        // Offline or blocked: the plain slug is still the likely answer.
+      }
+    }, 400)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [base])
+
+  if (!base) return ''
+  return taken?.base === base ? firstFreeHandle(base, taken.names) : base
 }
 
 export function LegalLinks() {

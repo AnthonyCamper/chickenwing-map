@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import BadgeIcon from '../badges/BadgeIcon'
 import AvatarImage from '../ui/AvatarImage'
+import { cleanUserText } from '../../lib/userText'
 
 interface RecapReview {
   id: string
@@ -41,6 +42,9 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
   const [reviews, setReviews] = useState<RecapReview[]>([])
   const [photos, setPhotos] = useState<RecapPhoto[]>([])
   const [winners, setWinners] = useState<BadgeWinner[]>([])
+  // Until the reviews query answers, the counts aren't known: show a
+  // placeholder, not "0 reviews" that then jumps to the real number.
+  const [reviewsLoaded, setReviewsLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +57,7 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       if (revErr) console.error('Recap: reviews query failed', revErr)
       const reviewRows = (revs ?? []) as RecapReview[]
       setReviews(reviewRows)
+      setReviewsLoaded(true)
 
       if (reviewRows.length > 0) {
         const { data: pics, error: picErr } = await supabase
@@ -90,8 +95,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
         type P = { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; is_private: boolean | null }
         for (const p of (profs ?? []) as P[]) {
           profileMap.set(p.id, p.is_private
-            ? { display_name: 'Private', avatar_url: null }
-            : { display_name: p.display_name ?? p.full_name ?? 'Wing lover', avatar_url: p.avatar_url })
+            ? { display_name: 'Private member', avatar_url: null }
+            : { display_name: cleanUserText(p.display_name ?? p.full_name) || 'Wing lover', avatar_url: p.avatar_url })
         }
       }
 
@@ -122,11 +127,13 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
     ? (reviews.reduce((s, r) => s + r.overall_rating, 0) / reviews.length).toFixed(1)
     : null
 
-  const stats: Array<{ value: string; label: string }> = [
+  // null value = still loading (rendered as a placeholder bar)
+  const stats: Array<{ value: string | null; label: string }> = [
     { value: String(totalStops), label: totalStops === 1 ? 'stop' : 'stops' },
     { value: String(totalCheckins), label: 'check-ins' },
-    { value: String(reviews.length), label: reviews.length === 1 ? 'review' : 'reviews' },
-    ...(avgRating ? [{ value: avgRating, label: 'avg rating' }] : []),
+    { value: reviewsLoaded ? String(reviews.length) : null, label: reviews.length === 1 && reviewsLoaded ? 'review' : 'reviews' },
+    // Always reserve the 4th cell so nothing shifts when the average arrives
+    { value: reviewsLoaded ? (avgRating ?? '–') : null, label: 'average rating' },
   ]
 
   return (
@@ -134,7 +141,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       {/* Photo wall */}
       {photos.length > 0 && (
         <section>
-          <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest mb-3 px-1">The evidence</h3>
+          <h3 className="font-display uppercase text-lg text-night-900 tracking-tightest px-1">The evidence</h3>
+          <p className="text-xs text-charcoal-500 mb-3 px-1">Photos from the reviews posted at this event.</p>
           <div className="grid grid-cols-3 gap-1.5">
             {photos.slice(0, 12).map(p => (
               <Link
@@ -157,7 +165,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       {/* Badge winners */}
       {winners.length > 0 && (
         <section className="card px-5 py-4">
-          <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">Bragging rights</h3>
+          <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">Bragging rights</h3>
+          <p className="text-xs text-charcoal-500 mb-3">Badges people earned at this event.</p>
           <ul className="space-y-2.5">
             {winners.map(w => (
               <li key={w.badge_id} className="flex items-center gap-3">
@@ -169,7 +178,7 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-extrabold text-night-900 uppercase tracking-crowd truncate">{w.name}</p>
-                  <p className="text-xs text-charcoal-500 truncate">
+                  <p className="user-text text-xs text-charcoal-500 truncate">
                     {w.earners.map(e => e.display_name).join(', ')}
                   </p>
                 </div>
@@ -200,11 +209,17 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       )}
       {/* The numbers */}
       <section className="card px-5 py-4">
-        <h3 className="font-display uppercase text-base text-night-900 tracking-tightest mb-3">The damage</h3>
-        <div className="grid grid-cols-4 gap-2 text-center">
+        <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">The damage</h3>
+        <p className="text-xs text-charcoal-500 mb-3">Event totals.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-4 text-center" aria-busy={!reviewsLoaded}>
           {stats.map(s => (
             <div key={s.label}>
-              <p className="font-display text-2xl text-sauce-500 leading-none">{s.value}</p>
+              {s.value === null ? (
+                // Same height as the number (text-2xl, leading-none)
+                <p aria-label="Loading" className="mx-auto h-6 w-8 rounded bg-cream-200 animate-pulse" />
+              ) : (
+                <p className="font-display text-2xl text-sauce-500 leading-none">{s.value}</p>
+              )}
               {/* nowrap: "check-ins" broke at its hyphen ("CHECK- / INS") at 375px */}
               <p className="text-[10px] font-extrabold uppercase tracking-wide whitespace-nowrap text-charcoal-500 mt-1">{s.label}</p>
             </div>

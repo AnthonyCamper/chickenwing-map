@@ -37,6 +37,16 @@ jobs:
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
           VITE_KLIPPY_API_KEY: ${{ secrets.VITE_KLIPPY_API_KEY }}
 
+      # `npm run build` also writes dist/404.html and dist/<route>/index.html
+      # (scripts/pages-spa-fallback.mjs) so deep links load the app in one
+      # request instead of bouncing through /?p=. Fail loudly if it didn't.
+      - name: Check SPA fallback pages
+        run: |
+          for f in 404.html login/index.html events/index.html privacy/index.html; do
+            test -f "dist/$f" || { echo "missing dist/$f"; exit 1; }
+          done
+          cmp -s dist/index.html dist/404.html || { echo "dist/404.html is not a copy of dist/index.html"; exit 1; }
+
       - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3

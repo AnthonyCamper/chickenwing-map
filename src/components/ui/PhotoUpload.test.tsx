@@ -45,4 +45,21 @@ describe('PhotoUpload', () => {
     render(<PhotoUpload files={[]} onChange={vi.fn()} />)
     expect(screen.getByText(/15 MB each/)).toBeInTheDocument()
   })
+
+  it('says so when more than 5 photos are picked, instead of silently dropping one', async () => {
+    const onChange = vi.fn()
+    const { container } = render(<PhotoUpload files={[]} onChange={onChange} />)
+    const six = ['a', 'b', 'c', 'd', 'e', 'f'].map(n => file(`${n}.jpg`))
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: six } })
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    expect(onChange.mock.calls[0][0]).toHaveLength(5)
+    expect(screen.getByText('Only 5 photos per review — the first 5 you picked were added.')).toBeInTheDocument()
+  })
+
+  it('shows the limit is reached instead of an active "Add photos" box', () => {
+    const five = ['a', 'b', 'c', 'd', 'e'].map(n => file(`${n}.jpg`))
+    const { container } = render(<PhotoUpload files={five} onChange={vi.fn()} />)
+    expect(screen.getByText('Photo limit reached')).toBeInTheDocument()
+    expect(container.querySelector('input[type="file"]')).toBeDisabled()
+  })
 })

@@ -132,7 +132,11 @@ interface UseGalleryReturn {
   refreshPhoto: (photoId: string) => void
 }
 
-export function useGallery(currentUserId: string, followingOnly = false): UseGalleryReturn {
+/**
+ * @param enabled  false = don't fetch yet (stays `loading`). GalleryView uses
+ *                 it while it works out which tab is the default.
+ */
+export function useGallery(currentUserId: string, followingOnly = false, enabled = true): UseGalleryReturn {
   const cacheKey = feedCacheKey(currentUserId, followingOnly)
   const cached = feedCache.get(cacheKey)
 
@@ -230,6 +234,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
   }, [currentUserId, followingOnly])
 
   useEffect(() => {
+    if (!enabled) return
     // If this feed is already cached (returning via back nav), don't refetch —
     // the seeded state above already holds the full loaded list.
     if (feedCache.has(cacheKey)) return
@@ -239,7 +244,7 @@ export function useGallery(currentUserId: string, followingOnly = false): UseGal
     // page 1 — that's what lets GalleryView's scroll restore land correctly.
     const savedDepth = readSavedDepth(followingOnly)
     fetchPage(0, false, Math.max(PAGE_SIZE, savedDepth) - 1)
-  }, [fetchPage, cacheKey, followingOnly])
+  }, [fetchPage, cacheKey, followingOnly, enabled])
 
   // Keep the module cache in sync with local state (covers paging + optimistic
   // like/comment updates) so the next remount restores the latest list.

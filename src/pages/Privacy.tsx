@@ -7,7 +7,12 @@ export const LEGAL_CONTACT_EMAIL = 'anthonycap949@gmail.com'
 export const LEGAL_LAST_UPDATED = '27 October 2026'
 
 // Shared layout for the plain-language legal pages (/privacy, /terms).
-export function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+export function LegalPage({ title, related, children }: {
+  title: string
+  /** The other legal page, linked at the bottom. */
+  related: { to: string; label: string }
+  children: ReactNode
+}) {
   return (
     <div className="min-h-dvh bg-paper flex flex-col">
       <Helmet>
@@ -24,7 +29,22 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
         <div className="space-y-6 text-sm text-charcoal-700 leading-relaxed break-words">
           {children}
         </div>
+        <LegalFooter related={related} />
       </main>
+    </div>
+  )
+}
+
+// End of both legal pages: the other policy, how to reach us, and the way
+// back into the app (people finish reading at the bottom, not the header).
+function LegalFooter({ related }: { related: { to: string; label: string } }) {
+  return (
+    <div className="mt-10 pt-6 border-t-2 border-night-900/10 text-sm text-charcoal-700 space-y-3">
+      <p>
+        Read also: <Link to={related.to} className="inline-flex items-center min-h-[44px] px-1 text-sauce-500 font-bold underline">{related.label}</Link>
+      </p>
+      <p>Questions or requests: <ContactLink /></p>
+      <Link to="/" className="btn-secondary">← Back to WingKingTony</Link>
     </div>
   )
 }
@@ -58,7 +78,7 @@ export function ContactLink() {
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy Policy">
+    <LegalPage title="Privacy Policy" related={{ to: '/terms', label: 'Terms of Use' }}>
       <p>
         WingKingTony is a small, free website where people rate chicken wing spots. It is run by
         one person, the site admin. This page explains, in plain words, what we collect, who can
@@ -71,8 +91,9 @@ export default function Privacy() {
             by our login provider (Supabase) in hashed form; we never see them.</>,
           <><strong>Google sign-in (optional):</strong> if you choose “Continue with Google”, Google
             gives us your email, your name and your Google profile photo.</>,
-          <><strong>Profile:</strong> display name, a username made from it (used in your profile
-            link), an optional profile photo and an optional short bio.</>,
+          <><strong>Profile:</strong> display name, a username (used in your profile link; it is made
+            from your display name when you sign up, and you can change it in Edit profile), an
+            optional profile photo and an optional short bio.</>,
           <><strong>What you post:</strong> reviews (spot, rating, flavor, size, visit date, text),
             photos, comments, GIFs you add to comments, likes and emoji reactions, people you
             follow, wing lists you make, and event RSVPs and check-ins.</>,
@@ -92,7 +113,7 @@ export default function Privacy() {
           'your display name, username, profile photo and bio',
           'your reviews, review photos, comments and the spots you add',
           'your likes and reactions (in “liked by” lists), who you follow and who follows you',
-          'your badges and wing lists you make public',
+          'your badges, and your wing lists (lists are public by default and show in the Lists tab; if you turn off “Public” on a list, only you can see it)',
           'your event RSVPs (on event pages); event check-ins are shown to signed-in members',
         ]} />
         <p>

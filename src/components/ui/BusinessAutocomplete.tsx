@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useIsMobile } from '../../hooks/useBottomSheetDrag'
 
 export interface Suggestion {
   name: string
@@ -52,10 +53,35 @@ interface Props {
   placeholder?: string
   id?: string
   maxLength?: number
+  /**
+   * Phone sheets: on focus, scroll the field to the top of its scroll area
+   * and show the suggestions in the page flow, sized to the space left above
+   * the keyboard, so they're never hidden under the sheet's footer or the
+   * on-screen keyboard (m1 mobile 6).
+   */
+  revealOnFocus?: boolean
 }
 
 const MIN_QUERY = 2
 const MAX_WINGMAP_RESULTS = 5
+// Room kept above the field when it's scrolled up, for its label.
+const REVEAL_LABEL_SPACE = 32
+const LIST_MAX_PX = 288
+const LIST_MIN_PX = 140
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  let p = el.parentElement
+  while (p) {
+    const oy = getComputedStyle(p).overflowY
+    if (oy === 'auto' || oy === 'scroll') return p
+    p = p.parentElement
+  }
+  return null
+}
+
+// Location shared for "places near me" is rounded to about 1 km before it's
+// sent anywhere — enough to sort nearby places, not enough to pinpoint you.
+const approx = (n: number) => Math.round(n * 100) / 100
 
 function buildAddress(result: NominatimResult): string {
   const a = result.address
@@ -132,7 +158,7 @@ function isSameSpot(a: Suggestion, b: Suggestion): boolean {
   return Math.abs(Number(a.lat) - Number(b.lat)) < 0.002 && Math.abs(Number(a.lng) - Number(b.lng)) < 0.002
 }
 
-export default function BusinessAutocomplete({ value, onChange, onSelect, placeholder, id, maxLength }: Props) {
+export default function BusinessAutocomplete({ value, onChange, onSelect, placeholder, id, maxLength, revealOnFocus = false }: Props) {
   const [wingmap, setWingmap] = useState<Suggestion[]>([])
   const [osm, setOsm] = useState<Suggestion[]>([])
   const [wingmapLoading, setWingmapLoading] = useState(false)
@@ -141,6 +167,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
   const [activeIndex, setActiveIndex] = useState(-1)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -154,7 +181,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     if (!navigator.geolocation) { setLocationDenied(true); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
-      pos => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false) },
+      pos => { setUserLocation({ lat: approx(pos.coords.latitude), lng: approx(pos.coords.longitude) }); setLocating(false) },
       () => { setLocationDenied(true); setLocating(false) },
       { timeout: 8000 }
     )
@@ -339,8 +366,139 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
 
   const showDropdown = open && value.trim().length >= MIN_QUERY
 
+  // ── Phone sheets: keep the field and its suggestions in view ─────────────
+  const isMobile = useIsMobile()
+  const inline = revealOnFocus && isMobile
+  const [listMax, setListMax] = useState<number | null>(null)
+
+  const reveal = useCallback((scroll: boolean) => {
+    const wrap = wrapperRef.current
+    const input = inputRef.current
+    if (!wrap || !input || document.activeElement !== input) return
+    const sc = scrollParent(wrap)
+    if (scroll && sc) {
+      const offset = wrap.getBoundingClientRect().top - sc.getBoundingClientRect().top - REVEAL_LABEL_SPACE
+      if (Math.abs(offset) > 2) sc.scrollTop += offset
+    }
+    // Visible area: above the keyboard (visualViewport) and inside the sheet's
+    // scroll area (its footer sits below it).
+    const vv = window.visualViewport
+    const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+    const visibleBottom = Math.min(viewBottom, sc ? sc.getBoundingClientRect().bottom : viewBottom)
+    const listTop = input.getBoundingClientRect().bottom + 4
+    setListMax(Math.max(LIST_MIN_PX, Math.min(LIST_MAX_PX, Math.floor(visibleBottom - listTop - 8))))
+  }, [])
+
+  // On focus, and again once the sheet has expanded / the keyboard is up.
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleFocus = () => {
+    if (suggestions.length > 0 || loading) setOpen(true)
+    if (!inline) return
+    reveal(true)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => reveal(true), 400)
+  }
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
+
+  // The list opening (and its results arriving) grows the sheet, which only
+  // then has room to scroll the field up: do it again each time.
+  useEffect(() => {
+    if (!inline || !showDropdown) return
+    const raf = requestAnimationFrame(() => reveal(true))
+    return () => cancelAnimationFrame(raf)
+  }, [inline, showDropdown, suggestions.length, loading, reveal])
+
+  // Keyboard showing/hiding changes the visible height.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!inline || !vv) return
+    const onResize = () => reveal(true)
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [inline, reveal])
+
+  const locationBlock = (
+    <>
+      {!userLocation && !locationDenied && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-2">
+          <button
+            type="button"
+            onClick={requestLocation}
+            disabled={locating}
+            aria-describedby={`${listboxId}-near-help`}
+            className="min-h-[44px] text-xs font-bold text-sauce-600 hover:text-sauce-700 transition-colors"
+          >
+            {locating ? 'Finding your location…' : '📍 Show places near me'}
+          </button>
+          <span id={`${listboxId}-near-help`} className="text-xs text-charcoal-500">
+            Uses your approximate location to search OpenStreetMap.
+          </span>
+        </div>
+      )}
+      {locationDenied && (
+        <p className="mt-1 text-xs text-charcoal-500">Location is off, so results aren't sorted by distance.</p>
+      )}
+    </>
+  )
+
+  const dropdown = showDropdown && (
+    <div
+      ref={dropdownRef}
+      id={listboxId}
+      className={`${inline ? 'relative mb-2' : 'absolute left-0 right-0 top-full max-h-72'} mt-1 bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 overflow-y-auto overscroll-contain`}
+      style={inline && listMax ? { maxHeight: listMax } : undefined}
+      role="listbox"
+      aria-label="Wing spot suggestions"
+      aria-busy={loading || undefined}
+    >
+      {suggestions.map((s, i) => (
+        <div key={s.key} role="presentation">
+          {s.source === 'osm' && i === wingmap.length && wingmap.length > 0 && (
+            <p className="px-4 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 border-t border-night-900/10">
+              Other places on the map
+            </p>
+          )}
+          <button
+            id={`${listboxId}-${i}`}
+            type="button"
+            role="option"
+            aria-selected={i === activeIndex}
+            onMouseDown={e => { e.preventDefault(); handleSelect(s) }}
+            onMouseEnter={() => setActiveIndex(i)}
+            className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-night-900/10 min-h-[56px] ${
+              i === activeIndex ? 'bg-cream-100' : 'hover:bg-cream-100/60'
+            }`}
+          >
+            <span className="text-base mt-0.5 flex-shrink-0" aria-hidden>{s.source === 'wingmap' ? '🍗' : '📍'}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
+              <p className="text-xs text-charcoal-500 truncate mt-0.5">
+                {s.source === 'wingmap' && (
+                  <span className="font-bold text-sauce-600">Already on WingKingTony · </span>
+                )}
+                {s.address || 'No address listed'}
+              </p>
+            </div>
+          </button>
+        </div>
+      ))}
+
+      {loading && (
+        <p className="px-4 py-3 text-sm text-charcoal-500" role="status">
+          {suggestions.length ? 'Searching for more places…' : 'Searching…'}
+        </p>
+      )}
+
+      {!loading && suggestions.length === 0 && (
+        <p className="px-4 py-3 text-sm text-charcoal-600" role="status">
+          No matches. Check the spelling or add the address below.
+        </p>
+      )}
+    </div>
+  )
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <div className="relative">
         <input
           ref={inputRef}
@@ -350,7 +508,8 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => (suggestions.length > 0 || loading) && setOpen(true)}
+          onFocus={handleFocus}
+          data-expand-sheet={revealOnFocus || undefined}
           placeholder={placeholder ?? 'Search for a wing spot…'}
           maxLength={maxLength}
           autoComplete="off"
@@ -370,74 +529,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
         )}
       </div>
 
-      {!userLocation && !locationDenied && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
-        <button
-          type="button"
-          onClick={requestLocation}
-          disabled={locating}
-          className="mt-1 min-h-[44px] text-xs font-bold text-sauce-600 hover:text-sauce-700 transition-colors"
-        >
-          {locating ? 'Finding your location…' : '📍 Show places near me'}
-        </button>
-      )}
-      {locationDenied && (
-        <p className="mt-1 text-xs text-charcoal-500">Location is off, so results aren't sorted by distance.</p>
-      )}
-
-      {showDropdown && (
-        <div
-          ref={dropdownRef}
-          id={listboxId}
-          className="absolute left-0 right-0 top-full mt-1 bg-cream-50 rounded-2xl shadow-elevated border-2 border-night-900 overflow-hidden z-50 max-h-72 overflow-y-auto overscroll-contain"
-          role="listbox"
-          aria-label="Wing spot suggestions"
-          aria-busy={loading || undefined}
-        >
-          {suggestions.map((s, i) => (
-            <div key={s.key} role="presentation">
-              {s.source === 'osm' && i === wingmap.length && wingmap.length > 0 && (
-                <p className="px-4 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-crowd text-charcoal-500 border-t border-night-900/10">
-                  Other places on the map
-                </p>
-              )}
-              <button
-                id={`${listboxId}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={i === activeIndex}
-                onMouseDown={e => { e.preventDefault(); handleSelect(s) }}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-b border-night-900/10 min-h-[56px] ${
-                  i === activeIndex ? 'bg-cream-100' : 'hover:bg-cream-100/60'
-                }`}
-              >
-                <span className="text-base mt-0.5 flex-shrink-0" aria-hidden>{s.source === 'wingmap' ? '🍗' : '📍'}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-night-800 truncate">{s.name}</p>
-                  <p className="text-xs text-charcoal-500 truncate mt-0.5">
-                    {s.source === 'wingmap' && (
-                      <span className="font-bold text-sauce-600">Already on WingKingTony · </span>
-                    )}
-                    {s.address || 'No address listed'}
-                  </p>
-                </div>
-              </button>
-            </div>
-          ))}
-
-          {loading && (
-            <p className="px-4 py-3 text-sm text-charcoal-500" role="status">
-              {suggestions.length ? 'Searching for more places…' : 'Searching…'}
-            </p>
-          )}
-
-          {!loading && suggestions.length === 0 && (
-            <p className="px-4 py-3 text-sm text-charcoal-600" role="status">
-              No matches. Check the spelling or add the address below.
-            </p>
-          )}
-        </div>
-      )}
+      {inline ? <>{dropdown}{locationBlock}</> : <>{locationBlock}{dropdown}</>}
     </div>
   )
 }

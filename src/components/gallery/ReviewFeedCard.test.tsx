@@ -84,6 +84,37 @@ describe('ReviewFeedCard', () => {
   })
 })
 
+describe('ReviewFeedCard copy and photos', () => {
+  it('pluralises counts ("2 comments", "1 like")', () => {
+    renderCard(makeItem({ comment_count: 2, like_count: 1 }))
+    expect(screen.getByRole('button', { name: '2 comments' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Like/ })).toHaveTextContent('1 like')
+  })
+
+  it('describes the photo in its alt text', () => {
+    renderCard(makeItem())
+    expect(screen.getByAltText("Photo of wings at Pubwells, from Mo Bile's review")).toBeInTheDocument()
+  })
+
+  it('a missing photo collapses to a one-line note, not a full-height frame', () => {
+    renderCard(makeItem({ photos: [{ photo_id: 'p1', photo_url: 'data:image/svg+xml;base64,AAAA', display_order: 0, photo_created_at: '2026-10-27T22:00:00Z' }] }))
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument()
+  })
+
+  it('a photo that fails to load is dropped the same way', () => {
+    renderCard(makeItem())
+    fireEvent.error(screen.getByAltText(/Photo of wings/))
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument()
+  })
+
+  it('gives the name and spot links 44px tall tap targets', () => {
+    renderCard(makeItem())
+    expect(screen.getByRole('button', { name: 'Mo Bile' })).toHaveClass('min-h-[44px]')
+    expect(screen.getByRole('link', { name: 'Pubwells' })).toHaveClass('min-h-[44px]')
+  })
+})
+
 describe('isUuid (review permalink guard)', () => {
   it('rejects junk ids so /reviews/not-a-uuid shows the 404', () => {
     expect(isUuid('not-a-uuid')).toBe(false)

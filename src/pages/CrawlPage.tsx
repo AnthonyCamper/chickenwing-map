@@ -20,6 +20,8 @@ import { useAuthGate } from '../components/AuthGateModal'
 import { useDragCarousel } from '../components/gallery/useDragCarousel'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
 import { isUuid } from '../lib/reviewActions'
+import { cleanUserText } from '../lib/userText'
+import CrawlCoverCollage from '../components/ui/CrawlCoverCollage'
 
 interface SpotPhoto { id: string; url: string }
 
@@ -223,10 +225,33 @@ export default function CrawlPage() {
   }
 
   if (status === 'loading') {
+    // Same shape as the loaded page (cover, title, byline, first rows) so
+    // there's something to look at on slow 3G and nothing jumps after.
     return (
-      <PageStateShell>
-        <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      </PageStateShell>
+      <div className="min-h-dvh bg-paper">
+        <AppHeader />
+        <div className="animate-pulse" role="status">
+          <span className="sr-only">Loading list…</span>
+          <div className="border-b-2 border-night-900 bg-cream-100">
+            <div aria-hidden="true" className="w-full h-48 sm:h-64 bg-cream-200" />
+            <div className="max-w-3xl mx-auto px-5 py-6">
+              <div aria-hidden="true" className="h-3 w-16 rounded bg-cream-200 mb-3" />
+              <div aria-hidden="true" className="h-9 w-3/4 rounded bg-cream-200" />
+              <div aria-hidden="true" className="flex items-center gap-3 mt-5">
+                <div className="w-8 h-8 rounded-full bg-cream-200" />
+                <div className="h-3 w-40 rounded bg-cream-200" />
+              </div>
+            </div>
+          </div>
+          <div className="max-w-3xl mx-auto px-5 py-8 space-y-3">
+            <div aria-hidden="true" className="h-48 sm:h-56 rounded-2xl bg-cream-200" />
+            {[0, 1].map(i => (
+              <div key={i} aria-hidden="true" className="h-28 rounded-xl border-2 border-cream-200 bg-cream-50" />
+            ))}
+            <p className="pt-2 text-center font-display uppercase tracking-crowd text-sm text-night-700">Loading list…</p>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -264,6 +289,12 @@ export default function CrawlPage() {
   const gridPhotos = !crawl.cover_image_url ? allItemPhotos.slice(0, 4) : []
   const authorPrivate = crawl.author_is_private
   const authorLinkable = !authorPrivate && crawl.author_username
+  const title = cleanUserText(crawl.title)
+  // The view already masks a private author's name for everyone else; show
+  // that in plain words rather than the view's "Private wing-logger".
+  const authorName = authorPrivate && !isOwner
+    ? 'Private member'
+    : cleanUserText(crawl.author_name) || 'Unknown'
   const description = crawl.description?.trim()
     ? crawl.description.trim().slice(0, 200)
     : `${crawl.item_count} wing ${crawl.item_count === 1 ? 'spot' : 'spots'} curated by ${crawl.author_name ?? 'a member'} on WingKingTony.`
@@ -271,9 +302,9 @@ export default function CrawlPage() {
   return (
     <div className="min-h-dvh bg-paper">
       <Helmet>
-        <title>{crawl.title} — WingKingTony</title>
+        <title>{`${title} — WingKingTony`}</title>
         <meta name="description" content={description} />
-        <meta property="og:title" content={`${crawl.title} — WingKingTony`} />
+        <meta property="og:title" content={`${title} — WingKingTony`} />
         <meta property="og:description" content={description} />
         {coverPhoto && <meta property="og:image" content={coverPhoto} />}
         <meta property="og:type" content="article" />
@@ -303,15 +334,7 @@ export default function CrawlPage() {
             <img src={crawl.cover_image_url} alt="" className="w-full h-full object-cover" />
           </button>
         ) : gridPhotos.length > 0 ? (
-          <div className="w-full h-48 sm:h-64 grid grid-cols-2 sm:grid-cols-4 gap-px bg-night-900">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="overflow-hidden bg-night-800">
-                {gridPhotos[i] ? (
-                  <img src={gridPhotos[i]} alt="" className="w-full h-full object-cover" />
-                ) : null}
-              </div>
-            ))}
-          </div>
+          <CrawlCoverCollage photos={gridPhotos} className="w-full h-48 sm:h-64" />
         ) : null}
 
         <div className="max-w-3xl mx-auto px-5 py-6">
@@ -319,11 +342,11 @@ export default function CrawlPage() {
             {crawl.is_ranked ? 'Ranked list' : 'List'}
             {!crawl.is_public && ' · Private'}
           </p>
-          <h1 className="font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest break-words [overflow-wrap:anywhere]">
-            {crawl.title}
+          <h1 className="user-text font-display uppercase text-4xl md:text-5xl text-night-900 leading-none tracking-tightest break-words">
+            {title}
           </h1>
           {crawl.description && (
-            <p className="text-sm text-charcoal-700 mt-3 max-w-prose whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{crawl.description}</p>
+            <p className="user-text text-sm text-charcoal-700 mt-3 max-w-prose whitespace-pre-wrap break-words">{cleanUserText(crawl.description)}</p>
           )}
 
           <div className="flex items-center gap-3 mt-5">
@@ -333,22 +356,24 @@ export default function CrawlPage() {
               className="w-8 h-8 flex-shrink-0 rounded-full border-2 border-night-900 object-cover"
               fallback={
                 <div className="w-8 h-8 flex-shrink-0 rounded-full border-2 border-night-900 bg-cream-200 flex items-center justify-center text-xs font-bold text-night-900">
-                  {(crawl.author_name ?? '?').charAt(0).toUpperCase()}
+                  {authorName.charAt(0).toUpperCase()}
                 </div>
               }
             />
-            {/* min-w-0 + truncate keep long names on one line next to "by" */}
-            <div className="text-xs min-w-0 flex items-center gap-1">
-              <span className="text-charcoal-500 flex-shrink-0">by</span>
+            {/* Wraps onto a second line instead of truncating: an 11-letter
+                name used to show as "by THUMB …" next to Like and Share */}
+            <p className="text-xs min-w-0 flex-1 leading-snug line-clamp-2 break-words">
+              <span className="text-charcoal-500">by </span>
               {authorLinkable ? (
-                <Link to={`/u/${crawl.author_username}`} className="min-w-0 inline-flex items-center min-h-[44px] -my-3 font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
-                  <span className="truncate">{crawl.author_name}</span>
+                // py/-my: 44px tall tap area without changing the line height
+                <Link to={`/u/${crawl.author_username}`} className="user-text py-3 -my-3 font-extrabold uppercase tracking-crowd text-night-800 hover:text-sauce-500 transition-colors">
+                  {authorName}
                 </Link>
               ) : (
-                <span className="min-w-0 truncate font-extrabold uppercase tracking-crowd text-night-800">{crawl.author_name ?? 'Unknown'}</span>
+                <span className="user-text font-extrabold uppercase tracking-crowd text-night-800">{authorName}</span>
               )}
-              <span className="text-charcoal-400 flex-shrink-0 whitespace-nowrap">· {crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}</span>
-            </div>
+              <span className="text-charcoal-400 whitespace-nowrap"> · {crawl.item_count} {crawl.item_count === 1 ? 'spot' : 'spots'}</span>
+            </p>
 
             <button
               onClick={handleToggleLike}
@@ -363,7 +388,7 @@ export default function CrawlPage() {
             </button>
             {crawl.is_public ? (
               <ShareButton
-                title={crawl.title}
+                title={title}
                 text={description}
                 url={`${window.location.origin}/lists/${crawl.slug}`}
                 className="flex-shrink-0 inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-2 text-sm text-charcoal-500 hover:text-sauce-500 transition-colors"
@@ -403,7 +428,8 @@ export default function CrawlPage() {
           <>
             {/* On-crawl progress — device-local check-offs */}
             <div className="card-soft px-4 py-3 mb-4 flex items-center gap-3">
-              <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 shrink-0">On the crawl</span>
+              {/* Saved on this device only; plain words (not "on the crawl") */}
+              <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 shrink-0">Visited</span>
               <div className="flex-1 h-2 bg-cream-200 rounded-full overflow-hidden border border-night-900/20">
                 <div
                   className="h-full bg-sauce-400 transition-all duration-500"
@@ -495,7 +521,7 @@ function CrawlItemRow({
           )}
         </div>
         {item.note && (
-          <p className="text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap break-words [overflow-wrap:anywhere]">"{item.note}"</p>
+          <p className="user-text text-sm text-charcoal-700 mt-2 italic whitespace-pre-wrap break-words">"{cleanUserText(item.note)}"</p>
         )}
       </div>
     </div>
@@ -524,7 +550,7 @@ function CrawlItemRow({
               : 'bg-cream-50 border-night-900/20 text-charcoal-500 hover:border-sauce-400'
           }`}
         >
-          {checked ? '✓ Been here' : 'Check off'}
+          {checked ? '✓ Visited' : 'Mark as visited'}
         </button>
         {spot.lat != null && spot.lng != null && (
           <a
@@ -554,7 +580,7 @@ function CrawlItemRow({
         <div className="border-t-2 border-night-900/10 divide-y divide-night-900/8">
           {reviews.map(r => {
             const dateStr = formatVisitDate(r.visited_at)
-            const name = r.reviewer_name ?? 'Anonymous'
+            const name = cleanUserText(r.reviewer_name) || 'Anonymous'
             const initials = name.charAt(0).toUpperCase()
             return (
               <Link key={r.id} to={`/reviews/${r.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-cream-100/50 transition-colors">
@@ -568,13 +594,13 @@ function CrawlItemRow({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="min-w-0 max-w-full truncate text-xs font-extrabold uppercase tracking-crowd text-night-800">{name}</span>
+                    <span className="user-text min-w-0 max-w-full truncate text-xs font-extrabold uppercase tracking-crowd text-night-800">{name}</span>
                     <span className="font-display text-sm text-sauce-500">{Number(r.overall_rating).toFixed(1)}<span className="text-[10px] text-charcoal-400">/10</span></span>
                     {r.wing_flavor && <span className="min-w-0 max-w-full truncate text-[11px] text-charcoal-500">{r.wing_flavor}</span>}
                     <span className="text-[10px] text-charcoal-400 ml-auto">{dateStr}</span>
                   </div>
                   {r.review_text && (
-                    <p className="text-xs text-charcoal-600 mt-0.5 line-clamp-2 leading-relaxed break-words [overflow-wrap:anywhere]">{r.review_text}</p>
+                    <p className="user-text text-xs text-charcoal-600 mt-0.5 line-clamp-2 leading-relaxed break-words">{cleanUserText(r.review_text)}</p>
                   )}
                 </div>
               </Link>

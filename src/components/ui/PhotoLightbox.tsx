@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { useBackClosesOverlay } from '../../hooks/useBackClosesOverlay'
+import { useHideFab } from '../../hooks/useHideFab'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 interface Props {
-  photos: { id: string; url: string }[]
+  /** `alt` describes the photo for screen readers (defaults to "Wing photo"). */
+  photos: { id: string; url: string; alt?: string }[]
   initialIndex: number
   onClose: () => void
 }
@@ -12,6 +16,12 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
   const [index, setIndex] = useState(initialIndex)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
+  // Keyboard focus stays in the viewer and returns to the opener on close
+  const dialogRef = useFocusTrap<HTMLDivElement>()
+
+  // Browser Back closes the viewer instead of leaving the page
+  useBackClosesOverlay(onClose)
+  useHideFab(true)
 
   useEffect(() => {
     // iOS-safe scroll lock with position preservation
@@ -69,6 +79,10 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
 
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={photos.length > 1 ? `Photo viewer, photo ${index + 1} of ${photos.length}` : 'Photo viewer'}
       className="fixed inset-0 z-[150] bg-night-900/95 flex items-center justify-center p-4"
       onClick={onClose}
       onTouchStart={handleTouchStart}
@@ -76,7 +90,7 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
     >
       <button
         onClick={(e) => { e.stopPropagation(); onClose() }}
-        aria-label="Close"
+        aria-label="Close photo"
         style={{ top: 'calc(1rem + env(safe-area-inset-top))', right: 'calc(1rem + env(safe-area-inset-right))' }}
         className="absolute w-11 h-11 rounded-full bg-cream-50/10 hover:bg-cream-50/20 text-cream-50 text-2xl leading-none flex items-center justify-center transition-colors"
       >
@@ -103,6 +117,7 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
           </button>
 
           <span
+            aria-hidden="true"
             className="absolute left-1/2 -translate-x-1/2 text-cream-50/80 text-xs font-bold uppercase tracking-crowd"
             style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
           >
@@ -113,7 +128,7 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
 
       <img
         src={photo.url}
-        alt=""
+        alt={photo.alt || 'Wing photo'}
         onClick={(e) => e.stopPropagation()}
         className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
       />

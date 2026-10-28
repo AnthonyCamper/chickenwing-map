@@ -5,6 +5,8 @@ import toast from 'react-hot-toast'
 import PhotoModal from './gallery/PhotoModal'
 import ShopPanel from './ShopPanel'
 import { usePhotoDetail } from '../hooks/usePhotoDetail'
+import { useHistoryModal } from '../hooks/useHistoryModal'
+import { minZoomToFillHeight, pickInitialFocus } from '../lib/mapFocus'
 import type { SpotWithReviews, ReviewUpdateData } from '../lib/types'
 
 const CAMERA_KEY = 'wingmap-camera'
@@ -44,6 +46,9 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   // Set true when the map is initialised from a saved camera position, so the
   // markers effect's auto-fit never stomps a restored view.
   const restoredCameraRef = useRef(false)
+  // The auto-fit runs once, when the spots first arrive; a new review coming
+  // in later must not yank the map away from where the user is looking.
+  const fittedRef = useRef(false)
 
   const handleLocateMe = () => {
     if (!leafletRef.current || !navigator.geolocation) {
@@ -69,6 +74,7 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
   }
 
   const photoDetail = usePhotoDetail(currentUserId)
+  useHistoryModal(!!photoDetail.review, photoDetail.close)
 
   const shopsWithReviews = shops.filter(s => s.reviews.length > 0)
 
@@ -101,13 +107,14 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
         initialZoom = savedCamera.zoom
         restoredCameraRef.current = true
       } else if (current.length > 0) {
-        const lats = current.map(s => s.spot.lat)
-        const lngs = current.map(s => s.spot.lng)
+        const focus = pickInitialFocus(current.map(s => s.spot))
+        const lats = focus.map(s => s.lat)
+        const lngs = focus.map(s => s.lng)
         initialCenter = [
           lats.reduce((a, b) => a + b) / lats.length,
           lngs.reduce((a, b) => a + b) / lngs.length,
         ]
-        initialZoom = 13
+        initialZoom = 5
       } else {
         // No shops yet — show the world; fitBounds will reposition once data arrives
         initialCenter = [20, 0]
@@ -118,7 +125,15 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
         center: initialCenter,
         zoom: initialZoom,
         zoomControl: true,
+        // Never scroll past the top or bottom of the world: that showed an
+        // empty beige band above the map on phones.
+        maxBounds: L.latLngBounds([-85.05, -540], [85.05, 540]),
+        maxBoundsViscosity: 1,
       })
+      // …and never zoom out so far that the world is shorter than the map.
+      const fillHeight = () => map.setMinZoom(minZoomToFillHeight(map.getSize().y))
+      fillHeight()
+      map.on('resize', fillHeight)
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
@@ -173,7 +188,10 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       if (shopsWithReviews.length === 0) return
 
       // Build the spatial index for this set of shops
-      const sc = new Supercluster<{ id: string }>({ radius: 60, maxZoom: 16 })
+      // radius is measured against `extent`; with the default 512 extent a
+      // radius of 60 was only ~30 screen px, so pins and cluster bubbles
+      // (44–60px wide) sat on top of each other.
+      const sc = new Supercluster<{ id: string }>({ radius: 72, extent: 256, maxZoom: 16 })
       sc.load(
         shopsWithReviews.map(s => ({
           type: 'Feature' as const,
@@ -205,8 +223,21 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
             const n = props.point_count as number
             const marker = L.marker([lat, lng], { icon, title: `${n} spots here. Tap to zoom in.` })
               .on('click', () => {
-                const z = Math.min(sc.getClusterExpansionZoom(props.cluster_id as number), 18)
-                map.flyTo([lat, lng], z, { duration: 0.35 })
+                // Zoom straight to the area these spots cover, not just one
+                // level at a time (that took 4–5 taps from the world view).
+                const clusterId = props.cluster_id as number
+                const expansionZoom = Math.min(sc.getClusterExpansionZoom(clusterId), 18)
+                const leaves = sc.getLeaves(clusterId, Infinity)
+                const bounds = L.latLngBounds(
+                  leaves.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]] as [number, number])
+                )
+                const padding = L.point(48, 48)
+                const fitZoom = Math.min(map.getBoundsZoom(bounds, false, padding), 18)
+                if (bounds.isValid() && fitZoom > expansionZoom) {
+                  map.flyToBounds(bounds, { padding: [48, 48], maxZoom: 18, duration: 0.5 })
+                } else {
+                  map.flyTo([lat, lng], expansionZoom, { duration: 0.35 })
+                }
               })
             marker.addTo(map)
             markersRef.current.push(marker)
@@ -233,14 +264,16 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       // Initial render then fit all shops into view — unless the map started
       // from a restored camera, in which case that position must win.
       render()
-      if (!restoredCameraRef.current) {
-        if (shopsWithReviews.length === 1) {
+      if (!restoredCameraRef.current && !fittedRef.current) {
+        fittedRef.current = true
+        // Open on the region holding most spots, not the whole world.
+        const focus = pickInitialFocus(shopsWithReviews.map(s => s.spot))
+        if (focus.length === 1) {
           // Single point — setView avoids degenerate zero-area bounds from fitBounds
-          const s = shopsWithReviews[0]
-          map.setView([s.spot.lat, s.spot.lng], 15)
+          map.setView([focus[0].lat, focus[0].lng], 15)
         } else {
-          const allBounds = shopsWithReviews.map(s => [s.spot.lat, s.spot.lng]) as [number, number][]
-          map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 15 })
+          const bounds = focus.map(s => [s.lat, s.lng]) as [number, number][]
+          map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 15 })
         }
       }
     })
@@ -298,7 +331,9 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
       className="relative w-full"
       style={{ height: `calc(100dvh - ${chromeOffset}px)` }}
     >
-      <div ref={mapRef} className="w-full h-full" />
+      {/* Land-coloured until the first tiles paint, so the map area never
+          reads as an empty page while Leaflet loads */}
+      <div ref={mapRef} className="w-full h-full bg-[#f2efe9]" />
 
       {/* Locate Me button */}
       {mapReady && (
@@ -308,23 +343,32 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
           disabled={locating}
           aria-label="Show my location"
           title="Show my location"
-          className="absolute z-[20] right-3 w-11 h-11 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
+          className="absolute z-[20] right-3 h-11 pl-3 pr-3.5 gap-1.5 rounded-full bg-cream-50 border-2 border-night-900 shadow-sticker hover:bg-cream-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center disabled:opacity-60"
           style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
         >
           {locating ? (
-            <span className="w-4 h-4 rounded-full border-2 border-night-700 border-t-sauce-400 animate-spin" />
+            <span aria-hidden="true" className="w-4 h-4 rounded-full border-2 border-night-700 border-t-sauce-400 animate-spin" />
           ) : (
-            <svg className="w-5 h-5 text-night-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg aria-hidden="true" className="w-5 h-5 text-night-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
             </svg>
           )}
+          {/* A bare crosshair meant nothing to testers; say what it does */}
+          <span aria-hidden="true" className="text-[11px] font-extrabold uppercase tracking-crowd text-night-900">
+            {locating ? 'Finding you…' : 'My location'}
+          </span>
         </button>
       )}
 
+      {/* Spots still loading: the base map is already usable, so show a
+          small status pill instead of covering it with a spinner */}
       {loading && (
-        <div className="absolute inset-0 bg-cream-50/60 flex items-center justify-center z-10">
-          <div className="w-10 h-10 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none" role="status">
+          <div className="flex items-center gap-2 rounded-full bg-cream-50/95 border-2 border-night-900 shadow-sticker-sm px-3 py-1.5">
+            <span aria-hidden="true" className="w-3.5 h-3.5 rounded-full border-2 border-cream-200 border-t-sauce-400 animate-spin" />
+            <span className="text-[11px] font-extrabold uppercase tracking-crowd text-night-900 whitespace-nowrap">Loading spots…</span>
+          </div>
         </div>
       )}
 
@@ -395,14 +439,16 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
   ` : ''
 
   const totalHeight = safePhoto ? 96 : 52
+  // Wide enough for "🍗 7.1/10": a bare "7.1" didn't say it was out of 10
+  const width = 72
 
   return L.divIcon({
     className: '',
-    iconSize: [44, totalHeight],
-    iconAnchor: [22, totalHeight],
+    iconSize: [width, totalHeight],
+    iconAnchor: [width / 2, totalHeight],
     html: `
       <div style="
-        width:44px;
+        width:${width}px;
         height:${totalHeight}px;
         display:flex;
         flex-direction:column;
@@ -422,7 +468,7 @@ function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
           white-space: nowrap;
           line-height: 1;
           font-family: Inter, system-ui, sans-serif;
-        ">🍗 ${score}</div>
+        ">🍗 ${score}<span style="font-size:9px;font-weight:700;opacity:0.7;">/10</span></div>
         <div style="
           width: 10px;
           height: 10px;

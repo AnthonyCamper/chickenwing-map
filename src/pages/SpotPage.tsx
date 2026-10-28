@@ -297,27 +297,29 @@ export default function SpotPage() {
                     if (res.error) toast.error(res.error)
                     return res
                   }}
+                  media={
+                    r.photos && r.photos.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+                        {r.photos.map((p, i) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setLightbox({ photos: r.photos!, index: i })}
+                            aria-label={`View photo ${i + 1} of ${r.photos!.length} full size`}
+                            className="aspect-square overflow-hidden rounded-lg border-2 border-night-900 hover:border-sauce-400 transition-colors"
+                          >
+                            <img
+                              src={p.url}
+                              alt={`Photo of wings at ${spot.name}`}
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  }
                 />
-                {r.photos && r.photos.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
-                    {r.photos.map((p, i) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setLightbox({ photos: r.photos!, index: i })}
-                        aria-label={`View photo ${i + 1} of ${r.photos!.length} full size`}
-                        className="aspect-square overflow-hidden rounded-lg border-2 border-night-900 hover:border-sauce-400 transition-colors"
-                      >
-                        <img
-                          src={p.url}
-                          alt=""
-                          loading="lazy"
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <div className="pb-3">
                   <Link to={`/reviews/${r.id}`} className="inline-flex items-center min-h-[44px] text-xs text-sauce-500 hover:underline">
                     Open this review →
@@ -331,7 +333,7 @@ export default function SpotPage() {
 
       {lightbox && (
         <PhotoLightbox
-          photos={lightbox.photos.map(p => ({ id: p.id, url: p.url }))}
+          photos={lightbox.photos.map(p => ({ id: p.id, url: p.url, alt: `Photo of wings at ${spot.name}` }))}
           initialIndex={lightbox.index}
           onClose={() => setLightbox(null)}
         />

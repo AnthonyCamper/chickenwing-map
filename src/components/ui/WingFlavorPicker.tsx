@@ -11,6 +11,24 @@ const FLAVOR_CATEGORIES: Record<string, string[]> = {
 
 const ALL_FLAVORS = Object.values(FLAVOR_CATEGORIES).flat()
 
+/**
+ * What Enter in the flavor search should pick: the exact flavor, else the
+ * one built-in flavor the text clearly points at ("Buffalo Med" → "Buffalo
+ * Medium"), else null (use the typed text as a custom flavor). Ambiguous
+ * text like "Honey" stays custom rather than guessing.
+ */
+export function matchFlavor(query: string): string | null {
+  const q = query.trim().toLowerCase()
+  if (!q) return null
+  const exact = ALL_FLAVORS.find(f => f.toLowerCase() === q)
+  if (exact) return exact
+  const prefix = ALL_FLAVORS.filter(f => f.toLowerCase().startsWith(q))
+  if (prefix.length === 1) return prefix[0]
+  if (prefix.length > 1) return null
+  const contains = ALL_FLAVORS.filter(f => f.toLowerCase().includes(q))
+  return contains.length === 1 ? contains[0] : null
+}
+
 // The full list is 40+ chips. Rather than a scroll box inside the already
 // scrolling sheet (swipes get stuck in it on touch), show the first few and
 // let the user expand.
@@ -54,7 +72,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
             <button
               type="button"
               onClick={() => onChange('')}
-              className="w-6 h-6 inline-flex items-center justify-center rounded-full text-cream-50 hover:bg-night-900/20 text-base leading-none"
+              className="relative w-6 h-6 inline-flex items-center justify-center rounded-full text-cream-50 hover:bg-night-900/20 text-base leading-none before:absolute before:-inset-[10px] before:content-['']"
               aria-label="Clear flavor"
             >×</button>
           </span>
@@ -73,14 +91,14 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
           onKeyDown={e => {
             if (e.key === 'Enter' && search.trim()) {
               e.preventDefault()
-              select(exactMatch ?? search.trim())
+              select(matchFlavor(search) ?? search.trim())
             }
           }}
         />
         {search && (
           <button
             type="button"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center text-charcoal-400 hover:text-night-800 hover:bg-cream-100 rounded-full text-lg leading-none"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center text-charcoal-400 hover:text-night-800 hover:bg-cream-100 rounded-full text-lg leading-none before:absolute before:-inset-1.5 before:content-['']"
             onClick={() => setSearch('')}
             aria-label="Clear search"
           >×</button>
@@ -91,6 +109,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           <button
             type="button"
+            aria-pressed={!activeCategory}
             onClick={() => setActiveCategory(null)}
             className={`shrink-0 px-3 py-1.5 min-h-[44px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
               !activeCategory
@@ -102,6 +121,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
             <button
               key={cat}
               type="button"
+              aria-pressed={activeCategory === cat}
               onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
               className={`shrink-0 px-3 py-1.5 min-h-[44px] rounded-full text-xs font-extrabold uppercase tracking-crowd border-2 transition-colors ${
                 activeCategory === cat
@@ -125,6 +145,7 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
           <button
             key={flavor}
             type="button"
+            aria-pressed={value === flavor}
             onClick={() => select(flavor)}
             className={`px-3 py-1.5 min-h-[44px] rounded-full text-xs font-bold border-2 transition-colors ${
               value === flavor

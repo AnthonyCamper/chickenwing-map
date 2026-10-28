@@ -26,8 +26,35 @@ export function isSchemaDriftError(error: { code?: string | null } | null | unde
   return !!error?.code && SCHEMA_DRIFT_CODES.has(error.code)
 }
 
-export function friendlyAuthError(message: string): string {
+/** Auth failures that need a next step (a link), not just a sentence. */
+export type AuthErrorKind = 'already-registered' | 'wrong-credentials' | null
+
+export function authErrorKind(message: string | null | undefined): AuthErrorKind {
+  const m = (message ?? '').toLowerCase()
+  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user_already_exists')
+    || m.includes('an account with this email already exists')) {
+    return 'already-registered'
+  }
+  if (m.includes('invalid login credentials') || m.includes('invalid_credentials')
+    || m.includes('email or password is wrong')) {
+    return 'wrong-credentials'
+  }
+  return null
+}
+
+export const ALREADY_REGISTERED_MESSAGE =
+  'An account with this email already exists. Sign in instead, or reset your password.'
+export const WRONG_CREDENTIALS_MESSAGE =
+  'Email or password is wrong. Try again or reset your password.'
+
+/** Every auth error shown to a person goes through here: Supabase's own
+ *  strings ("User already registered", "Invalid login credentials") read
+ *  like untranslated server output. Unknown errors get a plain sentence with
+ *  the original kept at the end for support. */
+export function friendlyAuthError(message: string | null | undefined): string {
   if (!message) return 'Something went wrong. Please try again.'
+  // Already ours (useAuth's authError can carry this one): show as written.
+  if (message === SCHEMA_DRIFT_MESSAGE || message.startsWith('Something went wrong.')) return message
 
   const m = message.toLowerCase()
 
@@ -39,7 +66,34 @@ export function friendlyAuthError(message: string): string {
     return "That email address doesn't look right — check it for typos and try again."
   }
 
-  return message
+  const kind = authErrorKind(message)
+  if (kind === 'already-registered') return ALREADY_REGISTERED_MESSAGE
+  if (kind === 'wrong-credentials') return WRONG_CREDENTIALS_MESSAGE
+
+  if (m.includes('email not confirmed')) {
+    return 'Please confirm your email first. Open the link in the email we sent you, then sign in.'
+  }
+  if (m.includes('should be different from the old password') || m.includes('same_password')) {
+    return 'Your new password must be different from your old password.'
+  }
+  if (m.includes('password should') || m.includes('weak_password') || m.includes('weak password')) {
+    return 'That password is too easy to guess. Use at least 8 characters with a mix of letters and numbers.'
+  }
+  if (m.includes('signup') && (m.includes('disabled') || m.includes('not allowed'))) {
+    return 'New accounts can’t be created right now. Please try again later.'
+  }
+  if (m.includes('only request this after') || m.includes('request rate limit') || m.includes('over_request_rate_limit')
+    || m.includes('too many requests')) {
+    return 'Too many tries in a short time. Wait a minute, then try again.'
+  }
+  if (m.includes('expired') || m.includes('auth session missing') || m.includes('invalid jwt')) {
+    return 'Your sign-in link has expired. Ask for a new link and try again.'
+  }
+  if (m.includes('failed to fetch') || m.includes('networkerror') || m.includes('load failed') || m.includes('network request failed')) {
+    return 'We couldn’t reach the server. Check your internet connection and try again.'
+  }
+
+  return `Something went wrong. Please try again. (Details: ${message})`
 }
 
 // ── Sign-up form checks ─────────────────────────────────────────────────────

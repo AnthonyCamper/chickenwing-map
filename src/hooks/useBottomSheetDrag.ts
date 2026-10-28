@@ -101,6 +101,24 @@ export function useBottomSheetDrag(options?: Options) {
   // Only apply two-state behavior on mobile (<640px). Reactive to resize/rotation.
   const isMobile = useIsMobile()
 
+  // A field marked `data-expand-sheet` (e.g. a search box with a suggestion
+  // list) opens the sheet to full height when it gets focus, so the on-screen
+  // keyboard leaves room for what's typed and suggested (m1 mobile 6). The
+  // sheet is found from the drag handle, which every sheet renders.
+  const [sheetEl, setSheetEl] = useState<HTMLElement | null>(null)
+  const handleRef = useCallback((el: HTMLElement | null) => {
+    setSheetEl(el ? (el.closest<HTMLElement>('[role="dialog"]') ?? el.parentElement) : null)
+  }, [])
+  useEffect(() => {
+    if (!isMobile || !sheetEl) return
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest?.('[data-expand-sheet]')) setExpanded(true)
+    }
+    sheetEl.addEventListener('focusin', onFocusIn)
+    return () => sheetEl.removeEventListener('focusin', onFocusIn)
+  }, [isMobile, sheetEl])
+
   const visualOffset = dragDelta !== 0 ? dragDelta * DAMPEN : 0
   const animating = dragDelta === 0 // apply transition only when not actively dragging
 
@@ -123,6 +141,7 @@ export function useBottomSheetDrag(options?: Options) {
     expanded,
     setExpanded,
     handleProps: {
+      ref: handleRef,
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
       onTouchEnd: handleTouchEnd,

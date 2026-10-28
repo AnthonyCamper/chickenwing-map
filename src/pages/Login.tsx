@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { supabase } from '../lib/supabase'
 import { friendlyAuthError } from '../lib/authErrors'
-import { GoogleIcon, LegalLinks } from './Register'
+import { AuthErrorAlert, GoogleIcon, LegalLinks } from './Register'
 
 interface Props {
   onSignInGoogle: () => Promise<void>
@@ -14,14 +14,17 @@ interface Props {
 }
 
 export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrowse, authError }: Props) {
+  // Register's "already registered" links pass the email (and whether to open
+  // the reset form) so the person doesn't have to type it again.
+  const linkState = (useLocation().state ?? null) as { email?: string; forgot?: boolean } | null
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(linkState?.email ?? '')
   const [password, setPassword] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
-  const [error, setError] = useState<string | null>(authError ?? null)
+  const [error, setError] = useState<string | null>(authError ? friendlyAuthError(authError) : null)
 
   // Forgot-password flow
-  const [forgotMode, setForgotMode] = useState(false)
+  const [forgotMode, setForgotMode] = useState(!!linkState?.forgot)
   const [resetSending, setResetSending] = useState(false)
   const [resetSent, setResetSent] = useState(false)
 
@@ -35,9 +38,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
     if (!email || !password) return
     setError(null)
     setEmailLoading(true)
-    const result = await onSignInEmail(email, password)
+    const result = await onSignInEmail(email.trim(), password)
     if (result.error) {
-      setError(result.error)
+      setError(friendlyAuthError(result.error))
       setEmailLoading(false)
     }
   }
@@ -51,13 +54,18 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
     // the GH-Pages 404 trick round-trips /reset-password (and the auth hash)
     // back into the SPA router.
     const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}reset-password`
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
     setResetSending(false)
     if (resetError) {
       setError(friendlyAuthError(resetError.message))
       return
     }
     setResetSent(true)
+  }
+
+  const enterForgotMode = () => {
+    setForgotMode(true)
+    setError(null)
   }
 
   const exitForgotMode = () => {
@@ -67,7 +75,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
   }
 
   return (
-    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+    // Small phones: compact header and card so "Sign in with email" fits on
+    // the first screen (it sat at y=720 on a 375×667 phone).
+    <div className="relative min-h-dvh bg-cream-50 grain-overlay flex flex-col items-center justify-start sm:justify-center px-4 sm:px-6 py-4 sm:py-12 overflow-hidden">
       <Helmet>
         <title>Sign in — WingKingTony</title>
       </Helmet>
@@ -78,21 +88,23 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
 
       <div className="relative w-full max-w-sm animate-fade-in">
         {/* Brand mark */}
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex flex-row sm:flex-col items-center justify-center gap-3 sm:gap-0 text-left sm:text-center mb-4 sm:mb-8">
           <img
             src="/favicon.svg"
             alt=""
-            className="w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5"
+            className="w-12 h-12 sm:w-20 sm:h-20 flex-shrink-0 -rotate-2 rounded-xl sm:rounded-2xl border-2 border-night-900 shadow-sticker-sm sm:shadow-sticker sm:mb-5"
           />
-          <span className="eyebrow">The wing council</span>
-          <h1 className="h-poster-sm mt-1">WingKingTony</h1>
-          <p className="h-hand text-xl -rotate-2 mt-1">
-            ate it. rated it. let the people know.
-          </p>
+          <div className="min-w-0">
+            <span className="eyebrow hidden sm:inline">Welcome back</span>
+            <h1 className="h-poster-sm sm:mt-1">WingKingTony</h1>
+            <p className="hidden sm:block h-hand text-xl -rotate-2 mt-1">
+              ate it. rated it. let the people know.
+            </p>
+          </div>
         </div>
 
         {/* Sign-in card */}
-        <div className="card px-6 py-7 space-y-5">
+        <div className="card px-5 py-5 sm:px-6 sm:py-7 space-y-4 sm:space-y-5">
           {forgotMode ? (
             resetSent ? (
               <div className="text-center space-y-4">
@@ -115,9 +127,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                   Enter your email and we'll send you a link to set a new password.
                 </p>
 
-                {error && (
-                  <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
-                )}
+                {error && <AuthErrorAlert message={error} />}
 
                 <div>
                   <label className="label" htmlFor="reset-email">Email</label>
@@ -159,15 +169,13 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                 Sign in to rate wings and comment
               </p>
 
-              {error && (
-                <p role="alert" className="text-xs font-bold text-sauce-600 bg-sauce-50 border-2 border-sauce-500 rounded-lg px-3 py-2">{error}</p>
-              )}
+              {error && <AuthErrorAlert message={error} onResetPassword={enterForgotMode} />}
 
               {/* Google */}
               <button
                 onClick={handleGoogle}
                 disabled={googleLoading || emailLoading}
-                className="btn-primary w-full gap-3 py-3.5 text-base"
+                className="btn-primary w-full gap-3 py-2.5 sm:py-3.5 text-sm sm:text-base tracking-wide sm:tracking-crowd"
               >
                 {googleLoading ? (
                   <span className="w-5 h-5 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />
@@ -213,7 +221,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
                   <div className="flex justify-end">
                     <button
                       type="button"
-                      onClick={() => { setForgotMode(true); setError(null) }}
+                      onClick={enterForgotMode}
                       className="min-h-[44px] px-1 -mr-1 text-xs text-sauce-500 font-bold hover:underline"
                     >
                       Forgot password?

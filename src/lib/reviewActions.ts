@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import { downscaleImage, imageExtension } from './imageResize'
 import { triggerPushDelivery } from './pushManager'
 import { announceNewBadges, snapshotEarnedBadgeIds } from './badgeUnlocks'
+import { SIGNED_OUT_ERROR, looksSignedOut } from './publishErrors'
 import { invalidateGalleryFeedCache } from '../hooks/useGallery'
 import type { ReviewFormData, ReviewUpdateData } from './types'
 
@@ -66,6 +67,21 @@ async function uploadReviewPhoto(
   return true
 }
 
+/**
+ * A write failed: was it because the session is gone? Checks the error text
+ * first, then whether the client still holds a session at all (signing out
+ * in another tab clears it, and the write then fails as an RLS refusal).
+ */
+async function signedOutError(message: string | null | undefined): Promise<boolean> {
+  if (looksSignedOut(message)) return true
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    return !error && !data.session
+  } catch {
+    return false
+  }
+}
+
 function toastFailedUploads(failed: number) {
   if (failed > 0) {
     toast.error(`${failed} photo${failed === 1 ? '' : 's'} failed to upload`)
@@ -106,6 +122,7 @@ export async function createReview(
   }
 
   if (spotErr || !spotData) {
+    if (await signedOutError(spotErr?.message)) return { error: SIGNED_OUT_ERROR }
     return { error: spotErr?.message ?? 'Could not create wing spot' }
   }
 
@@ -128,6 +145,7 @@ export async function createReview(
     .single()
 
   if (reviewErr || !reviewData) {
+    if (await signedOutError(reviewErr?.message)) return { error: SIGNED_OUT_ERROR }
     return { error: reviewErr?.message ?? 'Could not create review' }
   }
 
@@ -171,7 +189,13 @@ export async function updateReview(
       .from('reviews')
       .update(updates)
       .eq('id', reviewId)
-    if (err) return { error: err.message }
+    if (err) {
+      // Callers show this text as-is in a toast, so keep it readable.
+      if (await signedOutError(err.message)) {
+        return { error: "You've been signed out. Sign in again to save your changes." }
+      }
+      return { error: "Couldn't save your changes. Check your connection and try again." }
+    }
   }
 
   if (data.photos_to_delete?.length) {

@@ -1,29 +1,24 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useReviews } from '../hooks/useReviews'
 import { useHistoryModal } from '../hooks/useHistoryModal'
+import { lazyWithReload } from '../lib/staleDeploy'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import LiveScene from '../components/LiveScene'
 import GalleryView from '../components/gallery/GalleryView'
 import ReviewFormModal from '../components/ReviewFormModal'
 import { UserProfileProvider } from '../components/UserProfileContext'
+import { ListViewSkeleton, MapViewSkeleton } from '../components/SpotsViewSkeletons'
 import type { AuthState } from '../hooks/useAuth'
 
 // The landing view is the feed; Spots and Map (Leaflet + supercluster) load
 // on first switch so slow phones don't download them before the feed shows.
-const ListView = lazy(() => import('../components/ListView'))
-const MapView = lazy(() => import('../components/MapView'))
-
-function ViewFallback({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 gap-4" role="status">
-      <div className="w-12 h-12 rounded-full border-4 border-cream-200 border-t-sauce-400 animate-spin" />
-      <p className="font-display uppercase tracking-crowd text-sm text-night-700">{label}</p>
-    </div>
-  )
-}
+// lazyWithReload: a chunk from an older deploy reloads the page cleanly
+// instead of showing the error screen.
+const ListView = lazyWithReload(() => import('../components/ListView'))
+const MapView = lazyWithReload(() => import('../components/MapView'))
 
 /** One-line "what is this" for signed-out visitors. Kept short so the feed
  *  still starts above the fold on a phone. */
@@ -34,7 +29,10 @@ function WelcomeIntro() {
       className="max-w-2xl mx-auto px-4 pt-4"
     >
       <div className="card px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
-        <p className="text-sm font-bold text-night-900 leading-snug">
+        {/* Two lines reserved on phones: before the web font loads this
+            wraps, after it doesn't — without the reserve the whole feed
+            jumped up 20px (measured CLS 0.31 on Slow 3G). */}
+        <p className="text-sm font-bold text-night-900 leading-snug min-h-[2.75em] sm:min-h-0">
           Find and rate chicken wing spots. Free.
         </p>
         <div className="mt-2.5 sm:mt-0 flex items-center gap-2 flex-shrink-0">
@@ -159,29 +157,6 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle in-app deep link events (from service worker via useNotifications)
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { photoId, reviewId, crawlSlug } = (e as CustomEvent).detail
-      if (crawlSlug) {
-        navigate(`/lists/${crawlSlug}`)
-      } else if (reviewId) {
-        navigate(`/reviews/${reviewId}`)
-      } else if (photoId) {
-        ;(async () => {
-          const { data } = await supabase
-            .from('review_photos')
-            .select('review_id')
-            .eq('id', photoId)
-            .maybeSingle()
-          if (data?.review_id) navigate(`/reviews/${data.review_id}`)
-        })()
-      }
-    }
-    window.addEventListener('push-deep-link', handler)
-    return () => window.removeEventListener('push-deep-link', handler)
-  }, [navigate])
-
   // ── History-backed modals (browser back closes them) ─────────────────
   useHistoryModal(showAddModal, () => setShowAddModal(false))
 
@@ -210,7 +185,8 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
     >
       {!auth.user && view !== 'map' && <WelcomeIntro />}
 
-      <Suspense fallback={<ViewFallback label={view === 'map' ? 'Loading the map…' : 'Loading spots…'} />}>
+      {/* Page-shaped placeholders (not a spinner) while Spots / Map code loads */}
+      <Suspense fallback={view === 'map' ? <MapViewSkeleton /> : <ListViewSkeleton />}>
       {view === 'list' && (
         <ListView
           shops={reviews.spots}

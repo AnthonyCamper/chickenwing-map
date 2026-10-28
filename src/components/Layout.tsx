@@ -1,7 +1,8 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import type { AuthState } from '../hooks/useAuth'
 import { Link } from 'react-router-dom'
 import AppHeader from './AppHeader'
+import { useFabHidden } from '../hooks/useHideFab'
 
 // Same inbox as the "Contact admin" button on App's status screens.
 const CONTACT_EMAIL = 'anthonycap949@gmail.com'
@@ -32,6 +33,51 @@ function useTypingFocus(): boolean {
   return typing
 }
 
+/**
+ * True after the user scrolls down, false again as soon as they scroll up
+ * (or get back near the top). The FAB tucks away while reading down a feed so
+ * it can't sit on the Share / Comment row the thumb is heading for, and comes
+ * back the moment they scroll up — the usual mobile pattern.
+ */
+function useScrolledDown(paused: boolean): boolean {
+  const [down, setDown] = useState(false)
+  // Modals lock the body (position: fixed) and restore the scroll position
+  // when they close; those jumps aren't the user scrolling, so ignore scroll
+  // events while a sheet is open and just after it closes.
+  const ignoreUntil = useRef(0)
+  useEffect(() => {
+    ignoreUntil.current = paused ? Infinity : Date.now() + 400
+    if (paused) setDown(false)
+  }, [paused])
+
+  useEffect(() => {
+    let lastY = window.scrollY
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const y = window.scrollY
+        const dy = y - lastY
+        if (Date.now() < ignoreUntil.current) { lastY = y; return }
+        // Ignore tiny jitters (momentum scrolling, address-bar resize)
+        if (Math.abs(dy) < 8) return
+        lastY = y
+        setDown(dy > 0 && y > 80)
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [])
+  return down
+}
+
+// Height of the FAB's bottom band: 1.5rem gap + 3.5rem button + 1rem air.
+const FAB_SPACE = '6rem'
+
 type View = 'list' | 'map' | 'gallery'
 
 interface Props {
@@ -49,7 +95,21 @@ export default function Layout({
 }: Props) {
   const user = auth.user
   const typing = useTypingFocus()
+  const sheetOpen = useFabHidden()
+  const scrolledDown = useScrolledDown(sheetOpen)
   const showFab = !readOnly && !!user
+  // Rendered but tucked away while scrolling down; removed entirely while a
+  // text field has focus or a sheet/modal asked it to hide (useHideFab).
+  const fabMounted = showFab && !typing && !sheetOpen
+  const fabOnScreen = fabMounted && !scrolledDown
+
+  // Toasts sit at the bottom of the screen (App's Toaster) and read this to
+  // stay above the button instead of covering it.
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--wkt-fab-space', fabOnScreen ? FAB_SPACE : '0px')
+    return () => { root.style.removeProperty('--wkt-fab-space') }
+  }, [fabOnScreen])
 
   return (
     <div className="min-h-dvh flex flex-col bg-cream-50">
@@ -57,6 +117,10 @@ export default function Layout({
 
       {liveScene}
 
+      {/* No bottom padding needed here: the footer below (with its own
+          FAB-height padding) lets the last row of any view scroll clear of
+          the floating button. The map has no footer, but it fills the screen
+          and its spot sheet hides the button (useHideFab). */}
       <main className="flex-1 relative">
         {children}
       </main>
@@ -89,7 +153,7 @@ export default function Layout({
             </a>
           </nav>
           <p className="relative z-[1] mt-1 text-[11px] uppercase tracking-crowd text-cream-100/60">
-            A WingKingTony joint
+            Made by WingKingTony
             <span aria-hidden="true" className="mx-2 text-sauce-400">·</span>
             {/* Brand easter egg, kept on purpose; the real site links are above */}
             <a
@@ -118,17 +182,20 @@ export default function Layout({
       )}
 
       {/* Floating add button */}
-      {showFab && !typing && (
+      {fabMounted && (
         <button
           onClick={onAddReview}
-          className="fixed right-4 z-30 group flex items-center gap-2
+          className={`fixed right-4 z-30 group flex items-center gap-2
                      bg-sauce-400 text-cream-50 border-2 border-night-900
                      pl-4 pr-5 h-14 rounded-full shadow-sticker
                      hover:bg-sauce-300 hover:shadow-sticker-sauce
                      active:translate-x-[2px] active:translate-y-[2px] active:shadow-none
-                     transition-all"
+                     transition-all duration-200
+                     ${scrolledDown ? 'translate-y-[calc(100%+2rem)] opacity-0 pointer-events-none' : ''}`}
           style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
           aria-label="Rate wings"
+          aria-hidden={scrolledDown || undefined}
+          tabIndex={scrolledDown ? -1 : undefined}
         >
           <span className="text-2xl font-extrabold leading-none" aria-hidden="true">+</span>
           <span className="text-xs font-extrabold uppercase tracking-crowd">

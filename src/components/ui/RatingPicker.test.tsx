@@ -89,4 +89,15 @@ describe('RatingPicker', () => {
     expect(screen.getByText(/1 = bad, 10 = best/)).toBeInTheDocument()
     expect(screen.queryByText(/drag • tap/)).not.toBeInTheDocument()
   })
+
+  it('uses device-neutral wording (no "tap" on desktop)', () => {
+    render(<Harness />)
+    expect(screen.getByText(/Choose a star for a whole number/)).toBeInTheDocument()
+    expect(screen.queryByText(/Tap a star/)).not.toBeInTheDocument()
+  })
+
+  it('the star row is at least 48px tall, so the whole row is the tap area', () => {
+    render(<Harness />)
+    expect(screen.getByRole('slider', { name: 'Wing rating' }).className).toContain('min-h-[48px]')
+  })
 })

@@ -6,10 +6,15 @@ import HeartIcon from './HeartIcon'
 import ReactionPicker from './ReactionPicker'
 import GifPicker from './GifPicker'
 import LikedByOverlay from './LikedByOverlay'
+import CommentComposer, { commentTooLong, replyPlaceholder } from './CommentComposer'
 import AvatarImage from '../ui/AvatarImage'
+import { cleanUserText } from '../../lib/userText'
 import { fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 
 type UserFetcher = (id: string) => Promise<ReactionUser[]>
+
+/** How long a comment opened from a notification stays highlighted. */
+const HIGHLIGHT_MS = 2500
 
 interface Props {
   comments: Comment[]
@@ -36,6 +41,17 @@ interface Props {
   onSetReplyingTo?: (target: { id: string; name: string } | null) => void
   /** Focus the input textarea on mount (non-embedded mode only). */
   autoFocus?: boolean
+  /**
+   * Bring one comment into view (notification deep link): its reply thread
+   * is expanded, it is scrolled to the middle of the screen and briefly
+   * highlighted. `focusParentId` is the top-level comment when it's a reply.
+   * Change `focusKey` to repeat the same request.
+   */
+  focusCommentId?: string | null
+  focusParentId?: string | null
+  focusKey?: string
+  /** Re-fetch the comments (the focused one may be newer than the list). */
+  onRefresh?: () => Promise<void> | void
 }
 
 export default function CommentSection({
@@ -55,6 +71,10 @@ export default function CommentSection({
   replyingTo: externalReplyingTo,
   onSetReplyingTo,
   autoFocus = false,
+  focusCommentId = null,
+  focusParentId = null,
+  focusKey,
+  onRefresh,
 }: Props) {
   const getLikers = likersFetcher ?? fetchReviewCommentLikers
   const getReactors = reactorsFetcher ?? fetchReviewCommentReactors
@@ -64,6 +84,13 @@ export default function CommentSection({
   const [showGifPicker, setShowGifPicker] = useState(false)
   const [selectedGif, setSelectedGif] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Which top-level comments have their replies open. Lives here (not in
+  // each thread) so a notification deep link or your own new reply can open
+  // the right thread.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const [loadingThread, setLoadingThread] = useState<string | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
 
   // Internal reply state (standalone mode)
   const [internalReplyingTo, setInternalReplyingTo] = useState<{ id: string; name: string } | null>(null)
@@ -77,16 +104,101 @@ export default function CommentSection({
   const replyingTo = externalReplyingTo !== undefined ? externalReplyingTo : internalReplyingTo
   const setReplyingTo = onSetReplyingTo ?? setInternalReplyingTo
 
+  const openThread = useCallback(async (parentId: string) => {
+    setLoadingThread(parentId)
+    try {
+      await onFetchReplies(parentId)
+      setExpanded(prev => new Set(prev).add(parentId))
+    } finally {
+      setLoadingThread(cur => (cur === parentId ? null : cur))
+    }
+  }, [onFetchReplies])
+
+  const toggleThread = useCallback((parentId: string) => {
+    if (expanded.has(parentId)) {
+      setExpanded(prev => {
+        const next = new Set(prev)
+        next.delete(parentId)
+        return next
+      })
+      return
+    }
+    openThread(parentId)
+  }, [expanded, openThread])
+
+  // A reply you just posted (still "temp-…") must stay visible: open its
+  // thread instead of hiding it behind "View 1 reply". Covers every composer,
+  // including PhotoModal's own pinned one.
+  useEffect(() => {
+    const withNewReply = comments.filter(
+      c => !expanded.has(c.id) && c.replies?.some(r => r.id.startsWith('temp-'))
+    )
+    if (withNewReply.length === 0) return
+    setExpanded(prev => {
+      const next = new Set(prev)
+      withNewReply.forEach(c => next.add(c.id))
+      return next
+    })
+  }, [comments, expanded])
+
+  // ── Notification deep link: open, scroll to and highlight one comment ──
+  const focusDoneRef = useRef<string | null>(null)
+  const focusRefreshedRef = useRef<string | null>(null)
+  const focusToken = focusCommentId ? `${focusCommentId}|${focusKey ?? ''}` : null
+
+  useEffect(() => {
+    if (!focusToken || !focusCommentId || loading) return
+    if (focusDoneRef.current === focusToken) return
+
+    const threadId = focusParentId ?? focusCommentId
+    const thread = comments.find(c => c.id === threadId)
+    if (!thread) {
+      // Newer than the loaded list → fetch once; otherwise it was deleted.
+      if (onRefresh && focusRefreshedRef.current !== focusToken) {
+        focusRefreshedRef.current = focusToken
+        onRefresh()
+      } else {
+        focusDoneRef.current = focusToken
+      }
+      return
+    }
+    if (focusParentId && !expanded.has(focusParentId)) {
+      if (loadingThread !== focusParentId) openThread(focusParentId)
+      return
+    }
+
+    const el = document.getElementById(`comment-${focusCommentId}`)
+    if (!el) {
+      // Thread is open but the reply itself is gone (deleted): stop here.
+      focusDoneRef.current = focusToken
+      return
+    }
+    focusDoneRef.current = focusToken
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    // 'center' keeps it clear of the sticky header and the floating button.
+    el.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' })
+    setHighlightId(focusCommentId)
+  }, [focusToken, focusCommentId, focusParentId, comments, loading, expanded, loadingThread, openThread, onRefresh])
+
+  useEffect(() => {
+    if (!highlightId) return
+    const t = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS)
+    return () => clearTimeout(t)
+  }, [highlightId])
+
   const handlePost = async () => {
-    if ((!text.trim() && !selectedGif) || posting) return
+    if ((!text.trim() && !selectedGif) || posting || commentTooLong(text)) return
     if (!gate()) return
     setPosting(true)
+    const threadId = replyingTo?.id ?? null
     await onAdd({
       text: text.trim() || undefined,
-      parentCommentId: replyingTo?.id ?? null,
+      parentCommentId: threadId,
       mediaUrl: selectedGif ?? undefined,
       contentType: selectedGif && text.trim() ? 'mixed' : selectedGif ? 'gif' : 'text',
     })
+    // Keep the thread you just replied in open so your reply stays visible.
+    if (threadId) setExpanded(prev => new Set(prev).add(threadId))
     setText('')
     setSelectedGif(null)
     setReplyingTo(null)
@@ -94,16 +206,9 @@ export default function CommentSection({
     setPosting(false)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handlePost()
-    }
-  }
-
   const handleReply = (comment: Comment) => {
     if (!gate()) return
-    const name = comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown'
+    const name = cleanUserText(comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown')
     setReplyingTo({ id: comment.parent_comment_id ?? comment.id, name })
     setShowGifPicker(false)
     inputRef.current?.focus()
@@ -127,7 +232,7 @@ export default function CommentSection({
       )}
       {!loading && comments.length === 0 && (
         <p className="text-center text-xs text-charcoal-400 py-6">
-          No comments yet — be the first!
+          No comments yet. Be the first to comment.
         </p>
       )}
       {comments.map(comment => (
@@ -141,7 +246,10 @@ export default function CommentSection({
           onToggleLike={onToggleLike}
           onToggleReaction={onToggleReaction}
           onReply={handleReply}
-          onFetchReplies={onFetchReplies}
+          showReplies={expanded.has(comment.id)}
+          loadingReplies={loadingThread === comment.id}
+          onToggleReplies={() => toggleThread(comment.id)}
+          highlightId={highlightId}
           getLikers={getLikers}
           getReactors={getReactors}
         />
@@ -173,21 +281,21 @@ export default function CommentSection({
       {(replyingTo || selectedGif) && (
         <div className="flex-shrink-0 border-t border-night-900/10 px-4 py-2 bg-cream-100 flex items-center gap-2 flex-wrap">
           {replyingTo && (
-            <span className="text-xs text-charcoal-600">
-              Replying to <span className="font-bold text-night-800">{replyingTo.name}</span>
+            <span className="text-xs text-charcoal-600 min-w-0">
+              Replying to <span className="font-bold text-night-800 user-text">{replyingTo.name}</span>
               <button
                 onClick={cancelReply}
-                className="ml-1.5 inline-flex items-center justify-center w-7 h-7 -my-2 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-night-800"
+                className="ml-1 inline-flex items-center justify-center w-11 h-11 -my-3.5 align-middle rounded-full text-charcoal-400 hover:bg-cream-200 hover:text-night-800"
                 aria-label="Cancel reply"
               >×</button>
             </span>
           )}
           {selectedGif && (
             <div className="relative">
-              <img src={selectedGif} alt="GIF" className="h-12 rounded-md" />
+              <img src={selectedGif} alt="Chosen GIF" className="h-12 rounded-md" />
               <button
                 onClick={() => setSelectedGif(null)}
-                className="absolute -top-2.5 -right-2.5 w-7 h-7 flex items-center justify-center"
+                className="absolute -top-3.5 -right-3.5 w-11 h-11 flex items-center justify-center"
                 aria-label="Remove GIF"
               >
                 <span className="w-5 h-5 rounded-full bg-night-900 text-cream-50 text-[10px] flex items-center justify-center shadow">×</span>
@@ -198,38 +306,19 @@ export default function CommentSection({
       )}
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-night-900/10 px-3 py-2.5 flex items-end gap-2 bg-cream-50">
-        <button
-          type="button"
-          onClick={() => { if (gate()) setShowGifPicker(prev => !prev) }}
-          className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xs font-extrabold uppercase tracking-crowd transition-colors ${
-            showGifPicker ? 'bg-sauce-100 text-sauce-600' : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
-          }`}
-          title="GIF"
-          aria-label="Add a GIF"
-        >
-          GIF
-        </button>
-        <textarea
-          ref={inputRef}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onFocus={e => { if (!gate()) e.target.blur() }}
-          onKeyDown={handleKeyDown}
-          placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
-          maxLength={500}
-          rows={1}
-          className="flex-1 resize-none rounded-xl border border-night-900/15 bg-cream-100 px-3 py-2.5 text-base text-night-800 placeholder:text-charcoal-400 focus:outline-none focus:ring-2 focus:ring-sauce-300 focus:border-night-900/30 transition-colors"
-          style={{ maxHeight: '96px', minHeight: '44px', overflowY: 'auto' }}
-        />
-        <button
-          onClick={handlePost}
-          disabled={(!text.trim() && !selectedGif) || posting}
-          className="btn-primary px-4 min-h-[44px] text-sm flex-shrink-0 disabled:opacity-40"
-        >
-          {posting ? '…' : 'Post'}
-        </button>
-      </div>
+      <CommentComposer
+        ref={inputRef}
+        className="flex-shrink-0"
+        value={text}
+        onChange={setText}
+        onSubmit={handlePost}
+        posting={posting}
+        hasAttachment={!!selectedGif}
+        placeholder={replyingTo ? replyPlaceholder(replyingTo.name) : 'Add a comment…'}
+        gifOpen={showGifPicker}
+        onToggleGif={() => { if (gate()) setShowGifPicker(prev => !prev) }}
+        onFocusGate={gate}
+      />
     </div>
   )
 }
@@ -247,7 +336,10 @@ interface CommentThreadProps {
   onToggleLike: (id: string) => Promise<void>
   onToggleReaction: (id: string, type: string) => Promise<void>
   onReply: (comment: Comment) => void
-  onFetchReplies: (parentId: string) => Promise<Comment[]>
+  showReplies: boolean
+  loadingReplies: boolean
+  onToggleReplies: () => void
+  highlightId: string | null
   getLikers: UserFetcher
   getReactors: UserFetcher
 }
@@ -261,24 +353,13 @@ function CommentThread({
   onToggleLike,
   onToggleReaction,
   onReply,
-  onFetchReplies,
+  showReplies,
+  loadingReplies,
+  onToggleReplies,
+  highlightId,
   getLikers,
   getReactors,
 }: CommentThreadProps) {
-  const [showReplies, setShowReplies] = useState(false)
-  const [loadingReplies, setLoadingReplies] = useState(false)
-
-  const handleToggleReplies = async () => {
-    if (showReplies) {
-      setShowReplies(false)
-      return
-    }
-    setLoadingReplies(true)
-    await onFetchReplies(comment.id)
-    setShowReplies(true)
-    setLoadingReplies(false)
-  }
-
   return (
     <div>
       <CommentItem
@@ -290,6 +371,7 @@ function CommentThread({
         onToggleLike={onToggleLike}
         onToggleReaction={onToggleReaction}
         onReply={() => onReply(comment)}
+        highlighted={highlightId === comment.id}
         getLikers={getLikers}
         getReactors={getReactors}
       />
@@ -297,9 +379,10 @@ function CommentThread({
       {/* Reply count toggle */}
       {comment.reply_count > 0 && (
         <button
-          onClick={handleToggleReplies}
+          onClick={onToggleReplies}
           disabled={loadingReplies}
-          className="ml-9 mt-1.5 min-h-[32px] text-xs font-bold text-charcoal-500 hover:text-night-800 transition-colors inline-flex items-center gap-1.5"
+          aria-expanded={showReplies}
+          className="ml-9 min-h-[44px] text-xs font-bold text-charcoal-500 hover:text-night-800 transition-colors inline-flex items-center gap-1.5"
         >
           {loadingReplies ? (
             <span className="w-3 h-3 rounded-full border border-cream-200 border-t-sauce-400 animate-spin inline-block" />
@@ -314,7 +397,7 @@ function CommentThread({
 
       {/* Replies — Instagram-style slight indent, no deep nesting */}
       {showReplies && comment.replies && (
-        <div className="ml-9 mt-2 space-y-3 border-l-2 border-night-900/15 pl-3">
+        <div className="ml-9 mt-1 space-y-3 border-l-2 border-night-900/15 pl-3">
           {comment.replies.map(reply => (
             <CommentItem
               key={reply.id}
@@ -327,6 +410,7 @@ function CommentThread({
               onToggleReaction={onToggleReaction}
               onReply={() => onReply(reply)}
               isReply
+              highlighted={highlightId === reply.id}
               getLikers={getLikers}
               getReactors={getReactors}
             />
@@ -351,11 +435,12 @@ interface CommentItemProps {
   onToggleReaction: (id: string, type: string) => Promise<void>
   onReply: () => void
   isReply?: boolean
+  highlighted?: boolean
   getLikers: UserFetcher
   getReactors: UserFetcher
 }
 
-function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, onToggleLike, onToggleReaction, onReply, isReply, getLikers, getReactors }: CommentItemProps) {
+function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, onToggleLike, onToggleReaction, onReply, isReply, highlighted, getLikers, getReactors }: CommentItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -369,11 +454,14 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
         setMenuOpen(false)
       }
     }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
     document.addEventListener('mousedown', handleClickAway)
     document.addEventListener('touchstart', handleClickAway)
+    document.addEventListener('keydown', handleKey)
     return () => {
       document.removeEventListener('mousedown', handleClickAway)
       document.removeEventListener('touchstart', handleClickAway)
+      document.removeEventListener('keydown', handleKey)
     }
   }, [menuOpen])
 
@@ -392,14 +480,20 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
   const fetchReactors = useCallback(() => getReactors(comment.id), [comment.id, getReactors])
   const totalReactionCount = comment.reactions.reduce((sum, r) => sum + r.count, 0)
 
-  const name = comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown'
+  const name = cleanUserText(comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown') || 'Unknown'
   const timeAgo = (() => {
     try { return formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) }
     catch { return '' }
   })()
 
   return (
-    <div className={`flex gap-2.5 animate-fade-in ${isTemp ? 'opacity-60' : ''}`}>
+    <div
+      // Notification deep links target this id (/reviews/<id>#comment-<id>)
+      id={isTemp ? undefined : `comment-${comment.id}`}
+      className={`flex gap-2.5 animate-fade-in scroll-mt-28 rounded-lg transition-colors duration-700 ${isTemp ? 'opacity-60' : ''} ${
+        highlighted ? 'bg-gold-100 ring-[6px] ring-gold-100' : ''
+      }`}
+    >
       {/* Avatar */}
       <div className={`flex-shrink-0 rounded-full overflow-hidden bg-night-700 border border-night-900/20 flex items-center justify-center ${isReply ? 'w-6 h-6' : 'w-8 h-8'}`}>
         <AvatarImage
@@ -412,22 +506,25 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="min-w-0 max-w-full truncate text-xs font-bold text-night-800">{name}</span>
-          <span className="text-xs text-charcoal-400">{timeAgo}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* On a narrow reply column the time gives way before the name */}
+          <span className="flex-shrink-0 max-w-[60%] truncate text-xs font-bold text-night-800 user-text">{name}</span>
+          <span className="min-w-0 truncate text-xs text-charcoal-400">{timeAgo}</span>
           {canDelete && !isTemp && (
-            <div ref={menuRef} className="relative inline-flex">
+            <div ref={menuRef} className="relative inline-flex flex-shrink-0 ml-auto">
+              {/* 44px hit area; the negative margin keeps the row compact */}
               <button
                 onClick={() => setMenuOpen(v => !v)}
                 aria-label="Comment options"
                 aria-expanded={menuOpen}
-                className={`w-8 h-8 -my-1 flex items-center justify-center rounded-md transition-colors leading-none ${
+                aria-haspopup="menu"
+                className={`w-11 h-11 -my-3 -mr-2 flex items-center justify-center rounded-md transition-colors leading-none ${
                   menuOpen
                     ? 'text-night-700 bg-cream-100'
                     : 'text-charcoal-400 hover:text-night-700 hover:bg-cream-100'
                 }`}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <circle cx="5" cy="12" r="1.6" />
                   <circle cx="12" cy="12" r="1.6" />
                   <circle cx="19" cy="12" r="1.6" />
@@ -435,13 +532,14 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
               </button>
               {menuOpen && (
                 // Anchor right so the popover never overflows past the viewport edge.
-                <div className="absolute right-0 top-full mt-1 z-30 animate-fade-in">
+                <div role="menu" className="absolute right-0 top-full mt-1 z-30 animate-fade-in">
                   <button
+                    role="menuitem"
                     onClick={handleDelete}
                     disabled={deleting}
-                    className="flex items-center gap-1.5 pl-2.5 pr-3 py-2 bg-cream-50 rounded-full shadow-lg border-2 border-night-900 text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:bg-sauce-50 transition-all whitespace-nowrap active:scale-95 disabled:opacity-60"
+                    className="flex items-center gap-1.5 pl-2.5 pr-3 min-h-[44px] bg-cream-50 rounded-full shadow-lg border-2 border-night-900 text-xs font-extrabold uppercase tracking-crowd text-sauce-600 hover:bg-sauce-50 transition-all whitespace-nowrap active:scale-95 disabled:opacity-60"
                   >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                       <path d="M10 11v6M14 11v6" />
@@ -457,7 +555,7 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
 
         {/* Text content */}
         {comment.text && (
-          <p className="text-sm text-night-800 leading-snug mt-0.5 break-words">{comment.text}</p>
+          <p className="text-sm text-night-800 leading-snug mt-0.5 whitespace-pre-line user-text">{cleanUserText(comment.text)}</p>
         )}
 
         {/* GIF content */}
@@ -475,13 +573,14 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
           </div>
         )}
 
-        {/* Action strip: reply + like + reactions */}
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        {/* Action strip: reply + like + reactions. Each control has a 44px
+            hit area; negative margins keep the strip visually compact. */}
+        <div className="flex items-center gap-x-1 -mb-2 flex-wrap">
           {/* Reply */}
           {!isTemp && (
             <button
               onClick={() => { if (requireAuth()) onReply() }}
-              className="min-h-[28px] px-1 -mx-1 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
+              className="min-h-[44px] px-2 -ml-2 text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 hover:text-sauce-500 transition-colors"
             >
               Reply
             </button>
@@ -492,8 +591,9 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
             <button
               onClick={() => { if (!isTemp && requireAuth()) onToggleLike(comment.id) }}
               disabled={isTemp}
-              aria-label={comment.is_liked_by_me ? 'Unlike comment' : 'Like comment'}
-              className="flex items-center gap-1 min-h-[28px] px-1 -mx-1 text-xs transition-colors group"
+              aria-pressed={comment.is_liked_by_me}
+              aria-label={`Like comment${comment.like_count > 0 ? ` (${comment.like_count})` : ''}`}
+              className="flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] px-2 text-xs transition-colors group"
             >
               <HeartIcon
                 filled={comment.is_liked_by_me}

@@ -36,6 +36,8 @@ interface UseReviewCommentsReturn {
   toggleCommentLike: (commentId: string) => Promise<void>
   toggleReaction: (commentId: string, reactionType: string) => Promise<void>
   fetchReplies: (parentId: string) => Promise<ReviewComment[]>
+  /** Re-fetch the top-level comments (e.g. a deep-linked comment is newer). */
+  refresh: () => Promise<void>
 }
 
 export function useReviewComments(
@@ -100,7 +102,13 @@ export function useReviewComments(
         reactions = (rData ?? []) as RawReaction[]
       }
 
-      setComments(attachReactions(rawComments, reactions))
+      const fresh = attachReactions(rawComments, reactions)
+      // Keep reply lists already loaded for open threads — a refetch of the
+      // top level (after posting) must not empty them.
+      setComments(prev => {
+        const loadedReplies = new Map(prev.filter(c => c.replies).map(c => [c.id, c.replies]))
+        return fresh.map(c => (loadedReplies.has(c.id) ? { ...c, replies: loadedReplies.get(c.id) } : c))
+      })
     } finally {
       setLoading(false)
     }
@@ -354,7 +362,7 @@ export function useReviewComments(
     [comments, currentUserId]
   )
 
-  return { comments, loading, error, addComment, deleteComment, toggleCommentLike, toggleReaction, fetchReplies }
+  return { comments, loading, error, addComment, deleteComment, toggleCommentLike, toggleReaction, fetchReplies, refresh: fetchComments }
 }
 
 /**

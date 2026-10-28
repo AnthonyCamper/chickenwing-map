@@ -10,6 +10,7 @@ import BadgeIcon from './badges/BadgeIcon'
 import AvatarImage from './ui/AvatarImage'
 import { changePassword, deleteOwnAccount, hasPasswordLogin, verifyCurrentPassword, type AuthState } from '../hooks/useAuth'
 import { displayNameProblem, MIN_PASSWORD_LENGTH, passwordProblem } from '../lib/authErrors'
+import { PROFILE_LINK_PREFIX, USERNAME_MAX, USERNAME_TAKEN_MESSAGE, usernameProblem, usernameSaveError } from '../lib/profileHandle'
 import { validateImageFile } from '../lib/imageValidation'
 import { AVATAR_MAX_SIDE, downscaleImage, imageExtension } from '../lib/imageResize'
 
@@ -23,15 +24,29 @@ type Tab = 'profile' | 'badges' | 'stats'
 type AccountPanel = null | 'password' | 'delete'
 
 export const DELETE_CONFIRM_WORD = 'DELETE'
+export const DISCARD_PROFILE_CHANGES = 'Discard your changes? Your profile edits will be lost.'
 
 export default function ProfileModal({ auth, onClose }: Props) {
   const profile = auth.profile
   const user = auth.user
 
+  const initialName = profile?.display_name ?? profile?.full_name ?? ''
+  const initialBio = profile?.bio ?? ''
+  const initialPrivate = profile?.is_private ?? false
+  const initialUsername = profile?.username ?? ''
+
+  // Edits left unsaved by browser Back (or a reload) come back next time.
+  const draftKey = `profile-edit-draft:${user?.id ?? ''}`
+  const [draft] = useState(() => readProfileDraft(draftKey, {
+    displayName: initialName, bio: initialBio, isPrivate: initialPrivate, username: initialUsername,
+  }))
+
   const [tab, setTab] = useState<Tab>('profile')
-  const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.full_name ?? '')
-  const [bio, setBio] = useState(profile?.bio ?? '')
-  const [isPrivate, setIsPrivate] = useState(profile?.is_private ?? false)
+  const [displayName, setDisplayName] = useState(draft?.displayName ?? initialName)
+  const [bio, setBio] = useState(draft?.bio ?? initialBio)
+  const [isPrivate, setIsPrivate] = useState(draft?.isPrivate ?? initialPrivate)
+  const [username, setUsername] = useState(draft?.username ?? initialUsername)
+  const [usernameError, setUsernameError] = useState<string | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -45,6 +60,56 @@ export default function ProfileModal({ auth, onClose }: Props) {
   useEffect(() => {
     scrollRef.current?.scrollTo?.(0, 0)
   }, [panel])
+
+  const usernameChanged = username !== initialUsername
+  const isDirty = displayName !== initialName || bio !== initialBio || isPrivate !== initialPrivate
+    || usernameChanged || !!avatarFile
+  const dirtyRef = useRef(isDirty)
+  dirtyRef.current = isDirty && !saving
+
+  // Unsaved edits: ask before throwing them away (Cancel, ×, backdrop), like
+  // the review form's "Discard your review?".
+  const requestClose = () => {
+    if (dirtyRef.current) {
+      if (!window.confirm(DISCARD_PROFILE_CHANGES)) return
+      clearProfileDraft(draftKey)
+      dirtyRef.current = false
+    }
+    onClose()
+  }
+
+  // Keep a draft while there are edits (text fields only; a picked photo
+  // can't be stored). Browser Back closes the sheet through the opener's
+  // useHistoryModal, which this sheet can't veto, so the edits are kept
+  // instead and restored the next time Edit profile opens.
+  useEffect(() => {
+    if (!user?.id) return
+    const fieldsDirty = displayName !== initialName || bio !== initialBio
+      || isPrivate !== initialPrivate || username !== initialUsername
+    if (fieldsDirty) writeProfileDraft(draftKey, { displayName, bio, isPrivate, username })
+    else clearProfileDraft(draftKey)
+  }, [draftKey, user?.id, displayName, bio, isPrivate, username, initialName, initialBio, initialPrivate, initialUsername])
+
+  // Closed with edits still unsaved (browser Back, a route change): say
+  // they were kept. Cancel/× after "Discard" and Save clear dirtyRef first.
+  useEffect(() => () => {
+    if (dirtyRef.current) {
+      toast('Your profile changes are not saved yet. Open Edit profile to finish them.', { id: 'profile-draft' })
+    }
+  }, [])
+
+  // Reload / closing the tab with unsaved edits: the browser's own warning.
+  useEffect(() => {
+    if (!isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isDirty])
+
 
   const { expanded, handleProps, sheetStyle } = useBottomSheetDrag({
     defaultMaxHeight: 'calc(92dvh - env(safe-area-inset-top))',
@@ -91,14 +156,45 @@ export default function ProfileModal({ auth, onClose }: Props) {
     setAvatarPreview(URL.createObjectURL(file))
   }
 
+  // Like ui/Modal: publish the pinned Save bar's height so toasts (App.tsx)
+  // sit above it instead of on top of Save/Cancel.
+  const saveBarRef = useRef<HTMLDivElement>(null)
+  const showSaveBar = tab === 'profile' && !panel
+  useEffect(() => {
+    const el = saveBarRef.current
+    const root = document.documentElement
+    if (!showSaveBar || !el) return
+    const set = () => root.style.setProperty('--wkt-sheet-footer', `${el.offsetHeight}px`)
+    set()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--wkt-sheet-footer')
+    }
+  }, [showSaveBar])
+
   const handleSave = async () => {
     if (!user) return
     const trimmedName = displayName.trim()
     const problem = displayNameProblem(trimmedName)
     if (problem) { setNameError(problem); return }
     setNameError(null)
+    const handleProblem = usernameChanged ? usernameProblem(username) : null
+    if (handleProblem) { setUsernameError(handleProblem); return }
+    setUsernameError(null)
     setSaving(true)
     try {
+      // Username first, on its own: it is the one change the database can
+      // refuse (taken / reserved), and the error belongs under its field.
+      if (usernameChanged) {
+        const { data: row, error: handleError } = await supabase
+          .from('profiles').update({ username }).eq('id', user.id).select('username').maybeSingle()
+        if (handleError || !row) {
+          setUsernameError(handleError ? usernameSaveError(handleError) : usernameSaveError({}))
+          return
+        }
+      }
       let avatarUrl: string | undefined
       if (avatarFile) {
         const upload = await downscaleImage(avatarFile, { maxSide: AVATAR_MAX_SIDE })
@@ -108,16 +204,23 @@ export default function ProfileModal({ auth, onClose }: Props) {
         if (uploadError) { toast.error('Failed to upload photo') }
         else {
           const { data } = supabase.storage.from('user-avatars').getPublicUrl(path)
-          avatarUrl = data.publicUrl
+          // Same path on every upload: without a version the browser keeps
+          // showing the old cached photo.
+          avatarUrl = `${data.publicUrl}?v=${Date.now()}`
         }
       }
       const ok = await auth.updateProfile({
         display_name: trimmedName,
-        bio: bio.trim().slice(0, 140) || undefined,
+        // '' (not undefined) so clearing the bio actually saves.
+        bio: bio.trim().slice(0, 140),
         is_private: isPrivate,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       })
       if (!ok) return // updateProfile already showed the error
+      // updateProfile's local merge doesn't know the new username.
+      if (usernameChanged) await auth.refreshProfile()
+      dirtyRef.current = false
+      clearProfileDraft(draftKey)
       toast.success('Profile updated')
       onClose()
     } finally { setSaving(false) }
@@ -125,7 +228,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-night-900/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-night-900/70 backdrop-blur-sm" onClick={requestClose} />
       <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-6">
         <div
           ref={panelRef}
@@ -207,7 +310,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
               </div>
 
               <button
-                onClick={onClose}
+                onClick={requestClose}
                 aria-label="Close"
                 className="w-11 h-11 -mr-1.5 -mt-1.5 rounded-lg text-night-700 flex items-center justify-center flex-shrink-0 self-start hover:bg-cream-200 transition-colors"
               >
@@ -252,6 +355,11 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
             {tab === 'profile' && !panel && (
               <div className="space-y-4">
+                {draft && (
+                  <p role="status" className="text-xs font-bold text-night-900 bg-gold-100 border-2 border-night-900/20 rounded-lg px-3 py-2">
+                    You have changes you didn’t save last time. Choose Save to keep them, or Cancel to discard them.
+                  </p>
+                )}
                 <div>
                   <label className="label" htmlFor="profile-display-name">Display name</label>
                   <input
@@ -268,6 +376,40 @@ export default function ProfileModal({ auth, onClose }: Props) {
                   />
                   {nameError && (
                     <p id="profile-name-error" role="alert" className="text-[11px] font-bold text-sauce-600 mt-1">{nameError}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="label" htmlFor="profile-username">Username</label>
+                  <div className="flex items-stretch rounded-lg overflow-hidden">
+                    <span aria-hidden className="flex items-center pl-3 pr-1 text-sm text-charcoal-500 bg-cream-100 border-2 border-r-0 border-night-900 rounded-l-lg select-none">@</span>
+                    <input
+                      id="profile-username"
+                      type="text"
+                      value={username}
+                      onChange={e => { setUsername(e.target.value.toLowerCase().replace(/\s+/g, '-')); setUsernameError(null) }}
+                      className="input rounded-l-none min-w-0"
+                      maxLength={USERNAME_MAX}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      disabled={saving}
+                      aria-invalid={usernameError ? true : undefined}
+                      aria-describedby="profile-username-help"
+                    />
+                  </div>
+                  {usernameError ? (
+                    <p id="profile-username-help" role="alert" className="text-[11px] font-bold text-sauce-600 mt-1">
+                      {usernameError}
+                      {usernameError === USERNAME_TAKEN_MESSAGE && ' For example, add a number at the end.'}
+                    </p>
+                  ) : (
+                    <p id="profile-username-help" className="text-[11px] text-charcoal-500 mt-1 leading-snug">
+                      Your profile link: <strong className="text-night-900 font-bold [overflow-wrap:anywhere]">{PROFILE_LINK_PREFIX}{username || '…'}</strong>
+                      <br />
+                      {usernameChanged
+                        ? 'Your old link will keep working and send people to the new one.'
+                        : 'Small letters a–z, numbers and hyphens (-), 3 to 30 characters.'}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -290,7 +432,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                   <p className="text-sm font-medium text-charcoal-600 px-4 py-3 bg-cream-100 rounded-lg border border-night-900/15 break-all">
                     {email}
                   </p>
-                  <p className="text-[11px] text-charcoal-500 mt-1">Only you can see this.</p>
+                  <p className="text-[11px] text-charcoal-500 mt-1">Only you and the site admin can see this. It’s never shown publicly.</p>
                 </div>
                 <button
                   type="button"
@@ -406,7 +548,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     <div className="grid grid-cols-2 gap-2.5">
                       <StatCard emoji="🍗" label="Reviews posted" value={myRow.review_count} />
                       <StatCard emoji="📍" label="Unique spots"   value={myRow.unique_spots} />
-                      <StatCard emoji="⭐" label="Avg rating"     value={myRow.avg_rating != null ? Number(myRow.avg_rating).toFixed(1) : '—'} />
+                      <StatCard emoji="⭐" label="Average rating"     value={myRow.avg_rating != null ? Number(myRow.avg_rating).toFixed(1) : '—'} />
                       <StatCard emoji="💬" label="Comments"       value={myRow.comment_count} />
                       <StatCard emoji="🏅" label="Badges earned"  value={myRow.badge_count} />
                       <StatCard emoji="❤️" label="Likes received" value={myRow.total_likes_received} />
@@ -455,10 +597,11 @@ export default function ProfileModal({ auth, onClose }: Props) {
               even on a short phone where the form scrolls. */}
           {tab === 'profile' && !panel && (
             <div
+              ref={saveBarRef}
               className="flex-shrink-0 flex gap-3 px-5 pt-3 border-t-2 border-night-900/10 bg-cream-50"
               style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
             >
-              <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={requestClose} className="btn-secondary flex-1">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
                 {saving && <span className="w-4 h-4 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />}
                 {saving ? 'Saving…' : 'Save'}
@@ -469,6 +612,41 @@ export default function ProfileModal({ auth, onClose }: Props) {
       </div>
     </>
   )
+}
+
+// ── Unsaved-edit draft (sessionStorage, per tab and per user) ──────────────
+
+interface ProfileDraft {
+  displayName: string
+  bio: string
+  isPrivate: boolean
+  username: string
+}
+
+function readProfileDraft(key: string, current: ProfileDraft): ProfileDraft | null {
+  try {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    const d = JSON.parse(raw) as Partial<ProfileDraft>
+    const draft: ProfileDraft = {
+      displayName: typeof d.displayName === 'string' ? d.displayName : current.displayName,
+      bio: typeof d.bio === 'string' ? d.bio.slice(0, 140) : current.bio,
+      isPrivate: typeof d.isPrivate === 'boolean' ? d.isPrivate : current.isPrivate,
+      username: typeof d.username === 'string' ? d.username : current.username,
+    }
+    const same = (Object.keys(draft) as (keyof ProfileDraft)[]).every(k => draft[k] === current[k])
+    return same ? null : draft
+  } catch {
+    return null
+  }
+}
+
+function writeProfileDraft(key: string, draft: ProfileDraft) {
+  try { sessionStorage.setItem(key, JSON.stringify(draft)) } catch { /* storage off */ }
+}
+
+function clearProfileDraft(key: string) {
+  try { sessionStorage.removeItem(key) } catch { /* storage off */ }
 }
 
 function StatCard({ emoji, label, value }: { emoji: string; label: string; value: number | string }) {

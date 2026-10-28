@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useBottomSheetDrag } from '../../hooks/useBottomSheetDrag'
 import type { ReactionUser } from '../../lib/reactionDetails'
 import AvatarImage from '../ui/AvatarImage'
+import { cleanUserText } from '../../lib/userText'
 
 interface Props {
   fetchUsers: () => Promise<ReactionUser[]>
@@ -165,6 +166,12 @@ function LikedBySheet({
     defaultMaxHeight: 'calc(60dvh - env(safe-area-inset-top))',
   })
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div
       className="fixed inset-0 z-[200] flex items-end justify-center animate-fade-in"
@@ -172,6 +179,9 @@ function LikedBySheet({
     >
       <div className="absolute inset-0 bg-black/40" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
         className="relative w-full max-w-lg bg-white rounded-t-2xl shadow-2xl animate-slide-up flex flex-col"
         style={sheetStyle}
         onClick={e => e.stopPropagation()}
@@ -195,7 +205,7 @@ function LikedBySheet({
           <h3 className="font-display text-sm font-semibold text-charcoal-800">{label}</h3>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 text-lg leading-none"
+            className="w-11 h-11 -mr-2 rounded-full flex items-center justify-center text-charcoal-400 hover:bg-warmgray-100 text-lg leading-none"
             aria-label="Close"
           >
             ×
@@ -255,13 +265,13 @@ function UserRow({ user }: { user: ReactionUser }) {
           className="w-full h-full object-cover"
           fallback={
             <span className="text-xs font-semibold text-charcoal-500">
-              {user.name.charAt(0).toUpperCase()}
+              {cleanUserText(user.name).charAt(0).toUpperCase()}
             </span>
           }
         />
       </div>
-      <p className="text-sm font-medium text-charcoal-700 truncate flex-1 min-w-0">
-        {user.name}
+      <p className="text-sm font-medium text-charcoal-700 truncate flex-1 min-w-0 user-text">
+        {cleanUserText(user.name)}
       </p>
       {user.reactionType && <span className="text-base flex-shrink-0">{user.reactionType}</span>}
     </div>

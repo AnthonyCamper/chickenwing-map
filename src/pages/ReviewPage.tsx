@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate } from '../lib/dates'
+import { cleanUserText } from '../lib/userText'
 import { updateReview as updateReviewAction, deleteReview as deleteReviewAction, isUuid } from '../lib/reviewActions'
 import ReviewCard from '../components/ReviewCard'
 import PhotoLightbox from '../components/ui/PhotoLightbox'
@@ -28,14 +29,45 @@ interface ReviewDetail {
   commentCount: number
 }
 
+/** `#comment-<uuid>` (notification deep link) → the comment id. */
+function commentIdFromHash(hash: string): string | null {
+  const m = hash.match(/^#comment-(.+)$/)
+  return m && isUuid(m[1]) ? m[1] : null
+}
+
 export default function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [data, setData] = useState<ReviewDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const auth = useAuthContext()
+
+  // Notification deep link: /reviews/<id>#comment-<commentId>. Look up
+  // whether it's a reply (and to which comment) so the card can open the
+  // comments, expand that thread and scroll to it.
+  const hashCommentId = commentIdFromHash(location.hash)
+  const [focusComment, setFocusComment] = useState<{ id: string; parentId: string | null; key: string } | null>(null)
+  useEffect(() => {
+    if (!hashCommentId) { setFocusComment(null); return }
+    let cancelled = false
+    supabase
+      .from('review_comments')
+      .select('parent_comment_id')
+      .eq('id', hashCommentId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        setFocusComment({
+          id: hashCommentId,
+          parentId: (data as { parent_comment_id: string | null } | null)?.parent_comment_id ?? null,
+          key: location.key,
+        })
+      })
+    return () => { cancelled = true }
+  }, [hashCommentId, location.key])
 
   const load = useCallback(async () => {
     // A malformed id can't match anything — show the 404, not an error.
@@ -133,15 +165,59 @@ export default function ReviewPage() {
   }
 
   const { review, spot, moreByAuthor, commentCount } = data
-  const authorName = review.reviewer_is_private ? 'Private reviewer' : (review.reviewer_name ?? 'Anonymous')
+  // Private profiles hide the profile page, not the name on public reviews
+  // (Privacy policy). Their profile link and "More from" list stay hidden.
+  const isOwnReview = !!currentUserId && review.user_id === currentUserId
+  const showAuthorProfile = !review.reviewer_is_private || isOwnReview
+  const authorName = cleanUserText(review.reviewer_name) || 'Anonymous'
+  const spotName = spot ? cleanUserText(spot.name) : null
   const rating = Number(review.overall_rating).toFixed(1)
   const title = spot
-    ? `${rating}/10 review of ${spot.name} by ${authorName} — WingKingTony`
+    ? `${rating}/10 review of ${spotName} by ${authorName} — WingKingTony`
     : `${rating}/10 wing review by ${authorName} — WingKingTony`
   const description = review.review_text?.trim()
     ? review.review_text.trim().slice(0, 200)
-    : `${authorName} rated ${spot?.name ?? 'this spot'} ${rating}/10${review.wing_flavor ? ` (${review.wing_flavor})` : ''}.`
+    : `${authorName} rated ${spotName ?? 'this spot'} ${rating}/10${review.wing_flavor ? ` (${review.wing_flavor})` : ''}.`
   const coverPhoto = review.photos?.[0]?.url
+  const photos = review.photos ?? []
+  const photoAlt = (i: number) => {
+    const where = spotName ? ` at ${spotName}` : ''
+    return photos.length > 1
+      ? `Photo ${i + 1} of ${photos.length}: wings${where}, from ${authorName}'s review`
+      : `Photo of wings${where}, from ${authorName}'s review`
+  }
+
+  // Photos and takeout info live INSIDE the review card, under the text —
+  // never below the page navigation, where they looked like a failed upload.
+  const reviewMedia = (photos.length > 0 || review.is_takeout) ? (
+    <div className="mb-3 space-y-3">
+      {photos.length > 0 && (
+        <div className={`grid gap-2 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {photos.map((p, i) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setLightboxIndex(i)}
+              aria-label={`Open photo ${i + 1} of ${photos.length} full size`}
+              className={`w-full overflow-hidden rounded-xl border-2 border-night-900 bg-cream-200 hover:border-sauce-400 transition-colors ${
+                photos.length > 1 ? 'aspect-square' : 'aspect-[4/3]'
+              }`}
+            >
+              <img src={p.url} alt={photoAlt(i)} loading={i < 2 ? 'eager' : 'lazy'} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Wing size is shown in the card header (ReviewCard) */}
+      {review.is_takeout && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-2 py-1 bg-cream-100 border-2 border-night-900 rounded font-bold uppercase tracking-crowd text-night-900">
+            Takeout{review.takeout_container ? ` · ${review.takeout_container.replace(/_/g, ' ')}` : ''}
+          </span>
+        </div>
+      )}
+    </div>
+  ) : null
 
   return (
     <div className="min-h-dvh bg-paper">
@@ -162,17 +238,17 @@ export default function ReviewPage() {
           {spot && (
             <Link
               to={`/spots/${spot.slug ?? ''}`}
-              className="block font-display uppercase text-3xl md:text-4xl text-night-900 leading-none tracking-tightest hover:text-sauce-500 break-words [overflow-wrap:anywhere]"
+              className="block font-display uppercase text-3xl md:text-4xl text-night-900 leading-none tracking-tightest hover:text-sauce-500 break-words user-text"
             >
-              {spot.name}
+              {spotName}
             </Link>
           )}
-          {spot?.address && <p className="text-xs text-charcoal-500 mt-1 break-words [overflow-wrap:anywhere]">{spot.address}</p>}
+          {spot?.address && <p className="text-xs text-charcoal-500 mt-1 break-words user-text">{cleanUserText(spot.address)}</p>}
           <div className="mt-3">
             <ShareButton
               title={title}
-              text={spot ? `A ${rating}/10 wing review of ${spot.name}` : 'A wing review on WingKingTony'}
-              url={window.location.href}
+              text={spot ? `A ${rating}/10 wing review of ${spotName}` : 'A wing review on WingKingTony'}
+              url={`${window.location.origin}/reviews/${review.id}`}
             />
           </div>
         </div>
@@ -185,6 +261,8 @@ export default function ReviewPage() {
             currentUserId={currentUserId}
             isAdmin={auth?.isAdmin ?? false}
             commentCount={commentCount}
+            media={reviewMedia}
+            focusComment={focusComment}
             onUpdate={handleUpdate}
             onDelete={async (rid) => {
               const res = await handleDelete(rid)
@@ -194,43 +272,20 @@ export default function ReviewPage() {
           />
         </div>
 
-        {/* Landing here straight after publishing shouldn't be a dead end */}
+        {/* Landing here straight after publishing shouldn't be a dead end.
+            The new review is on Discover (Following only shows people you
+            follow), so that's where "back to the feed" goes. */}
         <nav aria-label="Next steps" className="mt-4 flex flex-wrap gap-2">
-          <Link to="/" className="btn-secondary min-h-[44px]">← Back to the feed</Link>
+          <Link to="/?tab=discover" className="btn-secondary min-h-[44px]">← Back to the feed</Link>
           {spot?.slug && (
-            <Link to={`/spots/${spot.slug}`} className="btn-ghost min-h-[44px]">See all reviews of {spot.name}</Link>
+            <Link to={`/spots/${spot.slug}`} className="btn-ghost min-h-[44px] user-text">See all reviews of {spotName}</Link>
           )}
         </nav>
 
-        {review.photos && review.photos.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-            {review.photos.map((p, i) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setLightboxIndex(i)}
-                aria-label={`View photo ${i + 1} of ${review.photos!.length} full size`}
-                className="w-full overflow-hidden rounded-xl border-2 border-night-900 shadow-sticker-sm hover:shadow-sticker transition-shadow"
-              >
-                <img src={p.url} alt="" loading="lazy" className="w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Wing size is shown in the card header (ReviewCard) */}
-        {review.is_takeout && (
-          <div className="mt-8 flex flex-wrap gap-2 text-xs">
-            <span className="px-2 py-1 bg-cream-100 border-2 border-night-900 rounded font-bold uppercase tracking-crowd text-night-900">
-              Takeout{review.takeout_container ? ` · ${review.takeout_container.replace(/_/g, ' ')}` : ''}
-            </span>
-          </div>
-        )}
-
-        {moreByAuthor.length > 0 && !review.reviewer_is_private && (
+        {moreByAuthor.length > 0 && showAuthorProfile && (
           <section className="mt-12">
-            <h2 className="eyebrow mb-3 truncate">
-              More from {review.reviewer_name ?? 'this reviewer'}
+            <h2 className="eyebrow mb-3 truncate user-text">
+              More from {authorName}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {moreByAuthor.map(o => (
@@ -241,7 +296,7 @@ export default function ReviewPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-display uppercase text-sm text-night-900 truncate">{o.spot_name ?? 'Unknown spot'}</p>
+                      <p className="font-display uppercase text-sm text-night-900 truncate user-text">{cleanUserText(o.spot_name) || 'Unknown spot'}</p>
                       <p className="text-[10px] text-charcoal-500">
                         {formatVisitDate(o.visited_at)}
                       </p>
@@ -253,7 +308,7 @@ export default function ReviewPage() {
             </div>
             {review.reviewer_username && (
               <div className="mt-3">
-                <Link to={`/u/${review.reviewer_username}`} className="text-xs text-sauce-500 hover:underline">
+                <Link to={`/u/${review.reviewer_username}`} className="inline-flex items-center min-h-[44px] text-xs text-sauce-500 hover:underline">
                   See all reviews →
                 </Link>
               </div>
@@ -264,7 +319,7 @@ export default function ReviewPage() {
 
       {lightboxIndex !== null && review.photos && review.photos.length > 0 && (
         <PhotoLightbox
-          photos={review.photos.map(p => ({ id: p.id, url: p.url }))}
+          photos={review.photos.map((p, i) => ({ id: p.id, url: p.url, alt: photoAlt(i) }))}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />

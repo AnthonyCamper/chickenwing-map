@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import LiveScene, { buildDataItems, countRatedSpots, MIN_REVIEWS_FOR_RANKING } from './LiveScene'
+import LiveScene, { buildDataItems, countRatedSpots, EVERGREEN, isTooReal, MIN_REVIEWS_FOR_RANKING, ONION } from './LiveScene'
 import type { Review, SpotWithReviews } from '../lib/types'
 
 function spot(id: string, ratings: number[]): SpotWithReviews {
@@ -66,6 +66,37 @@ describe('LiveScene', () => {
     await waitFor(() => expect(screen.queryByText('Loading wing news…')).not.toBeInTheDocument())
     for (const call of fetchMock.mock.calls as unknown[][]) {
       expect(String(call[0])).not.toContain('reddit.com')
+    }
+  })
+})
+
+describe('ticker reads as parody, not real news (Q39)', () => {
+  it('has no hospital / death / police / insult headlines in the fixed lists', () => {
+    const offenders = [...ONION, ...EVERGREEN].filter(it => isTooReal(it.body) || isTooReal(it.eyebrow))
+    expect(offenders.map(o => o.body)).toEqual([])
+  })
+
+  it('never labels a joke "Breaking", "Health", "Alert" or "RIP"', () => {
+    const labels = new Set([...ONION, ...EVERGREEN].map(it => it.eyebrow.toLowerCase()))
+    for (const bad of ['breaking', 'health', 'alert', 'rip', 'developing']) expect(labels.has(bad)).toBe(false)
+  })
+
+  it('filters scary-real generated headlines', () => {
+    expect(isTooReal('ER Reports Spike In Ghost Pepper Wing Incidents')).toBe(true)
+    expect(isTooReal('Someone rated a spot 3/10. Investigators are on the scene.')).toBe(true)
+    expect(isTooReal('HOT TAKE: The bone is not the problem. You are the problem.')).toBe(true)
+    expect(isTooReal('Area Man Insists He "Only Wanted A Few" Before Finishing 30 Wings Alone')).toBe(false)
+  })
+
+  it('labels the ticker as jokes, on every screen size', async () => {
+    const fetchMock = vi.fn(async () => new Response('[]', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      render(<LiveScene spots={[]} loading />)
+      expect(screen.getByText('(jokes)').parentElement).toHaveTextContent(/^wing news \(jokes\)$/i)
+      expect(screen.queryByText(/^live$/i)).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
     }
   })
 })

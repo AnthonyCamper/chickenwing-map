@@ -95,7 +95,10 @@ export function useReviews(): UseReviewsReturn {
 
   const createReview = async (data: ReviewFormData, userId: string) => {
     const result = await createReviewAction(data, userId)
-    if (!result.error) await fetchAll()
+    // Refresh in the background: the form navigates to the new review, and
+    // waiting for a full refetch kept the sheet on "Publishing…" for seconds
+    // on a slow connection (m1 mobile 11).
+    if (!result.error) void fetchAll()
     return result
   }
 

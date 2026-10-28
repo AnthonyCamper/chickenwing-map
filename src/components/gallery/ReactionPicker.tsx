@@ -21,6 +21,7 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
   const [showFullPicker, setShowFullPicker] = useState(false)
   const [trayPos, setTrayPos] = useState<{ top: number; left: number } | null>(null)
   const addBtnRef = useRef<HTMLButtonElement>(null)
+  const trayRef = useRef<HTMLDivElement>(null)
 
   const byType = new Map(reactions.map(r => [r.reaction_type, r]))
   const hasAny = reactions.some(r => r.count > 0)
@@ -38,52 +39,73 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
     return addBtnRef.current?.getBoundingClientRect() ?? null
   }, [])
 
-  // Calculate tray position when opened, keeping it within viewport
-  const openQuickTray = useCallback(() => {
+  // Where the quick tray goes: BELOW the button by default, so it never
+  // covers the action row above it (Comment / Options); above only when
+  // there's no room below. Clamped to the viewport horizontally.
+  const placeTray = useCallback(() => {
     if (!addBtnRef.current) return
     const rect = addBtnRef.current.getBoundingClientRect()
-    // Tray is ~7 buttons * 36px + padding ≈ 280px wide, ~44px tall
-    // 7 buttons × 44px + 1.5px gaps + 12px padding ≈ 322px wide, ~56px tall
+    // 7 buttons × 44px + gaps + padding ≈ 332px wide, ~60px tall
     const trayW = 332
     const trayH = 60
     const pad = 8
-
-    // Position above the button, centered
-    let top = rect.top - trayH - 6
+    let top = rect.bottom + 6
+    if (top + trayH > window.innerHeight - pad && rect.top - trayH - 6 >= pad) {
+      top = rect.top - trayH - 6
+    }
     let left = rect.left + rect.width / 2 - trayW / 2
-
-    // Clamp to viewport
-    if (left < pad) left = pad
     if (left + trayW > window.innerWidth - pad) left = window.innerWidth - pad - trayW
-    if (top < pad) top = rect.bottom + 6 // flip below if no room above
-
+    if (left < pad) left = pad
     setTrayPos({ top, left })
-    setShowQuickTray(true)
   }, [])
 
-  // Reposition on scroll/resize while open
+  const openQuickTray = useCallback(() => {
+    placeTray()
+    setShowQuickTray(true)
+  }, [placeTray])
+
+  const closeQuickTray = useCallback((returnFocus = false) => {
+    setShowQuickTray(false)
+    if (returnFocus) addBtnRef.current?.focus()
+  }, [])
+
+  // While open: follow the button on scroll/resize, close on Escape, and
+  // close on a tap anywhere else WITHOUT swallowing that tap (no invisible
+  // full-screen layer), so e.g. "Comment" works on the first tap.
   useEffect(() => {
     if (!showQuickTray) return
-    const reposition = () => {
-      if (!addBtnRef.current) return
-      const rect = addBtnRef.current.getBoundingClientRect()
-      const trayW = 290
-      const trayH = 48
-      const pad = 8
-      let top = rect.top - trayH - 6
-      let left = rect.left + rect.width / 2 - trayW / 2
-      if (left < pad) left = pad
-      if (left + trayW > window.innerWidth - pad) left = window.innerWidth - pad - trayW
-      if (top < pad) top = rect.bottom + 6
-      setTrayPos({ top, left })
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (trayRef.current?.contains(target) || addBtnRef.current?.contains(target)) return
+      setShowQuickTray(false)
     }
-    window.addEventListener('scroll', reposition, true)
-    window.addEventListener('resize', reposition)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        closeQuickTray(true)
+      }
+    }
+    window.addEventListener('scroll', placeTray, true)
+    window.addEventListener('resize', placeTray)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKey)
     return () => {
-      window.removeEventListener('scroll', reposition, true)
-      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', placeTray, true)
+      window.removeEventListener('resize', placeTray)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
     }
-  }, [showQuickTray])
+  }, [showQuickTray, placeTray, closeQuickTray])
+
+  // Keyboard users land on the first emoji when the tray opens (once —
+  // not again every time it repositions on scroll).
+  const focusedTrayRef = useRef(false)
+  useEffect(() => {
+    if (!showQuickTray) { focusedTrayRef.current = false; return }
+    if (focusedTrayRef.current || !trayRef.current) return
+    focusedTrayRef.current = true
+    trayRef.current.querySelector('button')?.focus({ preventScroll: true })
+  }, [showQuickTray, trayPos])
 
   if (!hasAny && disabled) return null
 
@@ -98,14 +120,19 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
             type="button"
             disabled={disabled}
             onClick={() => onToggle(r.reaction_type)}
-            className={`inline-flex items-center gap-1 px-2 py-1 min-h-[28px] rounded-full text-xs font-bold transition-all duration-150 ${
+            aria-pressed={mine}
+            aria-label={`${r.reaction_type} ${r.count}${mine ? ', you reacted' : ''}`}
+            // 44px tall hit area around a compact pill
+            className="group/chip inline-flex items-center min-h-[44px] -my-2 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <span className={`inline-flex items-center gap-1 px-2 py-1 min-h-[28px] rounded-full text-xs font-bold transition-all duration-150 group-active/chip:scale-95 ${
               mine
                 ? 'bg-sauce-100 text-sauce-700 ring-1 ring-sauce-300'
-                : 'bg-cream-100 text-charcoal-600 hover:bg-cream-200'
-            } disabled:opacity-50 disabled:pointer-events-none active:scale-95`}
-          >
-            <span>{r.reaction_type}</span>
-            <span>{r.count}</span>
+                : 'bg-cream-100 text-charcoal-600 group-hover/chip:bg-cream-200'
+            }`}>
+              <span aria-hidden="true">{r.reaction_type}</span>
+              <span aria-hidden="true">{r.count}</span>
+            </span>
           </button>
         )
       })}
@@ -116,24 +143,32 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
           <button
             ref={addBtnRef}
             type="button"
-            onClick={() => showQuickTray ? setShowQuickTray(false) : openQuickTray()}
-            className={`inline-flex items-center justify-center rounded-full text-sm transition-all duration-150 ${
-              showLabel ? 'gap-1.5 min-h-[44px] px-3 text-xs font-bold' : 'w-8 h-8'
-            } ${
-              showQuickTray
-                ? 'bg-sauce-100 text-sauce-500'
-                : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
+            onClick={() => showQuickTray ? closeQuickTray() : openQuickTray()}
+            aria-expanded={showQuickTray}
+            aria-haspopup="true"
+            className={`group/add inline-flex items-center justify-center rounded-full text-sm transition-all duration-150 ${
+              showLabel
+                ? `gap-1.5 min-h-[44px] px-3 text-xs font-bold ${
+                    showQuickTray ? 'bg-sauce-100 text-sauce-500' : 'bg-cream-100 text-charcoal-500 hover:bg-cream-200'
+                  }`
+                // Compact: 44px hit area around a 32px visible circle
+                : `w-11 h-11 -my-1.5 ${showQuickTray ? 'text-sauce-500' : 'text-charcoal-500'}`
             } ${!hasAny && compact ? 'opacity-60 group-hover:opacity-100 sm:opacity-0' : ''}`}
             title="Add reaction"
             aria-label={showLabel ? 'React: add a reaction' : 'Add reaction'}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-              <line x1="9" y1="9" x2="9.01" y2="9" />
-              <line x1="15" y1="9" x2="15.01" y2="9" />
-            </svg>
-            {showLabel && <span>React</span>}
+            {showLabel ? (
+              <>
+                <SmileIcon />
+                <span>React</span>
+              </>
+            ) : (
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                showQuickTray ? 'bg-sauce-100' : 'bg-cream-100 group-hover/add:bg-cream-200'
+              }`}>
+                <SmileIcon />
+              </span>
+            )}
           </button>
 
           {/* Quick emoji tray — portaled to body with viewport-aware positioning */}
@@ -141,10 +176,9 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
             createPortal(
               <>
                 <div
-                  className="fixed inset-0 z-[190]"
-                  onClick={() => setShowQuickTray(false)}
-                />
-                <div
+                  ref={trayRef}
+                  role="group"
+                  aria-label="Choose a reaction"
                   className="fixed z-[195] animate-fade-in"
                   style={{ top: trayPos.top, left: trayPos.left }}
                 >
@@ -204,6 +238,17 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
         />
       )}
     </div>
+  )
+}
+
+function SmileIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" y1="9" x2="9.01" y2="9" />
+      <line x1="15" y1="9" x2="15.01" y2="9" />
+    </svg>
   )
 }
 

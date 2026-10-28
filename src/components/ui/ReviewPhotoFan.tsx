@@ -1,4 +1,5 @@
 import type { ReviewPhoto } from '../../lib/types'
+import { cleanUserText } from '../../lib/userText'
 
 /**
  * Groups a spot's flattened photo list into one array per review.
@@ -21,6 +22,8 @@ interface Props {
   /** One review's photos, any order (sorted here for safety). */
   photos: ReviewPhoto[]
   onOpen: () => void
+  /** Used in the photo description, e.g. "Photo of wings at Duff's" */
+  spotName?: string
 }
 
 /**
@@ -28,8 +31,9 @@ interface Props {
  * one photo, a fanned stack with a ×N badge for several. Static transforms
  * only; rotation is dropped under reduced motion.
  */
-export default function ReviewPhotoFan({ photos, onOpen }: Props) {
+export default function ReviewPhotoFan({ photos, onOpen, spotName }: Props) {
   if (photos.length === 0) return null
+  const alt = spotName ? `Photo of wings at ${cleanUserText(spotName)}` : 'Photo of wings from this review'
   const ordered = [...photos].sort((a, b) => a.display_order - b.display_order)
   const front = ordered[0]
   const behind = ordered.slice(1, 3)
@@ -57,7 +61,7 @@ export default function ReviewPhotoFan({ photos, onOpen }: Props) {
       ))}
       <img
         src={front.url}
-        alt=""
+        alt={alt}
         loading="lazy"
         className="relative w-full h-full object-cover rounded-xl border-2 border-night-900 bg-cream-200 hover:border-sauce-400 transition-colors"
       />
