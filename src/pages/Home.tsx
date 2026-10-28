@@ -2,13 +2,16 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useReviews } from '../hooks/useReviews'
+import { useTickerSpots } from '../hooks/useTickerSpots'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import { lazyWithReload } from '../lib/staleDeploy'
 import { supabase } from '../lib/supabase'
+import { isFastConnection, useFeedLandingSettled, whenIdle } from '../lib/feedLanding'
+import { prefetchWhenIdle } from '../lib/idlePrefetch'
 import Layout from '../components/Layout'
 import LiveScene from '../components/LiveScene'
 import GalleryView from '../components/gallery/GalleryView'
-import ReviewFormModal from '../components/ReviewFormModal'
+import ReviewFormModal, { prefetchReviewFormModal } from '../components/LazyReviewFormModal'
 import { UserProfileProvider } from '../components/UserProfileContext'
 import { ListViewSkeleton, MapViewSkeleton } from '../components/SpotsViewSkeletons'
 import type { AuthState } from '../hooks/useAuth'
@@ -28,21 +31,34 @@ function WelcomeIntro() {
       aria-label="About WingKingTony"
       className="max-w-2xl mx-auto px-4 pt-4"
     >
-      <div className="card px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
-        {/* Two lines reserved on phones: before the web font loads this
-            wraps, after it doesn't — without the reserve the whole feed
-            jumped up 20px (measured CLS 0.31 on Slow 3G). */}
-        <p className="text-sm font-bold text-night-900 leading-snug min-h-[2.75em] sm:min-h-0">
-          Find and rate chicken wing spots. Free.
-        </p>
-        <div className="mt-2.5 sm:mt-0 flex items-center gap-2 flex-shrink-0">
-          <Link to="/register" className="btn-primary px-3 py-2 text-xs tracking-wide whitespace-nowrap flex-1 sm:flex-none">
-            Create free account
-          </Link>
-          <Link to="/login" className="btn-secondary px-3 py-2 text-xs tracking-wide whitespace-nowrap">
-            Sign in
-          </Link>
+      <div className="card px-4 pt-3 pb-1">
+        <div className="sm:flex sm:items-center sm:justify-between sm:gap-4">
+          {/* Two lines reserved on phones: before the web font loads this
+              wraps, after it doesn't — without the reserve the whole feed
+              jumped up 20px (measured CLS 0.31 on Slow 3G). */}
+          <p className="text-sm font-bold text-night-900 leading-snug min-h-[2.75em] sm:min-h-0">
+            Find and rate chicken wing spots. Free.
+          </p>
+          <div className="mt-2.5 sm:mt-0 flex items-center gap-2 flex-shrink-0">
+            <Link to="/register" className="btn-primary px-3 py-2 text-xs tracking-wide whitespace-nowrap flex-1 sm:flex-none">
+              Create free account
+            </Link>
+            <Link to="/login" className="btn-secondary px-3 py-2 text-xs tracking-wide whitespace-nowrap">
+              Sign in
+            </Link>
+          </div>
         </div>
+        {/* Visitors check these before signing up; the page footer is
+            thousands of pixels down the feed. Fixed height: no layout jump. */}
+        <p className="flex items-center justify-end gap-1 h-8 text-xs text-charcoal-500">
+          <Link to="/privacy" className="inline-flex items-center min-h-[44px] -my-1.5 px-1.5 font-bold hover:text-sauce-600 underline-offset-2 hover:underline">
+            Privacy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/terms" className="inline-flex items-center min-h-[44px] -my-1.5 px-1.5 font-bold hover:text-sauce-600 underline-offset-2 hover:underline">
+            Terms
+          </Link>
+        </p>
       </div>
     </section>
   )
@@ -54,7 +70,6 @@ type SortKey = 'name' | 'rating'
 type HomeProps = { auth: AuthState; readOnly?: boolean }
 
 export default function Home({ auth, readOnly = false }: HomeProps) {
-  const reviews = useReviews()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
@@ -63,6 +78,27 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
 
   // ── View state from URL ──────────────────────────────────────────────
   const view = (searchParams.get('view') as View) || 'gallery'
+
+  // ── Data: the feed loads its own; Spots/Map data waits (S26) ─────────
+  // The all-spots data (~350 KB) is only used by Spots and Map, and on slow
+  // 3G it pushed the feed's first photo back by tens of seconds. It loads
+  // when Spots or Map is opened; on a fast connection also once the feed's
+  // first photo is in and the page is idle, so those tabs open instantly.
+  // On a slow one the ticker gets a small query of its own instead.
+  const [spotsWanted, setSpotsWanted] = useState(view !== 'gallery')
+  useEffect(() => { if (view !== 'gallery') setSpotsWanted(true) }, [view])
+  const landingSettled = useFeedLandingSettled()
+  const [afterLanding, setAfterLanding] = useState(false)
+  useEffect(() => {
+    if (landingSettled) return whenIdle(() => setAfterLanding(true))
+  }, [landingSettled])
+  const [fastConnection] = useState(isFastConnection)
+  const reviews = useReviews({ enabled: spotsWanted || (afterLanding && fastConnection) })
+  const ticker = useTickerSpots(afterLanding && !fastConnection && !spotsWanted)
+
+  // The review form's code is fetched on idle for people who can post.
+  const canPost = auth.canLeaveReviews && !readOnly
+  useEffect(() => { if (canPost) prefetchWhenIdle([prefetchReviewFormModal]) }, [canPost])
 
   const setView = useCallback((newView: View) => {
     setSearchParams(prev => {
@@ -181,7 +217,13 @@ export default function Home({ auth, readOnly = false }: HomeProps) {
       onViewChange={setView}
       onAddReview={openAddReview}
       readOnly={readOnly}
-      liveScene={<LiveScene spots={reviews.spots} loading={reviews.loading} />}
+      liveScene={
+        // Whichever arrives first: the full data (Spots/Map) or the ticker's own
+        <LiveScene
+          spots={reviews.loading ? ticker.spots : reviews.spots}
+          loading={reviews.loading && ticker.loading}
+        />
+      }
     >
       {!auth.user && view !== 'map' && <WelcomeIntro />}
 

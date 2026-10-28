@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 
@@ -35,6 +35,15 @@ describe('Login', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     expect(screen.getByText('Reset your password')).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toHaveValue('sam@example.com')
+  })
+
+  it('puts the form in <main> and has one footer with Privacy, Terms and Contact (m2 S18, S05)', () => {
+    renderPage()
+    expect(screen.getByRole('main')).toContainElement(screen.getByLabelText('Email'))
+    const footer = screen.getByRole('contentinfo')
+    for (const name of ['Privacy', 'Terms', 'Contact']) {
+      expect(within(footer).getByRole('link', { name })).toBeInTheDocument()
+    }
   })
 
   it('maps an OAuth error from the redirect too', () => {

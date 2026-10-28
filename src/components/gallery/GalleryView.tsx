@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useGallery } from '../../hooks/useGallery'
 import { useAuthGate } from '../AuthGateModal'
-import ReviewFeedCard from './ReviewFeedCard'
+import ReviewFeedCard, { isPlaceholderPhoto } from './ReviewFeedCard'
 import CrawlFeedCard from './CrawlFeedCard'
 import PeopleView from './PeopleView'
 import FeedSkeleton from './FeedSkeleton'
 import { useFollowsAnyone } from '../../hooks/useFollow'
 import { supabase } from '../../lib/supabase'
+import { markFeedLandingSettled } from '../../lib/feedLanding'
 import type { WingCrawlDetailed } from '../../lib/types'
 
 type Feed = 'following' | 'discover' | 'crawls' | 'people'
@@ -84,6 +85,18 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved)))
     }
   }, [feed, isReviewFeed, gallery.loading, gallery.error])
+
+  // The landing photo: the first photo of the top card (or of the next card
+  // with one, among the top three — text-only cards are short). It loads
+  // first, at high priority; everything else waits for it (lib/feedLanding).
+  // No such photo — nothing to wait for.
+  const priorityReviewId = isReviewFeed && !gallery.loading
+    ? gallery.reviews.slice(0, 3).find(r => r.photos.some(p => !isPlaceholderPhoto(p.photo_url)))?.review_id ?? null
+    : null
+  const feedShown = feed !== null && (!isReviewFeed || !gallery.loading)
+  useEffect(() => {
+    if (feedShown && !priorityReviewId) markFeedLandingSettled()
+  }, [feedShown, priorityReviewId])
 
   // Crawls feed — fetched independently when the tab is active
   const CRAWLS_PAGE = 20
@@ -305,6 +318,7 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
                 isAdmin={isAdmin}
                 onOpen={() => navigate(`/reviews/${review.review_id}`)}
                 onLike={() => { if (requireAuth()) gallery.toggleLike(review.review_id) }}
+                priority={review.review_id === priorityReviewId}
               />
             ))}
           </div>

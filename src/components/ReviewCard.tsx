@@ -325,13 +325,15 @@ export default function ReviewCard({
           )}
         </div>
 
-        {/* Reactions */}
+        {/* Reactions — the emoji row opens inline under "React", inside the
+            card, so it never covers the page links below the card */}
         <div className="mt-3 group">
-          <LikedByOverlay fetchUsers={() => fetchReviewReactors(review.id)} count={totalReactionCount} label="Reactions">
+          <LikedByOverlay fetchUsers={() => fetchReviewReactors(review.id)} count={totalReactionCount} label="Reactions" className="flex">
             <ReactionPicker
               reactions={reactions}
               onToggle={type => { if (requireAuth()) toggleReaction(type) }}
               showLabel
+              inlineTray
             />
           </LikedByOverlay>
         </div>

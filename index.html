@@ -28,6 +28,13 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
 
+    <!-- ── Supabase (data + photos): open the connection while the app code
+         downloads, so the first data request doesn't also pay DNS + TCP + TLS
+         (several round trips on 3G). Two: fetch() uses the CORS connection
+         pool, <img> photos the plain one. Vite fills in the URL at build. -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" />
+
     <!-- ── Fonts: Anton (athletic display) + Permanent Marker (hand) + Inter (body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

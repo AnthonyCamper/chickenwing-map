@@ -40,7 +40,7 @@ vi.mock('../components/AppHeader', () => ({ default: () => null }))
 const authRef = vi.hoisted(() => ({ current: null as AuthState | null }))
 vi.mock('../components/AuthProvider', () => ({ useAuthContext: () => authRef.current }))
 
-import UserProfilePage from './UserProfilePage'
+import UserProfilePage, { canonicalUsername } from './UserProfilePage'
 
 const SAM: UserProfile = {
   id: 'u1', email: '', full_name: 'Sam', display_name: 'Sam', username: 'sam', avatar_url: null,
@@ -111,6 +111,15 @@ describe('UserProfilePage', () => {
     expect(await screen.findByText('@sam-s')).toBeInTheDocument()
   })
 
+  it('opens /u/<Any Casing>, "@name" and stray spaces on the lowercase profile (m2 S08)', async () => {
+    db.profiles = [{ ...SAM, username: 'wingkingtony', display_name: 'WingKingTony' }]
+    for (const path of ['/u/WingKingTony', '/u/%40WINGKINGTONY', '/u/wingkingtony%20']) {
+      const { unmount } = renderAt(path)
+      expect(await screen.findByText('@wingkingtony')).toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it('cleans bidi tricks and Zalgo out of names and bios (Q11)', async () => {
     db.profiles = [{ ...SAM, display_name: 'Ev‮il', bio: 'Z' + '́'.repeat(40) }]
     renderAt('/u/sam')
@@ -118,5 +127,13 @@ describe('UserProfilePage', () => {
     expect(h1).toHaveTextContent('Evil')
     expect(h1).toHaveClass('user-text')
     expect(screen.getByText('Ź́')).toHaveClass('user-text')
+  })
+})
+
+describe('canonicalUsername', () => {
+  it('lowercases, trims and drops a leading @', () => {
+    expect(canonicalUsername('BREAKER-M2-THREE')).toBe('breaker-m2-three')
+    expect(canonicalUsername(' @Sam ')).toBe('sam')
+    expect(canonicalUsername('sam')).toBe('sam')
   })
 })

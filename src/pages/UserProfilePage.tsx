@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate } from '../lib/dates'
 import { cleanUserText } from '../lib/userText'
+import { formatRating } from '../lib/formatRating'
 import { useAuthContext } from '../components/AuthProvider'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import AvatarImage from '../components/ui/AvatarImage'
@@ -74,6 +75,18 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     if (!username) return
+    // Usernames are stored in small letters, but people type and share the
+    // display-name casing (/u/WingKingTony), sometimes with an "@" or a stray
+    // space. Send those to the one canonical link instead of a 404.
+    const canonical = canonicalUsername(username)
+    if (canonical !== username) {
+      if (canonical) {
+        navigate(`/u/${encodeURIComponent(canonical)}${window.location.search}${window.location.hash}`, { replace: true })
+      } else {
+        setStatus('not-found')
+      }
+      return
+    }
     let cancelled = false
 
     async function load() {
@@ -314,7 +327,7 @@ export default function UserProfilePage() {
   const displayName = cleanUserText(profile.display_name || profile.full_name || profile.username) || 'Unknown'
   const bio = cleanUserText(profile.bio)
   const description = stats.reviewCount > 0
-    ? `${displayName} on WingKingTony — ${stats.reviewCount} wing ${stats.reviewCount === 1 ? 'review' : 'reviews'}${stats.avgRating != null ? ` · avg ${stats.avgRating.toFixed(1)}/10` : ''}.`
+    ? `${displayName} on WingKingTony — ${stats.reviewCount} wing ${stats.reviewCount === 1 ? 'review' : 'reviews'}${stats.avgRating != null ? ` · avg ${formatRating(stats.avgRating)}/10` : ''}.`
     : `${displayName} on WingKingTony.`
 
   return (
@@ -380,7 +393,7 @@ export default function UserProfilePage() {
           <div className="flex gap-6 mt-5 text-sm flex-wrap">
             <Stat label="Reviews" value={stats.reviewCount} />
             <Stat label="Spots" value={stats.uniqueSpots} />
-            <Stat label="Average rating" value={stats.avgRating != null ? stats.avgRating.toFixed(1) : '—'} />
+            <Stat label="Average rating" value={formatRating(stats.avgRating)} />
             {badges.length > 0 ? (
               <a href="#badges" className="flex flex-col hover:text-sauce-500 transition-colors group">
                 <span className="flex items-center gap-1">
@@ -489,7 +502,7 @@ export default function UserProfilePage() {
                           {r.wing_size ? ` · Size: ${r.wing_size}` : ''}
                         </p>
                       </div>
-                      <div className="font-display text-2xl text-night-900 shrink-0">{Number(r.overall_rating).toFixed(1)}</div>
+                      <div className="font-display text-2xl text-night-900 shrink-0">{formatRating(r.overall_rating)}</div>
                     </div>
                     {r.review_text && (
                       <p className="user-text text-sm text-charcoal-700 mt-2 line-clamp-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{cleanUserText(r.review_text)}</p>
@@ -509,6 +522,11 @@ export default function UserProfilePage() {
       </Suspense>
     </div>
   )
+}
+
+/** The stored form of a typed /u/ link: small letters, no "@", no spaces around. */
+export function canonicalUsername(raw: string): string {
+  return raw.trim().replace(/^@+/, '').trim().toLowerCase()
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {

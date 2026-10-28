@@ -20,16 +20,47 @@ export function slugifyName(input: string): string {
   return plain.replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-/** The username sign-up will create: the slug, or slug-2, slug-3… when taken. */
+/**
+ * The n-th username sign-up tries for a base slug: the slug itself, then
+ * slug-2, slug-3… The base is cut so the whole name (with its "-N") fits in
+ * USERNAME_MAX, and a hyphen left dangling by the cut is dropped. Same rule
+ * as set_profile_username() in 044_username_generator_limits.sql.
+ */
+export function handleCandidate(base: string, n: number): string {
+  const suffix = n > 1 ? `-${n}` : ''
+  const cut = base.slice(0, USERNAME_MAX - suffix.length).replace(/-+$/, '')
+  return cut + suffix
+}
+
+/** Whether sign-up may hand out this name (it must pass the edit rules too). */
+function generatedHandleOk(candidate: string, used: Set<string>): boolean {
+  return !used.has(candidate)
+    && candidate.length >= USERNAME_MIN
+    && !RESERVED_USERNAMES.has(candidate)
+}
+
+/**
+ * The username sign-up will create: the slug, or slug-2, slug-3… when it is
+ * taken, reserved or shorter than USERNAME_MIN — always 3–30 characters.
+ */
 export function firstFreeHandle(base: string, taken: Iterable<string>): string {
   const used = new Set(taken)
-  let candidate = base
   let n = 1
-  while (used.has(candidate)) {
+  let candidate = handleCandidate(base, n)
+  while (!generatedHandleOk(candidate, used)) {
     n += 1
-    candidate = `${base}-${n}`
+    candidate = handleCandidate(base, n)
   }
   return candidate
+}
+
+/**
+ * Prefix shared by every name firstFreeHandle() can try for this base (for a
+ * `like 'prefix%'` lookup). Cutting the base for a "-N" suffix shortens it,
+ * so search on a prefix short enough to cover suffixes up to -9999.
+ */
+export function handleLookupPrefix(base: string): string {
+  return base.slice(0, USERNAME_MAX - 6).replace(/-+$/, '')
 }
 
 // Kept in step with the list in 042_username_change.sql.

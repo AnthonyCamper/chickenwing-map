@@ -10,6 +10,7 @@ import type { SpotWithReviews, Review, ReviewPhoto } from '../lib/types'
 import { MIN_REVIEWS_FOR_RANKING } from './LiveScene'
 import { cleanUserText } from '../lib/userText'
 import { ListViewSkeleton } from './SpotsViewSkeletons'
+import { formatRating } from '../lib/formatRating'
 
 type SortKey = 'name' | 'rating'
 /** Local-only sort options — 'near' lives inside ListView (Home only knows name/rating). */
@@ -218,7 +219,7 @@ export default function ListView({
                 {nearMe ? 'Spots near you' : sortBy === 'rating' ? 'Top rated spots' : 'All rated spots, A to Z'}
               </p>
               <h2 className="font-display uppercase text-3xl sm:text-4xl text-night-900 leading-tight tracking-wide">
-                {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every spot on the board'}
+                {nearMe ? 'Closest to you' : sortBy === 'rating' ? 'Who runs the streets' : 'Every rated spot'}
               </h2>
             </div>
             <div className="sticker-night flex-shrink-0">
@@ -241,6 +242,7 @@ export default function ListView({
               onBlur={() => setSearchFocused(false)}
               maxLength={100}
               placeholder="Search spots, addresses, flavors…"
+              data-reveal-handled
               aria-label="Search spots by name, address, or flavor"
               className="input pr-11"
             />
@@ -561,8 +563,8 @@ function RatingChip({ rating, count, hot }: { rating: number; count: number; hot
           ${hot ? 'bg-sauce-400 text-cream-50' : 'bg-cream-50 text-night-900'}`}
       >
         <span className="text-base leading-none">{hot ? '🔥' : '🍗'}</span>
-        <span className="hidden sm:inline-flex"><StarRating value={rating} size="sm" /></span>
-        <span>{rating.toFixed(1)}</span>
+        <span className="hidden sm:inline-flex"><StarRating value={Number(formatRating(rating))} size="sm" /></span>
+        <span>{formatRating(rating)}</span>
       </span>
       <span className="text-[12px] font-bold text-charcoal-500 whitespace-nowrap">
         {count} {count === 1 ? 'review' : 'reviews'}

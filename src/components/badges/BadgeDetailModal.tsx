@@ -55,7 +55,9 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
     : eventEnded === true ? 'Was available at' : eventEnded === false ? 'Available at' : 'From'
 
   return (
-    <Modal title="" onClose={onClose} size="sm">
+    // The badge name is the dialog's heading (and accessible name); an empty
+    // title left an empty <h2> and an unnamed dialog (m2 S18).
+    <Modal title={badge.name} onClose={onClose} size="sm">
       <div className="px-6 py-8 text-center bg-cream-50">
         {/* Badge icon plate — gold frame marks event exclusives */}
         <div className={`relative mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-5xl mb-5 border-2
@@ -72,10 +74,9 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
           )}
         </div>
 
-        <p className={`eyebrow mb-1 ${isEvent ? 'text-gold-500' : ''}`}>
+        <p className={`eyebrow mb-2 ${isEvent ? 'text-gold-500' : ''}`}>
           {isEvent ? 'Event exclusive' : 'Badge'}
         </p>
-        <h3 className="font-display uppercase tracking-wide text-2xl text-night-900 mb-2 leading-tight">{badge.name}</h3>
 
         {badge.earned && badge.description && (
           <p className="text-sm text-charcoal-500 mb-3 leading-relaxed max-w-[220px] mx-auto">{badge.description}</p>
@@ -129,7 +130,10 @@ export default function BadgeDetailModal({ badge, onClose }: Props) {
             {/* Plain instructions first; the teaser is the fun extra. */}
             <p className="eyebrow mb-1.5">How to earn it</p>
             <p className="text-sm text-night-800 leading-relaxed">{how}</p>
-            {badgeTeaser(badge) !== how && (
+            {/* Event badges' teasers are riddles about local culture ("This
+                city loses its mind over one sport…") that read as nonsense
+                to visitors: the plain rule above is enough (m2 S17). */}
+            {!isEvent && badgeTeaser(badge) !== how && (
               <p className="text-xs text-charcoal-500 italic leading-relaxed mt-2">{badgeTeaser(badge)}</p>
             )}
           </div>

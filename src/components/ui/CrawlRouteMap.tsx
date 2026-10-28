@@ -134,7 +134,7 @@ export default function CrawlRouteMap({ items, className, onSelectSpot }: Props)
     <div
       ref={elRef}
       role="region"
-      aria-label="Crawl route map"
+      aria-label="Map of the spots in this list"
       className={className ?? 'w-full h-56 sm:h-72 rounded-xl border-2 border-night-900 overflow-hidden shadow-sticker'}
     />
   )

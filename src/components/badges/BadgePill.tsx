@@ -25,9 +25,11 @@ export default function BadgePill({ badge, onClick, size = 'md' }: Props) {
     ? isEvent
       ? 'bg-night-800 border-gold-400 text-cream-50 shadow-sticker-gold hover:bg-night-700 cursor-pointer'
       : 'bg-night-800 border-night-900 text-cream-50 shadow-sticker-sm hover:shadow-sticker hover:bg-night-700 cursor-pointer'
+    // Locked: muted frame, but the name stays readable (no whole-pill
+    // opacity; it took the text below 3:1 on cream, m2 S15).
     : isEvent
-      ? 'bg-cream-100 border-dashed border-gold-400/70 text-charcoal-400 opacity-60 cursor-default'
-      : 'bg-cream-100 border-night-900/20 text-charcoal-400 opacity-50 grayscale cursor-default'
+      ? 'bg-cream-100 border-dashed border-gold-400 text-charcoal-600 cursor-default'
+      : 'bg-cream-100 border-night-900/20 text-charcoal-600 cursor-default'
 
   return (
     <button
@@ -52,7 +54,7 @@ export default function BadgePill({ badge, onClick, size = 'md' }: Props) {
       <span className={`${icon} mb-1 leading-none flex items-center justify-center`}>
         {earned
           ? <BadgeIcon icon={badge.icon} className={size === 'sm' ? 'w-6 h-6' : 'w-7 h-7'} />
-          : '🔒'}
+          : <span className="grayscale opacity-70" aria-hidden="true">🔒</span>}
       </span>
       <span className="text-[9px] font-extrabold uppercase tracking-crowd leading-tight">
         {badge.name}

@@ -32,6 +32,11 @@ describe('buildDataItems', () => {
     expect(king?.body).toContain('3 reviews')
   })
 
+  it('rounds the average like the rest of the site: 7.05 shows 7.1 (m2 S12)', () => {
+    const items = buildDataItems([spot('half', [7.1, 7.0, 7.05])])
+    expect(items.find(i => i.eyebrow === 'King of the house')?.body).toContain('7.1/10')
+  })
+
   it('omits King of the house when no spot has enough reviews', () => {
     const items = buildDataItems([spot('a', [10]), spot('b', [9, 9])])
     expect(MIN_REVIEWS_FOR_RANKING).toBeGreaterThan(2)

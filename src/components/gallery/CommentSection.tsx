@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
 import type { Comment, AddCommentOptions } from '../../lib/types'
 import type { ReactionUser } from '../../lib/reactionDetails'
 import HeartIcon from './HeartIcon'
@@ -7,8 +6,10 @@ import ReactionPicker from './ReactionPicker'
 import GifPicker from './GifPicker'
 import LikedByOverlay from './LikedByOverlay'
 import CommentComposer, { commentTooLong, replyPlaceholder } from './CommentComposer'
+import { revealAboveKeyboard } from './revealAboveKeyboard'
 import AvatarImage from '../ui/AvatarImage'
 import { cleanUserText } from '../../lib/userText'
+import { compactTimeAgo, fullDateTime } from '../../lib/compactTimeAgo'
 import { fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 
 type UserFetcher = (id: string) => Promise<ReactionUser[]>
@@ -98,7 +99,8 @@ export default function CommentSection({
   // Auto-focus when requested (after mount, only in standalone mode).
   useEffect(() => {
     if (autoFocus && !embedded) {
-      requestAnimationFrame(() => inputRef.current?.focus())
+      // preventScroll: the composer scrolls itself fully into view on focus
+      requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }))
     }
   }, [autoFocus, embedded])
   const replyingTo = externalReplyingTo !== undefined ? externalReplyingTo : internalReplyingTo
@@ -211,7 +213,16 @@ export default function CommentSection({
     const name = cleanUserText(comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown')
     setReplyingTo({ id: comment.parent_comment_id ?? comment.id, name })
     setShowGifPicker(false)
-    inputRef.current?.focus()
+    const input = inputRef.current
+    if (!input) return
+    // Focusing scrolls the composer (text box + Post) above the keyboard.
+    // Already focused (no focus event): bring it into view ourselves, after
+    // the "Replying to" bar has rendered.
+    if (document.activeElement === input) {
+      requestAnimationFrame(() => revealAboveKeyboard(input.parentElement ?? input, { smooth: true }))
+    } else {
+      input.focus({ preventScroll: true })
+    }
   }
 
   const handleGifSelect = (url: string) => {
@@ -481,10 +492,10 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
   const totalReactionCount = comment.reactions.reduce((sum, r) => sum + r.count, 0)
 
   const name = cleanUserText(comment.commenter_name ?? comment.commenter_email?.split('@')[0] ?? 'Unknown') || 'Unknown'
-  const timeAgo = (() => {
-    try { return formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }) }
-    catch { return '' }
-  })()
+  // Compact ("5m", "2d", "Oct 3") so it never gets cut off next to a long
+  // name on a phone; the full date is in the title / accessible name.
+  const timeAgo = compactTimeAgo(comment.created_at)
+  const timeFull = fullDateTime(comment.created_at)
 
   return (
     <div
@@ -507,9 +518,18 @@ function CommentItem({ comment, currentUserId, isAdmin, requireAuth, onDelete, o
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          {/* On a narrow reply column the time gives way before the name */}
-          <span className="flex-shrink-0 max-w-[60%] truncate text-xs font-bold text-night-800 user-text">{name}</span>
-          <span className="min-w-0 truncate text-xs text-charcoal-400">{timeAgo}</span>
+          {/* The name truncates; the short time never does */}
+          <span className="min-w-0 truncate text-xs font-bold text-night-800 user-text">{name}</span>
+          {timeAgo && (
+            <time
+              dateTime={comment.created_at}
+              title={timeFull}
+              aria-label={timeFull}
+              className="flex-shrink-0 whitespace-nowrap text-xs text-charcoal-500"
+            >
+              {timeAgo}
+            </time>
+          )}
           {canDelete && !isTemp && (
             <div ref={menuRef} className="relative inline-flex flex-shrink-0 ml-auto">
               {/* 44px hit area; the negative margin keeps the row compact */}

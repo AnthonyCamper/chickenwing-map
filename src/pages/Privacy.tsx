@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import AppHeader from '../components/AppHeader'
 
 export const LEGAL_CONTACT_EMAIL = 'anthonycap949@gmail.com'
-export const LEGAL_LAST_UPDATED = '27 October 2026'
+export const LEGAL_LAST_UPDATED = '28 October 2026'
 
 // Shared layout for the plain-language legal pages (/privacy, /terms).
 export function LegalPage({ title, related, children }: {
@@ -93,7 +93,8 @@ export default function Privacy() {
             gives us your email, your name and your Google profile photo.</>,
           <><strong>Profile:</strong> display name, a username (used in your profile link; it is made
             from your display name when you sign up, and you can change it in Edit profile), an
-            optional profile photo and an optional short bio.</>,
+            optional profile photo and an optional short bio. When you change your username, we
+            keep your old usernames so that old links still work (see “What is public”).</>,
           <><strong>What you post:</strong> reviews (spot, rating, flavor, size, visit date, text),
             photos, comments, GIFs you add to comments, likes and emoji reactions, people you
             follow, wing lists you make, and event RSVPs and check-ins.</>,
@@ -119,6 +120,13 @@ export default function Privacy() {
         <p>
           <strong>Your email address is never shown to other people.</strong> Only the site admin
           can see it, to manage accounts.
+        </p>
+        <p>
+          <strong>Old profile links keep working.</strong> If you change your username, your old
+          link (wingkingtony.com/u/old-name) keeps sending people to your profile with the new
+          name, and nobody else can take your old username. So changing your username does not
+          hide your profile from people who have an old link. When you delete your account, your
+          profile link and all your old links stop working.
         </p>
         <p>
           The “Private profile” setting in your profile hides your profile page from other people
@@ -171,7 +179,8 @@ export default function Privacy() {
           at any time. To delete everything, tap your picture in the top corner → <strong>Edit
           profile</strong> and choose <strong>Delete account</strong>. This permanently removes your account,
           profile, reviews, photos, comments, likes, reactions, follows, lists, RSVPs, check-ins,
-          badges and notifications. Spots you added stay on the map without your name.
+          badges and notifications, and your old usernames, so none of your profile links work
+          any more. Spots you added stay on the map without your name.
         </p>
         <p>
           You can also email <ContactLink /> to ask for a copy of your data or to have it deleted.

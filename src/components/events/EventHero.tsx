@@ -61,26 +61,44 @@ export default function EventHero({ event, phase, dateRange, goingCount, stopCou
 
 /**
  * The cover poster. Space is reserved up front (fixed height, so nothing
- * jumps), and a light gradient with the event name shows until the image
- * has fully loaded, then the image fades in. Before, a big cover on slow 3G
- * drew as a dark block for a minute or more.
+ * jumps) with a light gradient and the event name behind it. The image is
+ * ONE request and visible from the first byte, so a big cover paints
+ * progressively on slow 3G instead of hiding behind "Loading photo…" until
+ * the very end (m2 S07: a 2.8 MB cover showed nothing for 100 s+, and was
+ * downloaded twice for the blurred backdrop). The blurred letterbox fill is
+ * drawn from the loaded image into a tiny canvas: no second download.
  */
 function EventCover({ url, name }: { url: string; name: string }) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading')
   const imgRef = useRef<HTMLImageElement>(null)
+  const backdropRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
+    setState('loading')
     // Already in the browser cache: the load event may have fired before
     // React attached its handler.
     const img = imgRef.current
     if (img?.complete && img.naturalWidth > 0) setState('loaded')
   }, [url])
 
+  // Blurred backdrop for the letterbox, from the already-decoded image.
+  useEffect(() => {
+    if (state !== 'loaded') return
+    const img = imgRef.current
+    const canvas = backdropRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!img || !canvas || !ctx) return
+    try {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    } catch { /* not drawable: the gradient stays */ }
+  }, [state])
+
   const loaded = state === 'loaded'
 
   return (
     <div className="relative h-64 sm:h-80 overflow-hidden border-b-2 border-night-900 bg-gradient-to-br from-sauce-300 via-sauce-400 to-ember-300">
-      {/* Placeholder: readable title on a light gradient (not a dark block) */}
+      {/* Behind the image: readable title on a light gradient (not a dark
+          block) until the photo has painted over it */}
       <div
         aria-hidden="true"
         className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center transition-opacity duration-500 ${loaded ? 'opacity-0' : 'opacity-100'}`}
@@ -96,22 +114,20 @@ function EventCover({ url, name }: { url: string; name: string }) {
 
       {state !== 'failed' && (
         <>
-          {/* Blurred copy fills the letterbox around the whole (uncropped)
-              poster — see 40d586d. Same URL, so no extra download. */}
-          <img
-            src={url}
-            alt=""
+          <canvas
+            ref={backdropRef}
+            width={24}
+            height={24}
             aria-hidden="true"
-            className={`absolute inset-0 w-full h-full object-cover scale-110 blur-2xl transition-opacity duration-500 ${loaded ? 'opacity-70' : 'opacity-0'}`}
+            className={`absolute inset-0 w-full h-full scale-110 blur-2xl transition-opacity duration-500 ${loaded ? 'opacity-70' : 'opacity-0'}`}
           />
           <img
             ref={imgRef}
             src={url}
             alt=""
-            decoding="async"
             onLoad={() => setState('loaded')}
             onError={() => setState('failed')}
-            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            className="absolute inset-0 w-full h-full object-contain"
           />
         </>
       )}

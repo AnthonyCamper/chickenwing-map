@@ -167,14 +167,14 @@ function Lightbox({ photos, initialIndex, onClose, alt = 'Wing photo' }: Lightbo
         <>
           <button
             onClick={e => { e.stopPropagation(); prev() }}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-lg transition-colors"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-night-900/70 hover:bg-night-900/90 ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center text-2xl transition-colors"
             aria-label="Previous photo"
           >
             ‹
           </button>
           <button
             onClick={e => { e.stopPropagation(); next() }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-lg transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-night-900/70 hover:bg-night-900/90 ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center text-2xl transition-colors"
             aria-label="Next photo"
           >
             ›

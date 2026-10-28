@@ -39,4 +39,23 @@ describe('ReactionPicker quick tray', () => {
     const tray = screen.getByRole('group', { name: 'Choose a reaction' })
     expect(parseFloat(tray.style.top)).toBeGreaterThanOrEqual(344)
   })
+
+  it('lines the floating tray up with the button instead of centring it', () => {
+    render(<ReactionPicker reactions={[]} onToggle={vi.fn()} />)
+    const add = screen.getByRole('button', { name: 'Add reaction' })
+    add.getBoundingClientRect = () => ({ top: 300, bottom: 344, left: 40, right: 84, width: 44, height: 44, x: 40, y: 300, toJSON: () => ({}) })
+    fireEvent.click(add)
+    const tray = screen.getByRole('group', { name: 'Choose a reaction' })
+    expect(parseFloat(tray.style.left)).toBe(40)
+  })
+
+  it('inline tray opens in the page flow, inside the component (not floating)', () => {
+    const { container } = render(<ReactionPicker reactions={[]} onToggle={vi.fn()} showLabel inlineTray />)
+    fireEvent.click(screen.getByRole('button', { name: 'React: add a reaction' }))
+    const tray = screen.getByRole('group', { name: 'Choose a reaction' })
+    expect(container.contains(tray)).toBe(true)
+    expect(tray.className).not.toContain('fixed')
+    expect(tray.style.top).toBe('')
+    expect(tray.querySelector('button')).toHaveFocus()
+  })
 })

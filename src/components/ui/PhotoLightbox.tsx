@@ -12,6 +12,17 @@ interface Props {
 
 const SWIPE_THRESHOLD_PX = 50
 
+// Solid dark circle + white icon: visible over light and dark photos alike.
+const NAV_BTN = 'absolute z-10 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-night-900/70 hover:bg-night-900/90 ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center transition-colors disabled:opacity-0 disabled:pointer-events-none'
+
+function ChevronIcon({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={dir === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
+    </svg>
+  )
+}
+
 export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex)
   const touchStartX = useRef<number | null>(null)
@@ -92,7 +103,7 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
         onClick={(e) => { e.stopPropagation(); onClose() }}
         aria-label="Close photo"
         style={{ top: 'calc(1rem + env(safe-area-inset-top))', right: 'calc(1rem + env(safe-area-inset-right))' }}
-        className="absolute w-11 h-11 rounded-full bg-cream-50/10 hover:bg-cream-50/20 text-cream-50 text-2xl leading-none flex items-center justify-center transition-colors"
+        className="absolute z-10 w-12 h-12 rounded-full bg-night-900/70 hover:bg-night-900/90 ring-1 ring-white/40 shadow-lg text-white text-2xl leading-none flex items-center justify-center transition-colors"
       >
         ×
       </button>
@@ -103,17 +114,17 @@ export default function PhotoLightbox({ photos, initialIndex, onClose }: Props) 
             onClick={(e) => { e.stopPropagation(); setIndex(i => Math.max(0, i - 1)) }}
             disabled={index === 0}
             aria-label="Previous photo"
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-cream-50/10 hover:bg-cream-50/20 disabled:opacity-30 disabled:cursor-not-allowed text-cream-50 text-2xl flex items-center justify-center transition-colors"
+            className={`${NAV_BTN} left-4`}
           >
-            ‹
+            <ChevronIcon dir="left" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setIndex(i => Math.min(photos.length - 1, i + 1)) }}
             disabled={index === photos.length - 1}
             aria-label="Next photo"
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-cream-50/10 hover:bg-cream-50/20 disabled:opacity-30 disabled:cursor-not-allowed text-cream-50 text-2xl flex items-center justify-center transition-colors"
+            className={`${NAV_BTN} right-4`}
           >
-            ›
+            <ChevronIcon dir="right" />
           </button>
 
           <span

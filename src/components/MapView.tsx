@@ -8,6 +8,7 @@ import { usePhotoDetail } from '../hooks/usePhotoDetail'
 import { useHistoryModal } from '../hooks/useHistoryModal'
 import { minZoomToFillHeight, pickInitialFocus } from '../lib/mapFocus'
 import type { SpotWithReviews, ReviewUpdateData } from '../lib/types'
+import { formatRating } from '../lib/formatRating'
 
 const CAMERA_KEY = 'wingmap-camera'
 
@@ -248,7 +249,7 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
             const icon = createPinIcon(L, spotData.avg_rating, spotData.photos[0]?.url ?? null)
             const marker = L.marker([lat, lng], {
               icon,
-              title: `${spotData.spot.name}: rated ${spotData.avg_rating.toFixed(1)} out of 10`,
+              title: `${spotData.spot.name}: rated ${formatRating(spotData.avg_rating)} out of 10`,
             })
               .on('click', () => setSelectedShop(spotData))
             marker.addTo(map)
@@ -301,6 +302,30 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
     setTimeout(() => setSelectedShop(spotData), 350)
     onFocusHandled?.()
   }, [focusShopId, mapReady]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Keep the selected pin visible above the spot sheet (phones) ──────────
+  // The sheet covers up to ~72% of the map from the bottom; a tapped pin in
+  // the lower part of the map ended up hidden behind it (m2 S21). Once the
+  // sheet has laid out, pan so the pin sits in the middle of the map area
+  // still showing above it.
+  useEffect(() => {
+    const map = leafletRef.current
+    const container = containerRef.current
+    if (!selectedSpot || !map || !container) return
+    if (window.matchMedia('(min-width: 640px)').matches) return // side panel, not a sheet
+    const raf = requestAnimationFrame(() => {
+      const sheet = container.querySelector<HTMLElement>('[data-spot-sheet]')
+      if (!sheet) return
+      // offsetTop ignores the slide-up transform, i.e. where the sheet settles.
+      const visibleBottom = sheet.offsetTop
+      const pin = map.latLngToContainerPoint([selectedSpot.spot.lat, selectedSpot.spot.lng])
+      const margin = 56 // room for the pin's label above its point
+      if (pin.y >= margin && pin.y <= visibleBottom - 16) return
+      const targetY = Math.max(margin, visibleBottom / 2 + margin / 2)
+      map.panBy([0, pin.y - targetY], { animate: true, duration: 0.3 })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [selectedSpot])
 
   // ── Fill the viewport below the app chrome ────────────────────────────────
   // The chrome above us varies (safe-area, event broadcast strip, live
@@ -420,7 +445,7 @@ export default function MapView({ shops, loading, currentUserId, isAdmin, onUpda
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createPinIcon(L: any, avgRating: number, photoUrl: string | null) {
-  const score = avgRating.toFixed(1)
+  const score = formatRating(avgRating)
   // Only embed URLs that originate from our own storage (guard against injection)
   const safePhoto = photoUrl && photoUrl.startsWith('https://') ? photoUrl : null
   const thumbHtml = safePhoto ? `

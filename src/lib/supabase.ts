@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { drainingFetch } from './drainingFetch'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -21,4 +22,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     storageKey: AUTH_STORAGE_KEY,
   },
+  // Lets count (HEAD) and logout (204) responses finish cleanly instead of
+  // showing up as aborted requests; see drainingFetch.
+  global: { fetch: drainingFetch },
 })

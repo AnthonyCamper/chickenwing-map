@@ -86,7 +86,7 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
       <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.08]" />
       <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07] rotate-180" />
 
-      <div className="relative w-full max-w-sm animate-fade-in">
+      <main className="relative w-full max-w-sm animate-fade-in">
         {/* Brand mark */}
         <div className="flex flex-row sm:flex-col items-center justify-center gap-3 sm:gap-0 text-left sm:text-center mb-4 sm:mb-8">
           <img
@@ -262,9 +262,9 @@ export default function Login({ onSignInGoogle, onSignInEmail, isPublic, onBrows
             </>
           )}
         </div>
+      </main>
 
-        <LegalLinks />
-      </div>
+      <LegalLinks />
     </div>
   )
 }

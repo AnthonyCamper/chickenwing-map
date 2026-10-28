@@ -14,9 +14,15 @@ interface Props {
   compact?: boolean
   /** Show a visible "React" label on the add button (44px tall pill). */
   showLabel?: boolean
+  /**
+   * Open the emoji row in the page flow, on its own line under the button,
+   * instead of as a floating tray: it stays inside the card and never covers
+   * anything (the review card's "React" sits right above the page links).
+   */
+  inlineTray?: boolean
 }
 
-export default function ReactionPicker({ reactions, onToggle, disabled, compact, showLabel }: Props) {
+export default function ReactionPicker({ reactions, onToggle, disabled, compact, showLabel, inlineTray = false }: Props) {
   const [showQuickTray, setShowQuickTray] = useState(false)
   const [showFullPicker, setShowFullPicker] = useState(false)
   const [trayPos, setTrayPos] = useState<{ top: number; left: number } | null>(null)
@@ -39,11 +45,12 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
     return addBtnRef.current?.getBoundingClientRect() ?? null
   }, [])
 
-  // Where the quick tray goes: BELOW the button by default, so it never
+  // Where the floating tray goes: BELOW the button by default, so it never
   // covers the action row above it (Comment / Options); above only when
-  // there's no room below. Clamped to the viewport horizontally.
+  // there's no room below. Its left edge lines up with the button (it grows
+  // to the right, the way the row reads) and it is kept inside the viewport.
   const placeTray = useCallback(() => {
-    if (!addBtnRef.current) return
+    if (!addBtnRef.current || inlineTray) return
     const rect = addBtnRef.current.getBoundingClientRect()
     // 7 buttons × 44px + gaps + padding ≈ 332px wide, ~60px tall
     const trayW = 332
@@ -53,11 +60,11 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
     if (top + trayH > window.innerHeight - pad && rect.top - trayH - 6 >= pad) {
       top = rect.top - trayH - 6
     }
-    let left = rect.left + rect.width / 2 - trayW / 2
+    let left = rect.left
     if (left + trayW > window.innerWidth - pad) left = window.innerWidth - pad - trayW
     if (left < pad) left = pad
     setTrayPos({ top, left })
-  }, [])
+  }, [inlineTray])
 
   const openQuickTray = useCallback(() => {
     placeTray()
@@ -85,8 +92,10 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
         closeQuickTray(true)
       }
     }
-    window.addEventListener('scroll', placeTray, true)
-    window.addEventListener('resize', placeTray)
+    if (!inlineTray) {
+      window.addEventListener('scroll', placeTray, true)
+      window.addEventListener('resize', placeTray)
+    }
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('keydown', onKey)
     return () => {
@@ -95,7 +104,7 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('keydown', onKey)
     }
-  }, [showQuickTray, placeTray, closeQuickTray])
+  }, [showQuickTray, placeTray, closeQuickTray, inlineTray])
 
   // Keyboard users land on the first emoji when the tray opens (once —
   // not again every time it repositions on scroll).
@@ -106,6 +115,59 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
     focusedTrayRef.current = true
     trayRef.current.querySelector('button')?.focus({ preventScroll: true })
   }, [showQuickTray, trayPos])
+
+  const quickTray = (
+    <div
+      ref={trayRef}
+      role="group"
+      aria-label="Choose a reaction"
+      className={inlineTray ? 'basis-full mt-1 animate-fade-in' : 'fixed z-[195] animate-fade-in'}
+      style={inlineTray || !trayPos ? undefined : { top: trayPos.top, left: trayPos.left }}
+    >
+      <div className={inlineTray
+        ? 'inline-flex flex-wrap items-center gap-0.5 max-w-full bg-cream-50 rounded-2xl border-2 border-night-900 px-1 py-1'
+        : 'bg-cream-50 rounded-2xl shadow-lg border-2 border-night-900 px-1.5 py-1.5 flex items-center gap-0.5 whitespace-nowrap'}>
+        {QUICK_EMOJIS.map(emoji => {
+          const existing = byType.get(emoji)
+          const mine = existing?.is_mine ?? false
+          return (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle(emoji)
+                setShowQuickTray(false)
+              }}
+              className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-all duration-100
+                hover:bg-cream-100 active:scale-125 ${mine ? 'bg-sauce-50 ring-1 ring-sauce-200' : ''}`}
+              aria-label={`React with ${emoji}`}
+            >
+              {emoji}
+            </button>
+          )
+        })}
+        {/* More button → full picker */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowQuickTray(false)
+            setShowFullPicker(true)
+          }}
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-charcoal-500 hover:bg-cream-100 transition-colors"
+          title="More emoji"
+          aria-label="More emoji"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="19" cy="12" r="1" />
+            <circle cx="5" cy="12" r="1" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
 
   if (!hasAny && disabled) return null
 
@@ -171,61 +233,10 @@ export default function ReactionPicker({ reactions, onToggle, disabled, compact,
             )}
           </button>
 
-          {/* Quick emoji tray — portaled to body with viewport-aware positioning */}
-          {showQuickTray && trayPos &&
-            createPortal(
-              <>
-                <div
-                  ref={trayRef}
-                  role="group"
-                  aria-label="Choose a reaction"
-                  className="fixed z-[195] animate-fade-in"
-                  style={{ top: trayPos.top, left: trayPos.left }}
-                >
-                  <div className="bg-cream-50 rounded-2xl shadow-lg border-2 border-night-900 px-1.5 py-1.5 flex items-center gap-0.5 whitespace-nowrap">
-                    {QUICK_EMOJIS.map(emoji => {
-                      const existing = byType.get(emoji)
-                      const mine = existing?.is_mine ?? false
-                      return (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onToggle(emoji)
-                            setShowQuickTray(false)
-                          }}
-                          className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-all duration-100
-                            hover:bg-cream-100 active:scale-125 ${mine ? 'bg-sauce-50 ring-1 ring-sauce-200' : ''}`}
-                          aria-label={`React with ${emoji}`}
-                        >
-                          {emoji}
-                        </button>
-                      )
-                    })}
-                    {/* More button → full picker */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowQuickTray(false)
-                        setShowFullPicker(true)
-                      }}
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-charcoal-500 hover:bg-cream-100 transition-colors"
-                      title="More emoji"
-                      aria-label="More emoji"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="19" cy="12" r="1" />
-                        <circle cx="5" cy="12" r="1" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </>,
-              document.body
-            )}
+          {/* Quick emoji tray: inline under the button, or portaled to body
+              with viewport-aware positioning */}
+          {showQuickTray && inlineTray && quickTray}
+          {showQuickTray && !inlineTray && trayPos && createPortal(quickTray, document.body)}
         </>
       )}
 

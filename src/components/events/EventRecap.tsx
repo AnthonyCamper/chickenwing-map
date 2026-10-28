@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import BadgeIcon from '../badges/BadgeIcon'
 import AvatarImage from '../ui/AvatarImage'
 import { cleanUserText } from '../../lib/userText'
+import { formatRating } from '../../lib/formatRating'
 
 interface RecapReview {
   id: string
@@ -123,8 +124,10 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
     return () => { cancelled = true }
   }, [eventId])
 
+  const reviewsById = new Map(reviews.map(r => [r.id, r]))
+
   const avgRating = reviews.length > 0
-    ? (reviews.reduce((s, r) => s + r.overall_rating, 0) / reviews.length).toFixed(1)
+    ? formatRating(reviews.reduce((s, r) => s + Number(r.overall_rating), 0) / reviews.length)
     : null
 
   // null value = still loading (rendered as a placeholder bar)
@@ -148,6 +151,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
               <Link
                 key={p.id}
                 to={`/reviews/${p.review_id}`}
+                // Each link needs a name for screen readers (m2 S14).
+                aria-label={photoLinkLabel(reviewsById.get(p.review_id))}
                 className="block aspect-square rounded-xl overflow-hidden border-2 border-night-900"
               >
                 <img src={p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
@@ -170,10 +175,9 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
           <ul className="space-y-2.5">
             {winners.map(w => (
               <li key={w.badge_id} className="flex items-center gap-3">
-                <span
-                  className="w-9 h-9 rounded-xl border-2 border-night-900 flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: w.color }}
-                >
+                {/* Dark plate like the earned badge pills: the icons are drawn
+                    in light strokes and vanished on light badge colours (m2 S15) */}
+                <span className="w-9 h-9 rounded-xl border-2 border-gold-400 bg-night-800 flex items-center justify-center flex-shrink-0">
                   <BadgeIcon icon={w.icon} className="w-5 h-5 text-cream-50" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -209,8 +213,8 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       )}
       {/* The numbers */}
       <section className="card px-5 py-4">
-        <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">The damage</h3>
-        <p className="text-xs text-charcoal-500 mb-3">Event totals.</p>
+        <h3 className="font-display uppercase text-base text-night-900 tracking-tightest">Event totals</h3>
+        <p className="text-xs text-charcoal-500 mb-3">Stops, check-ins, reviews and the average rating.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-4 text-center" aria-busy={!reviewsLoaded}>
           {stats.map(s => (
             <div key={s.label}>
@@ -228,4 +232,12 @@ export default function EventRecap({ eventId, totalStops, totalCheckins }: Props
       </section>
     </>
   )
+}
+
+/** "Photo from Dana's review of Bar Bill" — the accessible name of an evidence link. */
+function photoLinkLabel(review: RecapReview | undefined): string {
+  if (!review) return 'Open the review with this photo'
+  const who = cleanUserText(review.reviewer_name)
+  const where = review.spot_name ? ` of ${review.spot_name.trim()}` : ''
+  return who ? `Photo from ${who}'s review${where}` : `Photo from a review${where}`
 }

@@ -117,3 +117,20 @@ describe('Comment threads', () => {
     expect(p).toHaveClass('user-text')
   })
 })
+
+describe('Comment header time', () => {
+  it('shows a compact time that cannot be cut off, with the full date as its name', () => {
+    const created = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    render(
+      <CommentSection comments={[makeComment({ created_at: created, commenter_name: 'A really really long display name' })]}
+        loading={false} currentUserId="u1" isAdmin={false}
+        onAdd={noop} onDelete={noop} onToggleLike={noop} onToggleReaction={noop} onFetchReplies={async () => []} />
+    )
+    const time = screen.getByText('5m')
+    expect(time.tagName).toBe('TIME')
+    expect(time).toHaveAttribute('dateTime', created)
+    expect(time.getAttribute('aria-label')).toMatch(/^\w+ \d{1,2}, \d{4} at \d{1,2}:\d{2} [AP]M$/)
+    expect(time.className).toContain('flex-shrink-0')
+    expect(time.className).not.toContain('truncate')
+  })
+})

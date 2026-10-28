@@ -7,6 +7,7 @@ import {
   createReview as createReviewAction,
   updateReview as updateReviewAction,
   deleteReview as deleteReviewAction,
+  type ReviewCreateData,
 } from '../lib/reviewActions'
 import ReviewCard from '../components/ReviewCard'
 import ReviewFormModal from '../components/ReviewFormModal'
@@ -16,7 +17,8 @@ import AppHeader from '../components/AppHeader'
 import PageStateShell from '../components/ui/PageStateShell'
 import { useAuthGate } from '../components/AuthGateModal'
 import { useAuthContext } from '../components/AuthProvider'
-import type { WingSpot, Review, ReviewPhoto, ReviewUpdateData, ReviewFormData } from '../lib/types'
+import type { WingSpot, Review, ReviewPhoto, ReviewUpdateData } from '../lib/types'
+import { formatRating } from '../lib/formatRating'
 
 interface SpotDetail {
   spot: WingSpot
@@ -211,7 +213,7 @@ export default function SpotPage() {
   const { spot, reviews, avgRating, commentCounts } = data
   const coverPhoto = reviews.flatMap(r => r.photos ?? [])[0]?.url
   const description = avgRating
-    ? `${avgRating.toFixed(1)}/10 from ${reviews.length} wing ${reviews.length === 1 ? 'review' : 'reviews'} on WingKingTony.`
+    ? `${formatRating(avgRating)}/10 from ${reviews.length} wing ${reviews.length === 1 ? 'review' : 'reviews'} on WingKingTony.`
     : `Wing reviews from WingKingTony — ${spot.address}.`
 
   return (
@@ -237,7 +239,7 @@ export default function SpotPage() {
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             {avgRating != null && (
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-sauce-400 border-2 border-night-900 rounded-lg shadow-sticker">
-                <span className="font-display text-xl text-night-900">{avgRating.toFixed(1)}</span>
+                <span className="font-display text-xl text-night-900">{formatRating(avgRating)}</span>
                 <span className="text-xs uppercase font-bold tracking-crowd text-night-900">/ 10</span>
                 <span className="text-xs text-night-900 ml-2">· {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}</span>
               </div>
@@ -343,12 +345,13 @@ export default function SpotPage() {
         <ReviewFormModal
           onClose={() => setShowLogModal(false)}
           prefill={{
+            wing_spot_id: spot.id,
             shop_name: spot.name,
             address: spot.address,
             lat: spot.lat,
             lng: spot.lng,
           }}
-          onSubmit={async (formData: ReviewFormData) => {
+          onSubmit={async (formData: ReviewCreateData) => {
             if (!currentUserId) return { error: 'You must be signed in' }
             const result = await createReviewAction(formData, currentUserId)
             if (!result.error) {

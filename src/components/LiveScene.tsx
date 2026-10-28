@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpotWithReviews } from '../lib/types'
+import { formatRating } from '../lib/formatRating'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 
@@ -177,7 +178,7 @@ export function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
 
   const king = [...ranked].sort((a, b) => b.avg_rating - a.avg_rating)[0]
   if (king) items.push({ emoji: '👑', eyebrow: 'King of the house', type: 'scene',
-    body: `${trunc(king.spot.name, 26)} · ${king.avg_rating.toFixed(1)}/10 from ${king.reviews.length} reviews` })
+    body: `${trunc(king.spot.name, 26)} · ${formatRating(king.avg_rating)}/10 from ${king.reviews.length} reviews` })
 
   const newest = [...rated].map(s => ({ s, r: s.reviews[0] })).filter(x => !!x.r)
     .sort((a, b) => b.r.visited_at.localeCompare(a.r.visited_at))[0]
@@ -205,7 +206,7 @@ export function buildDataItems(spots: SpotWithReviews[]): SceneItem[] {
 
   const bottom = [...ranked].sort((a, b) => a.avg_rating - b.avg_rating)[0]
   if (bottom && bottom.avg_rating < 6) items.push({ emoji: '🫤', eyebrow: 'Tough crowd', type: 'debate',
-    body: `${trunc(bottom.spot.name, 24)} catching strays — ${bottom.avg_rating.toFixed(1)}/10` })
+    body: `${trunc(bottom.spot.name, 24)} catching strays — ${formatRating(bottom.avg_rating)}/10` })
 
   const perfect = rated.flatMap(s => s.reviews).find(r => r.overall_rating === 10)
   if (perfect) items.push({ emoji: '💯', eyebrow: 'Perfect ten', type: 'alert',

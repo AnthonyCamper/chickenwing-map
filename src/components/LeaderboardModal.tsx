@@ -5,6 +5,7 @@ import AvatarImage from './ui/AvatarImage'
 import { MIN_REVIEWS_FOR_AVG_RANK } from '../hooks/useLeaderboard'
 import { useHideFab } from '../hooks/useHideFab'
 import { cleanUserText } from '../lib/userText'
+import { formatRating } from '../lib/formatRating'
 
 const n = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`
 
@@ -16,7 +17,7 @@ interface Props {
 const CATEGORIES: { key: LeaderboardCategory; label: string; emoji: string; stat: (r: LeaderboardRow) => string }[] = [
   { key: 'reviews',  label: 'Reviews',        emoji: '🍗', stat: r => n(r.review_count, 'review') },
   { key: 'spots',    label: 'Spots',          emoji: '📍', stat: r => `${n(r.unique_spots, 'spot')} rated` },
-  { key: 'heat',     label: 'Average rating', emoji: '🔥', stat: r => r.avg_rating != null ? `${Number(r.avg_rating).toFixed(1)} average from ${n(r.review_count, 'review')}` : '—' },
+  { key: 'heat',     label: 'Average rating', emoji: '🔥', stat: r => r.avg_rating != null ? `${formatRating(r.avg_rating)} average from ${n(r.review_count, 'review')}` : '—' },
   { key: 'comments', label: 'Comments',       emoji: '💬', stat: r => n(r.comment_count, 'comment') },
   { key: 'badges',   label: 'Badges',         emoji: '🏅', stat: r => n(r.badge_count, 'badge') },
   { key: 'likes',    label: 'Likes',          emoji: '❤️', stat: r => `${n(r.total_likes_received, 'like')} received` },

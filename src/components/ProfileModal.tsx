@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { useBottomSheetDrag } from '../hooks/useBottomSheetDrag'
+import { useBottomSheetDrag, useIsMobile } from '../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useHideFab } from '../hooks/useHideFab'
 import { useBadges } from '../hooks/useBadges'
 import { useLeaderboard } from '../hooks/useLeaderboard'
 import BadgeGrid from './badges/BadgeGrid'
@@ -11,6 +12,8 @@ import AvatarImage from './ui/AvatarImage'
 import { changePassword, deleteOwnAccount, hasPasswordLogin, verifyCurrentPassword, type AuthState } from '../hooks/useAuth'
 import { displayNameProblem, MIN_PASSWORD_LENGTH, passwordProblem } from '../lib/authErrors'
 import { PROFILE_LINK_PREFIX, USERNAME_MAX, USERNAME_TAKEN_MESSAGE, usernameProblem, usernameSaveError } from '../lib/profileHandle'
+import { formatRating } from '../lib/formatRating'
+import { BADGES_UNLOCKED_EVENT } from '../lib/badgeUnlocks'
 import { validateImageFile } from '../lib/imageValidation'
 import { AVATAR_MAX_SIDE, downscaleImage, imageExtension } from '../lib/imageResize'
 
@@ -62,6 +65,11 @@ export default function ProfileModal({ auth, onClose }: Props) {
   }, [panel])
 
   const usernameChanged = username !== initialUsername
+  // Checked as you type, so Save never sends a username the database will
+  // refuse: the format rules at once (shown when typing pauses), whether
+  // someone else has it after a short lookup.
+  const usernameCheck = useUsernameCheck(usernameChanged ? username : null, user?.id, auth.isAdmin)
+  const usernameBlocked = usernameChanged && usernameCheck.status !== 'ok'
   const isDirty = displayName !== initialName || bio !== initialBio || isPrivate !== initialPrivate
     || usernameChanged || !!avatarFile
   const dirtyRef = useRef(isDirty)
@@ -115,11 +123,40 @@ export default function ProfileModal({ auth, onClose }: Props) {
     defaultMaxHeight: 'calc(92dvh - env(safe-area-inset-top))',
   })
   const panelRef = useFocusTrap<HTMLDivElement>()
+  useHideFab(true)
+
+  // Phone keyboard: lift the sheet above it (same as ui/Modal), and bring a
+  // focused field up to the top of the sheet's scroll area so it isn't left
+  // under the keyboard (the Bio box sat at y≈480–557 on a 375×667 phone).
+  const isMobile = useIsMobile()
+  const keyboardInset = useKeyboardInset()
+  const revealField = (e: React.FocusEvent<HTMLElement>) => {
+    if (!isMobile) return
+    const field = (e.currentTarget.closest('[data-field]') as HTMLElement | null) ?? e.currentTarget
+    const reveal = () => {
+      const area = scrollRef.current
+      if (!area || !area.contains(field)) return
+      const offset = field.getBoundingClientRect().top - area.getBoundingClientRect().top
+      if (offset > 8 || offset < 0) area.scrollTo?.({ top: area.scrollTop + offset - 8, behavior: 'smooth' })
+    }
+    reveal()
+    // Again once the keyboard has opened and the sheet has been lifted.
+    window.setTimeout(reveal, 350)
+  }
 
   const badgesHook = useBadges(user?.id)
+  // Badges unlocked while the sheet is open (or just before, still being
+  // announced) — count them straight away, not on the next open.
+  const refreshBadges = badgesHook.refresh
+  useEffect(() => {
+    const onUnlock = () => { void refreshBadges() }
+    window.addEventListener(BADGES_UNLOCKED_EVENT, onUnlock)
+    return () => window.removeEventListener(BADGES_UNLOCKED_EVENT, onUnlock)
+  }, [refreshBadges])
+  const badgesKnown = !badgesHook.loading || badgesHook.badges.length > 0
   const { rows: leaderRows, loading: lbLoading } = useLeaderboard(user?.id)
-  const [followerCount, setFollowerCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
+  const [followerCount, setFollowerCount] = useState<number | null>(null)
+  const [followingCount, setFollowingCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!user?.id) return
@@ -140,7 +177,9 @@ export default function ProfileModal({ auth, onClose }: Props) {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'profile', label: 'Profile' },
-    { key: 'badges',  label: `Badges · ${badgesHook.earned.length}` },
+    // No count until it has loaded: "Badges · 0" right after earning some
+    // looked like they were lost (m2 mobile 9).
+    { key: 'badges',  label: badgesKnown ? `Badges · ${badgesHook.earned.length}` : 'Badges' },
     { key: 'stats',   label: 'Stats' },
   ]
 
@@ -180,8 +219,9 @@ export default function ProfileModal({ auth, onClose }: Props) {
     const problem = displayNameProblem(trimmedName)
     if (problem) { setNameError(problem); return }
     setNameError(null)
-    const handleProblem = usernameChanged ? usernameProblem(username) : null
-    if (handleProblem) { setUsernameError(handleProblem); return }
+    // Save is disabled while the username can't be used; this is the
+    // keyboard-Enter / race safety net, and never sends a doomed request.
+    if (usernameBlocked) return
     setUsernameError(null)
     setSaving(true)
     try {
@@ -237,7 +277,15 @@ export default function ProfileModal({ auth, onClose }: Props) {
           aria-label="Edit profile"
           tabIndex={-1}
           className="w-full sm:max-w-sm bg-cream-50 sm:rounded-2xl sm:border-2 sm:border-night-900 sm:shadow-sticker overflow-hidden flex flex-col animate-slide-up focus:outline-none"
-          style={sheetStyle}
+          style={{
+            ...sheetStyle,
+            ...(isMobile && keyboardInset > 0
+              ? {
+                  maxHeight: `calc(100dvh - env(safe-area-inset-top) - ${keyboardInset}px)`,
+                  transform: `translateY(-${keyboardInset}px)`,
+                }
+              : {}),
+          }}
         >
           {/* Drag handle (mobile) */}
           <div
@@ -300,12 +348,16 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       <span>{badgesHook.earned.length} badge{badgesHook.earned.length !== 1 ? 's' : ''} →</span>
                     </button>
                   )}
-                  <span className="text-[10px] text-charcoal-500 font-bold">
-                    {followerCount} follower{followerCount !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-[10px] text-charcoal-500 font-bold">
-                    {followingCount} following
-                  </span>
+                  {followerCount !== null && followingCount !== null && (
+                    <>
+                      <span className="text-[10px] text-charcoal-500 font-bold">
+                        {followerCount} follower{followerCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-[10px] text-charcoal-500 font-bold">
+                        {followingCount} following
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -378,7 +430,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     <p id="profile-name-error" role="alert" className="text-[11px] font-bold text-sauce-600 mt-1">{nameError}</p>
                   )}
                 </div>
-                <div>
+                <div data-field>
                   <label className="label" htmlFor="profile-username">Username</label>
                   <div className="flex items-stretch rounded-lg overflow-hidden">
                     <span aria-hidden className="flex items-center pl-3 pr-1 text-sm text-charcoal-500 bg-cream-100 border-2 border-r-0 border-night-900 rounded-l-lg select-none">@</span>
@@ -387,37 +439,48 @@ export default function ProfileModal({ auth, onClose }: Props) {
                       type="text"
                       value={username}
                       onChange={e => { setUsername(e.target.value.toLowerCase().replace(/\s+/g, '-')); setUsernameError(null) }}
+                      onFocus={revealField}
+                      data-reveal-handled
                       className="input rounded-l-none min-w-0"
                       maxLength={USERNAME_MAX}
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
                       disabled={saving}
-                      aria-invalid={usernameError ? true : undefined}
+                      aria-invalid={usernameError || usernameCheck.message ? true : undefined}
                       aria-describedby="profile-username-help"
                     />
                   </div>
-                  {usernameError ? (
+                  {usernameError || usernameCheck.message ? (
                     <p id="profile-username-help" role="alert" className="text-[11px] font-bold text-sauce-600 mt-1">
-                      {usernameError}
-                      {usernameError === USERNAME_TAKEN_MESSAGE && ' For example, add a number at the end.'}
+                      {usernameError ?? usernameCheck.message}
+                      {(usernameError ?? usernameCheck.message) === USERNAME_TAKEN_MESSAGE && ' For example, add a number at the end.'}
                     </p>
                   ) : (
-                    <p id="profile-username-help" className="text-[11px] text-charcoal-500 mt-1 leading-snug">
-                      Your profile link: <strong className="text-night-900 font-bold [overflow-wrap:anywhere]">{PROFILE_LINK_PREFIX}{username || '…'}</strong>
-                      <br />
-                      {usernameChanged
-                        ? 'Your old link will keep working and send people to the new one.'
-                        : 'Small letters a–z, numbers and hyphens (-), 3 to 30 characters.'}
+                    <p id="profile-username-help" className="text-[11px] text-charcoal-500 mt-1 leading-snug" aria-live="polite">
+                      {usernameChanged && usernameCheck.status !== 'ok' ? (
+                        // Still typing or still checking: no link, no promise yet.
+                        usernameCheck.status === 'checking' ? 'Checking if this username is free…' : 'Small letters a–z, numbers and hyphens (-), 3 to 30 characters.'
+                      ) : (
+                        <>
+                          Your profile link: <strong className="text-night-900 font-bold [overflow-wrap:anywhere]">{PROFILE_LINK_PREFIX}{username || '…'}</strong>
+                          <br />
+                          {usernameChanged
+                            ? 'This username is available. Your old link will keep working and send people to the new one.'
+                            : 'Small letters a–z, numbers and hyphens (-), 3 to 30 characters.'}
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
-                <div>
+                <div data-field>
                   <label className="label" htmlFor="profile-bio">Bio</label>
                   <textarea
                     id="profile-bio"
                     value={bio}
                     onChange={e => setBio(e.target.value.slice(0, 140))}
+                    onFocus={revealField}
+                    data-reveal-handled
                     placeholder="A few words about you (optional)"
                     rows={2}
                     className="input resize-none"
@@ -548,7 +611,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                     <div className="grid grid-cols-2 gap-2.5">
                       <StatCard emoji="🍗" label="Reviews posted" value={myRow.review_count} />
                       <StatCard emoji="📍" label="Unique spots"   value={myRow.unique_spots} />
-                      <StatCard emoji="⭐" label="Average rating"     value={myRow.avg_rating != null ? Number(myRow.avg_rating).toFixed(1) : '—'} />
+                      <StatCard emoji="⭐" label="Average rating"     value={formatRating(myRow.avg_rating)} />
                       <StatCard emoji="💬" label="Comments"       value={myRow.comment_count} />
                       <StatCard emoji="🏅" label="Badges earned"  value={myRow.badge_count} />
                       <StatCard emoji="❤️" label="Likes received" value={myRow.total_likes_received} />
@@ -561,7 +624,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
                         {[
                           { label: 'Most reviews',  key: 'reviews',  val: myRow.review_count },
                           { label: 'Most spots',    key: 'spots',    val: myRow.unique_spots },
-                          { label: 'Highest average rating', key: 'heat',     val: myRow.avg_rating ?? 0 },
+                          { label: 'Highest average rating', key: 'heat',     val: formatRating(myRow.avg_rating) },
                           { label: 'Most comments', key: 'comments', val: myRow.comment_count },
                           { label: 'Most badges',   key: 'badges',   val: myRow.badge_count },
                           { label: 'Most liked',    key: 'likes',    val: myRow.total_likes_received },
@@ -602,7 +665,12 @@ export default function ProfileModal({ auth, onClose }: Props) {
               style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
             >
               <button onClick={requestClose} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+              <button
+                onClick={handleSave}
+                disabled={saving || usernameBlocked}
+                aria-describedby={usernameBlocked ? 'profile-username-help' : undefined}
+                className="btn-primary flex-1"
+              >
                 {saving && <span className="w-4 h-4 rounded-full border-2 border-cream-50 border-t-transparent animate-spin" />}
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -612,6 +680,81 @@ export default function ProfileModal({ auth, onClose }: Props) {
       </div>
     </>
   )
+}
+
+// ── Username check as you type ─────────────────────────────────────────────
+
+type UsernameCheck =
+  | { status: 'ok'; message: null }
+  /** Typing, or waiting for the lookup: Save waits too. */
+  | { status: 'checking' | 'typing'; message: null }
+  | { status: 'problem'; message: string }
+
+const USERNAME_CHECK_DELAY_MS = 400
+
+/**
+ * Whether `name` (null = unchanged, nothing to check) can be saved. Format
+ * problems block Save at once but are only shown once typing pauses (so
+ * "sam-" on the way to "sam-doubts" doesn't flash an error). Availability
+ * is looked up after the same pause; a failed lookup lets Save try anyway
+ * (the server still decides, and its answer is shown under the field).
+ */
+function useUsernameCheck(name: string | null, userId: string | undefined, isAdmin = false): UsernameCheck {
+  const [settled, setSettled] = useState<{ name: string; result: UsernameCheck } | null>(null)
+
+  const formatProblem = name === null ? null : usernameProblem(name)
+  // Admins may use reserved words (042); the server checks the rest.
+  const reservedOnly = formatProblem !== null && isAdmin && formatProblem.includes('reserved')
+
+  useEffect(() => {
+    if (name === null) return
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      if (formatProblem && !reservedOnly) {
+        setSettled({ name, result: { status: 'problem', message: formatProblem } })
+        return
+      }
+      try {
+        const [current, old] = await Promise.all([
+          supabase.from('profiles').select('id').eq('username', name).limit(1),
+          supabase.from('profile_username_history').select('user_id').eq('username', name).limit(1),
+        ])
+        if (cancelled) return
+        if (current.error || old.error) throw current.error ?? old.error
+        const owner = (current.data as { id: string }[] | null)?.[0]?.id
+          ?? (old.data as { user_id: string }[] | null)?.[0]?.user_id
+          ?? null
+        const result: UsernameCheck = owner && owner !== userId
+          ? { status: 'problem', message: USERNAME_TAKEN_MESSAGE }
+          : { status: 'ok', message: null }
+        setSettled({ name, result })
+      } catch {
+        if (!cancelled) setSettled({ name, result: { status: 'ok', message: null } })
+      }
+    }, USERNAME_CHECK_DELAY_MS)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [name, userId, formatProblem, reservedOnly])
+
+  if (name === null) return { status: 'ok', message: null }
+  if (settled?.name === name) return settled.result
+  return { status: formatProblem && !reservedOnly ? 'typing' : 'checking', message: null }
+}
+
+/** How much of the layout viewport the on-screen keyboard covers (0 if none). */
+function useKeyboardInset(): number {
+  const [inset, setInset] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)))
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+  return inset
 }
 
 // ── Unsaved-edit draft (sessionStorage, per tab and per user) ──────────────

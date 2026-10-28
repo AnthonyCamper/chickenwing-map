@@ -1,4 +1,5 @@
-import { forwardRef, useCallback, useId, useImperativeHandle, useLayoutEffect, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef } from 'react'
+import { revealAboveKeyboard } from './revealAboveKeyboard'
 
 /** Same limit as the review_comments CHECK constraint. */
 export const COMMENT_MAX_LENGTH = 500
@@ -33,6 +34,12 @@ interface Props {
   onFocusGate?: () => boolean
   className?: string
   style?: React.CSSProperties
+  /**
+   * On focus, scroll the page so the text box AND the Post row sit between
+   * the sticky header and the on-screen keyboard (default on). Turn off where
+   * the composer is pinned and lifted above the keyboard by its container.
+   */
+  revealOnFocus?: boolean
 }
 
 /**
@@ -52,10 +59,36 @@ const CommentComposer = forwardRef<HTMLTextAreaElement, Props>(function CommentC
   onFocusGate,
   className = '',
   style,
+  revealOnFocus = true,
 }, ref) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   useImperativeHandle(ref, () => textareaRef.current as HTMLTextAreaElement)
   const statusId = useId()
+
+  // Bring the whole composer into view when it gets focus ("Reply" focuses
+  // it from far up the thread): once after layout (the "Replying to" bar may
+  // have just appeared), again when the keyboard has animated in, and on
+  // every visualViewport resize while focused.
+  const revealCleanup = useRef<(() => void) | null>(null)
+  const stopReveal = useCallback(() => {
+    revealCleanup.current?.()
+    revealCleanup.current = null
+  }, [])
+  const startReveal = useCallback(() => {
+    stopReveal()
+    const reveal = () => { if (rootRef.current) revealAboveKeyboard(rootRef.current, { smooth: true }) }
+    const raf = requestAnimationFrame(reveal)
+    const timer = setTimeout(reveal, 350)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', reveal)
+    revealCleanup.current = () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+      vv?.removeEventListener('resize', reveal)
+    }
+  }, [stopReveal])
+  useEffect(() => stopReveal, [stopReveal])
 
   // Grow with the text (1 line → up to MAX_TEXTAREA_PX), shrink after posting.
   const resize = useCallback(() => {
@@ -71,12 +104,16 @@ const CommentComposer = forwardRef<HTMLTextAreaElement, Props>(function CommentC
   const canPost = (!!value.trim() || hasAttachment) && !tooLong && !posting
 
   return (
-    <div className={`border-t border-night-900/10 px-3 pt-2.5 pb-2 bg-cream-50 ${className}`} style={style}>
+    <div ref={rootRef} data-reveal-handled className={`border-t border-night-900/10 px-3 pt-2.5 pb-2 bg-cream-50 ${className}`} style={style}>
       <textarea
         ref={textareaRef}
         value={value}
         onChange={e => onChange(e.target.value)}
-        onFocus={e => { if (onFocusGate && !onFocusGate()) e.target.blur() }}
+        onFocus={e => {
+          if (onFocusGate && !onFocusGate()) { e.target.blur(); return }
+          if (revealOnFocus) startReveal()
+        }}
+        onBlur={stopReveal}
         onKeyDown={e => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()

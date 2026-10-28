@@ -77,7 +77,7 @@ export default function ResetPassword() {
       </Helmet>
       <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07]" />
 
-      <div className="relative w-full max-w-sm text-center animate-fade-in">
+      <main className="relative w-full max-w-sm text-center animate-fade-in">
         <div className="inline-flex items-center justify-center mb-5">
           <img src="/favicon.svg" alt="" className="w-16 h-16 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker" />
         </div>
@@ -158,7 +158,7 @@ export default function ResetPassword() {
             </form>
           </>
         )}
-      </div>
+      </main>
     </div>
   )
 }

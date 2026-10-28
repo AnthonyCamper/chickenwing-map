@@ -11,7 +11,7 @@ import {
   signUpProblem,
 } from '../lib/authErrors'
 import { validateImageFile } from '../lib/imageValidation'
-import { PROFILE_LINK_PREFIX, firstFreeHandle, slugifyName } from '../lib/profileHandle'
+import { PROFILE_LINK_PREFIX, firstFreeHandle, handleLookupPrefix, slugifyName } from '../lib/profileHandle'
 import { supabase } from '../lib/supabase'
 
 function scorePassword(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
@@ -116,7 +116,7 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
           <title>Check your email — WingKingTony</title>
         </Helmet>
         <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07]" />
-        <div className="relative w-full max-w-sm text-center animate-fade-in">
+        <main className="relative w-full max-w-sm text-center animate-fade-in">
           <div className="mx-auto w-20 h-20 -rotate-2 rounded-2xl border-2 border-night-900 shadow-sticker mb-5 flex items-center justify-center bg-cream-100 text-3xl">
             ✉️
           </div>
@@ -130,7 +130,8 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
           <Link to="/login" className="btn-secondary inline-flex">
             Back to sign in
           </Link>
-        </div>
+        </main>
+        <LegalLinks />
       </div>
     )
   }
@@ -150,7 +151,7 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
       <div aria-hidden className="pointer-events-none absolute -top-16 -right-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.08]" />
       <div aria-hidden className="pointer-events-none absolute -bottom-12 -left-16 w-[26rem] h-[26rem] bg-splatter opacity-[0.07] rotate-180" />
 
-      <div className="relative w-full max-w-sm animate-fade-in">
+      <main className="relative w-full max-w-sm animate-fade-in">
         {/* A way back for visitors who opened sign-up but want to keep browsing */}
         <Link
           to="/"
@@ -291,32 +292,33 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
               )}
             </div>
 
-            {/* Optional profile photo: last, so the required fields come first */}
-            <div className="flex items-center gap-3">
+            {/* Optional profile photo: last, so the required fields come first.
+                One button (preview + words), so screen readers hear it once. */}
+            <div>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                aria-label={avatarPreview ? 'Change profile photo' : 'Add profile photo'}
-                className="w-12 h-12 -rotate-2 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 shadow-sticker-sm hover:border-sauce-400 transition-colors flex items-center justify-center text-cream-100 flex-shrink-0"
+                disabled={loading}
+                className="group flex items-center gap-3 min-h-[48px] -ml-0.5 pr-2 text-left"
               >
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl" aria-hidden>👤</span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="min-h-[44px] px-1 text-xs text-sauce-500 font-bold hover:underline text-left"
-              >
-                {avatarPreview ? 'Change photo' : 'Add profile photo (optional)'}
+                <span className="w-12 h-12 -rotate-2 rounded-full overflow-hidden bg-night-700 border-2 border-night-900 shadow-sticker-sm group-hover:border-sauce-400 transition-colors flex items-center justify-center text-cream-100 flex-shrink-0">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xl" aria-hidden>👤</span>
+                  )}
+                </span>
+                <span className="text-xs text-sauce-500 font-bold group-hover:underline">
+                  {avatarPreview ? 'Change profile photo' : 'Add profile photo (optional)'}
+                </span>
               </button>
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
+                tabIndex={-1}
+                aria-hidden
                 onChange={handleAvatarChange}
               />
             </div>
@@ -358,9 +360,9 @@ export default function Register({ onSignUp, isPublic = true, onSignInGoogle }: 
             </Link>
           </p>
         </div>
+      </main>
 
-        <LegalLinks />
-      </div>
+      <LegalLinks />
     </div>
   )
 }
@@ -415,9 +417,12 @@ function useHandlePreview(displayName: string): string {
     let cancelled = false
     const timer = window.setTimeout(async () => {
       try {
+        // A long base is cut to make room for "-N", so look up the shorter
+        // prefix every candidate shares.
+        const prefix = handleLookupPrefix(base)
         const [current, old] = await Promise.all([
-          supabase.from('profiles').select('username').like('username', `${base}%`).limit(500),
-          supabase.from('profile_username_history').select('username').like('username', `${base}%`).limit(500),
+          supabase.from('profiles').select('username').like('username', `${prefix}%`).limit(500),
+          supabase.from('profile_username_history').select('username').like('username', `${prefix}%`).limit(500),
         ])
         if (cancelled) return
         const names = [
@@ -433,18 +438,32 @@ function useHandlePreview(displayName: string): string {
   }, [base])
 
   if (!base) return ''
-  return taken?.base === base ? firstFreeHandle(base, taken.names) : base
+  // Before the lookup answers: the first candidate (cut to 30 characters,
+  // never a reserved or too-short name), not the raw slug.
+  return firstFreeHandle(base, taken?.base === base ? taken.names : [])
 }
 
+// Same inbox as the site footer's and the legal pages' Contact links.
+const CONTACT_EMAIL = 'anthonycap949@gmail.com'
+
+/**
+ * The sign-in and sign-up pages' own footer (the app-wide SiteFooter skips
+ * them): Privacy, Terms and Contact, like every other page's footer.
+ */
 export function LegalLinks() {
+  const linkClass = 'inline-flex items-center min-h-[44px] px-1 hover:text-night-900'
   return (
-    <p className="mt-6 flex items-center justify-center gap-1 text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-400">
-      <span>WingKingTony</span>
-      <span aria-hidden>·</span>
-      <Link to="/privacy" className="inline-flex items-center min-h-[44px] px-1 hover:text-night-900">Privacy</Link>
-      <span aria-hidden>·</span>
-      <Link to="/terms" className="inline-flex items-center min-h-[44px] px-1 hover:text-night-900">Terms</Link>
-    </p>
+    <footer className="relative w-full max-w-sm mt-6">
+      <nav aria-label="Site" className="flex flex-wrap items-center justify-center gap-x-1 text-[10px] uppercase tracking-crowd font-extrabold text-charcoal-500">
+        <span>WingKingTony</span>
+        <span aria-hidden>·</span>
+        <Link to="/privacy" className={linkClass}>Privacy</Link>
+        <span aria-hidden>·</span>
+        <Link to="/terms" className={linkClass}>Terms</Link>
+        <span aria-hidden>·</span>
+        <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('WingKingTony')}`} className={linkClass}>Contact</a>
+      </nav>
+    </footer>
   )
 }
 

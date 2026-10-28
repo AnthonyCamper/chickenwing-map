@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Register from './Register'
@@ -113,6 +113,27 @@ describe('Register', () => {
     expect(screen.getByText('wingkingtony.com/u/sam-skeptic')).toBeInTheDocument()
     expect(await screen.findByText('wingkingtony.com/u/sam-skeptic-2')).toBeInTheDocument()
     expect(screen.getByText(/you can change it later/i)).toBeInTheDocument()
+  })
+
+  it('never previews a link longer than 30 characters, even with a suffix (m2 S08)', async () => {
+    taken.profiles = ['script-alert-1-script-zalgo-or']
+    taken.history = []
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: "<script>alert(1)</script> Zalgo 'OR 1=1--" } })
+    // Slug "script-alert-1-script-zalgo-or-1-1" (34) is cut to 30, then to 27 + "-2".
+    expect(screen.getByText('wingkingtony.com/u/script-alert-1-script-zalgo-or')).toBeInTheDocument()
+    expect(await screen.findByText('wingkingtony.com/u/script-alert-1-script-zalgo-2')).toBeInTheDocument()
+  })
+
+  it('has one labelled profile-photo button, a <main> and a footer with Contact (m2 S18, S19, S05)', () => {
+    renderPage()
+    expect(screen.getAllByRole('button', { name: /profile photo/i })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Add profile photo (optional)' })).toBeInTheDocument()
+    expect(screen.getByRole('main')).toContainElement(screen.getByLabelText('Display name'))
+    const footer = screen.getByRole('contentinfo')
+    for (const name of ['Privacy', 'Terms', 'Contact']) {
+      expect(within(footer).getByRole('link', { name })).toBeInTheDocument()
+    }
   })
 
   it('says "already exists" in plain words with Sign in / Reset password links (Q27)', async () => {

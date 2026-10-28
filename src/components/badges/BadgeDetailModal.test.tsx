@@ -57,11 +57,26 @@ beforeEach(() => {
 })
 
 describe('BadgeDetailModal', () => {
-  it('a locked badge says plainly how to earn it, and keeps the teaser as an extra', () => {
+  it('a locked event badge says plainly how to earn it, without the riddle teaser', () => {
     renderModal(makeBadge())
     expect(screen.getByText('How to earn it')).toBeInTheDocument()
-    expect(screen.getByText('Mention hockey (or the Sens) in a review during the event.')).toBeInTheDocument()
-    expect(screen.getByText(/loses its mind over one sport/)).toBeInTheDocument()
+    expect(screen.getByText('Mention hockey (or the Ottawa Senators, "the Sens") in a review during the event.')).toBeInTheDocument()
+    expect(screen.queryByText(/loses its mind over one sport/)).not.toBeInTheDocument()
+  })
+
+  it('a locked regular badge keeps its teaser as an extra under the plain rule', () => {
+    renderModal(makeBadge({
+      slug: 'decimal-daredevil', name: 'Decimal Daredevil', event_id: null, event_name: null,
+      criteria_type: 'rating_uses_decimals', criteria_config: {},
+    }))
+    expect(screen.getByText(/Use a decimal rating at least once/)).toBeInTheDocument()
+    expect(screen.getByText(/Whole numbers are for cowards/)).toBeInTheDocument()
+  })
+
+  it('the dialog is named by the badge (no empty heading)', () => {
+    renderModal(makeBadge())
+    expect(screen.getByRole('dialog', { name: 'Rink Rat' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading').every(h => h.textContent?.trim())).toBe(true)
   })
 
   it('a past event badge says it was available there, never "Up for grabs"', async () => {

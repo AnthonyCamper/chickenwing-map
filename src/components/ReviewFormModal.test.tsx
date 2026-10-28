@@ -38,7 +38,7 @@ vi.mock('react-hot-toast', () => ({ default: toastMock }))
 
 import ReviewFormModal from './ReviewFormModal'
 import { BADGES_UNLOCKED_EVENT, announceNewBadges } from '../lib/badgeUnlocks'
-import type { ReviewFormData } from '../lib/types'
+import type { ReviewCreateData } from '../lib/reviewActions'
 
 const fetchMock = vi.fn()
 
@@ -63,7 +63,7 @@ function ReviewPage() {
   return <p>Review page {id}</p>
 }
 
-type SubmitFn = (data: ReviewFormData) => Promise<{ error: string | null; reviewId?: string }>
+type SubmitFn = (data: ReviewCreateData) => Promise<{ error: string | null; reviewId?: string }>
 
 function renderForm(props: Partial<React.ComponentProps<typeof ReviewFormModal>> = {}) {
   const onSubmit = (props.onSubmit ?? vi.fn<SubmitFn>(async () => ({ error: null, reviewId: 'rev-123' }))) as ReturnType<typeof vi.fn<SubmitFn>>
@@ -174,6 +174,8 @@ describe('ReviewFormModal — existing spots and publishing', () => {
 
     await screen.findByText('Review page rev-123')
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      // Attached to the picked spot by id, not by name (m2 S03)
+      wing_spot_id: 's1',
       shop_name: 'Ale Marys',
       address: '1939 Fleet St, Baltimore, MD 21231',
       lat: '39.2847',
@@ -182,6 +184,28 @@ describe('ReviewFormModal — existing spots and publishing', () => {
     }))
     expect(toastMock.success).toHaveBeenCalledWith('Review published! 🍗', expect.anything())
     expect(sessionStorage.length).toBe(0)
+  })
+
+  it('editing the name after picking a WingMap spot no longer sends its id', async () => {
+    const { onSubmit } = renderForm()
+    await pickExistingSpot()
+    fireEvent.change(screen.getByLabelText('Wing spot name'), { target: { value: 'Ale Marys Annex' } })
+    expect(screen.queryByText(/Already on WingKingTony/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0].wing_spot_id ?? null).toBeNull()
+  })
+
+  it('reviewing from a spot page sends that spot\'s id', async () => {
+    const { onSubmit } = renderForm({
+      prefill: { wing_spot_id: 'spot-9', shop_name: 'Duffs famous wings ', address: '3090 Orchard Park Rd', lat: 42.8, lng: -78.8 },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Increase by 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish review' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0].wing_spot_id).toBe('spot-9')
   })
 
   it('waits for the history-backed modal to pop before navigating', async () => {

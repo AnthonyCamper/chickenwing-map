@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } fr
 import { usePushDeepLinks } from './hooks/usePushDeepLinks'
 import toast, { Toaster } from 'react-hot-toast'
 import { useAuth } from './hooks/useAuth'
-import Login from './pages/Login'
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -11,9 +10,9 @@ import PageStateShell from './components/ui/PageStateShell'
 import AppHeader from './components/AppHeader'
 import { AuthGateProvider } from './components/AuthGateModal'
 import { AuthProvider } from './components/AuthProvider'
-import BadgeUnlockOverlay from './components/badges/BadgeUnlockOverlay'
+import LazyBadgeUnlockOverlay, { prefetchBadgeUnlockOverlay } from './components/LazyBadgeUnlockOverlay'
 import { DefaultTitle, ScrollToTop, SiteFooter } from './components/RouteChrome'
-import { clearReturnTo, isAuthPath, peekReturnTo, takeReturnTo } from './lib/authReturn'
+import { clearReturnTo, dropReturnToOnFreshAuthLoad, isAuthPath, peekReturnTo, takeReturnTo } from './lib/authReturn'
 import { lazyWithReload } from './lib/staleDeploy'
 import { prefetchWhenIdle } from './lib/idlePrefetch'
 
@@ -33,7 +32,14 @@ const Privacy = lazyWithReload(() => import('./pages/Privacy'))
 const Terms = lazyWithReload(() => import('./pages/Terms'))
 // Content pages and the sign-up/pending screens aren't on the landing path
 // either; keeping them out of the first bundle matters on slow 3G.
-const Register = lazyWithReload(() => import('./pages/Register'))
+const loadRegister = () => import('./pages/Register')
+const Register = lazyWithReload(loadRegister)
+// Sign-in isn't on the public landing path either (S26: it and Register,
+// which it imports, were ~30 KB of the first download). On a private site
+// "/" is the sign-in screen, and its code is requested as soon as the
+// session check says "signed out".
+const loadLogin = () => import('./pages/Login')
+const Login = lazyWithReload(loadLogin)
 const PendingApproval = lazyWithReload(() => import('./pages/PendingApproval'))
 const loadSpotPage = () => import('./pages/SpotPage')
 const SpotPage = lazyWithReload(loadSpotPage)
@@ -46,7 +52,8 @@ const CrawlPage = lazyWithReload(loadCrawlPage)
 
 // Fetched in the background once the first page is idle, most likely next
 // tap first: a feed card's spot or review, the Spots tab, a reviewer's
-// profile, a list, Events. (Register/Login ship in the main bundle already.)
+// profile, a list, Events. (Login/Register are warmed separately below, for
+// signed-out visitors only.)
 // The Map tab (Leaflet) is left out: it's big, and would compete with feed
 // photos on a slow connection.
 const LIKELY_NEXT_PAGES = [
@@ -150,6 +157,19 @@ let accountDeletedNotice = (() => {
   } catch { return false }
 })()
 
+// A typed /register (or bookmark) starts a new flow: forget a return path
+// left by an earlier, abandoned auth wall (S09). Once, at page load.
+dropReturnToOnFreshAuthLoad()
+
+// /login and /register end with their own Privacy · Terms · Contact footer,
+// so the site footer would be a second one there (S05). /privacy, /terms and
+// /reset-password have none and keep the site footer.
+const OWN_FOOTER_PATHS = ['/login', '/register']
+function hasOwnFooter(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return OWN_FOOTER_PATHS.includes(path)
+}
+
 // Where /login and /register send someone once they're signed in: the page
 // they were on before the auth wall, else home. Rendering the destination
 // directly (rather than "/" and then a second hop from App's effect) means
@@ -231,8 +251,16 @@ export default function App() {
 
   useKeyboardInsetVar()
 
-  // Warm up the likely next pages once the first one is idle (Q25).
+  // Warm up the likely next pages once the first one is idle (Q25), plus
+  // what this visitor needs next: the sign-in / sign-up screens when signed
+  // out, the badge celebration when signed in.
   useEffect(() => { prefetchWhenIdle(LIKELY_NEXT_PAGES) }, [])
+  const signedOut = auth.status === 'unauthenticated'
+  const signedIn = auth.status === 'authorized'
+  useEffect(() => {
+    if (signedOut) prefetchWhenIdle([loadLogin, loadRegister])
+    else if (signedIn) prefetchWhenIdle([prefetchBadgeUnlockOverlay])
+  }, [signedOut, signedIn])
 
   const isAuthenticated = auth.status === 'authorized'
   // Signed-out on "/": whether that's the public feed or the sign-in screen
@@ -240,7 +268,7 @@ export default function App() {
   // check. Wait for it rather than flashing the sign-in screen first.
   const settling = auth.status === 'loading'
     || (auth.status === 'unauthenticated' && location.pathname === '/' && auth.siteSettings === null)
-  const showSiteFooter = !settling && location.pathname !== '/'
+  const showSiteFooter = !settling && location.pathname !== '/' && !hasOwnFooter(location.pathname)
 
   return (
     <AuthProvider auth={auth}>
@@ -403,7 +431,7 @@ export default function App() {
       {showSiteFooter && <SiteFooter />}
 
       {/* Celebrates badge unlocks announced after review/crawl writes */}
-      <BadgeUnlockOverlay />
+      <LazyBadgeUnlockOverlay />
     </AuthGateProvider>
     </AuthProvider>
   )

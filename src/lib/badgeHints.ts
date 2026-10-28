@@ -115,6 +115,8 @@ function plainHint(hint: string): string {
     .replace(/\bin a crawl review\b/gi, 'in a review during the event')
     .replace(/\bduring the crawl\b/gi, 'during the event')
     .replace(/\bat a crawl stop\b/gi, 'at a stop on the event route')
+    // Local nickname non-native readers can't decode (m2 nonnative 3).
+    .replace(/\bthe Sens\b/g, 'the Ottawa Senators, "the Sens"')
 }
 
 /** One literal sentence saying how to earn a badge. Badge names and teasers

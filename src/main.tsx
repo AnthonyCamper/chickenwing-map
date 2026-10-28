@@ -5,13 +5,21 @@ import { HelmetProvider } from 'react-helmet-async'
 import App from './App'
 import { registerServiceWorker } from './lib/pushManager'
 import { installStaleDeployReload } from './lib/staleDeploy'
+import { installKeyboardReveal } from './lib/keyboardReveal'
 // Leaflet's stylesheet is bundled (no third-party CDN request) and must come
 // before index.css so the app's Leaflet overrides there win on equal specificity.
 import 'leaflet/dist/leaflet.css'
 import './index.css'
 
-// Register service worker for push notifications
-registerServiceWorker()
+// Register service worker for push notifications — after the first page
+// has loaded, so fetching sw.js doesn't compete with the landing page's code
+// and photos on a slow connection (S26).
+if (document.readyState === 'complete') registerServiceWorker()
+else window.addEventListener('load', () => { registerServiceWorker() }, { once: true })
+
+// Phones: scroll a focused text field (and its Post / Save button) above the
+// on-screen keyboard (lib/keyboardReveal).
+installKeyboardReveal()
 
 // After a deploy, a tab that was already open asks for code files that no
 // longer exist; reload once onto the new version (lib/staleDeploy).

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useIsMobile } from '../../hooks/useBottomSheetDrag'
+import { dedupeSpots, normalizeSpotText } from '../../lib/spotMatch'
 
 export interface Suggestion {
   name: string
@@ -17,6 +18,8 @@ export interface Suggestion {
 
 interface NominatimResult {
   place_id: number
+  osm_type?: string
+  osm_id?: number
   name: string
   display_name: string
   lat: string
@@ -44,6 +47,7 @@ interface SpotRow {
   address: string
   lat: number
   lng: number
+  created_at?: string | null
 }
 
 interface Props {
@@ -150,6 +154,28 @@ function getSpotsViewbox(): Promise<string | null> {
   return spotsViewboxPromise
 }
 
+/**
+ * OpenStreetMap sometimes returns the same place twice (e.g. as a node and
+ * as an area, or twice with different place ids): keep the first of any
+ * results with the same OSM id, or the same name and either the same address
+ * or a spot within ~200 m (m2 S13).
+ */
+export function dedupeOsmSuggestions<T extends Suggestion & { osmId?: string }>(results: readonly T[]): T[] {
+  const out: T[] = []
+  for (const r of results) {
+    const twin = out.some(o =>
+      (r.osmId && o.osmId === r.osmId) || (
+        normalizeSpotText(o.name) === normalizeSpotText(r.name) && (
+          normalizeSpotText(o.address) === normalizeSpotText(r.address)
+          || (Math.abs(Number(o.lat) - Number(r.lat)) < 0.002 && Math.abs(Number(o.lng) - Number(r.lng)) < 0.002)
+        )
+      )
+    )
+    if (!twin) out.push(r)
+  }
+  return out
+}
+
 const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 
 // Same place already listed from WingMap? (same name, within ~200 m)
@@ -195,17 +221,18 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     if (!pattern) return []
     const { data, error } = await supabase
       .from('wing_spots')
-      .select('id,name,address,lat,lng')
+      .select('id,name,address,lat,lng,created_at')
       .ilike('name', pattern)
       .order('name')
       .limit(MAX_WINGMAP_RESULTS)
       .abortSignal(signal)
     if (error || !data) return []
-    return (data as SpotRow[]).map(s => ({
-      name: s.name,
+    // The same place stored twice (e.g. a name with a trailing space) would
+    // show as identical twins: show the original only (m2 S03).
+    return dedupeSpots(data as SpotRow[]).map(s => ({
+      // Trimmed for display; the review is attached by spotId, not by name.
+      name: s.name.trim(),
       address: s.address,
-      // Keep the stored values untouched: the review is matched to this
-      // spot by exact name + address.
       lat: String(s.lat),
       lng: String(s.lng),
       key: `wm-${s.id}`,
@@ -244,7 +271,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
     })
     const data = (await res.json()) as NominatimResult[]
 
-    return data
+    const mapped = data
       // Towns, regions and admin areas aren't wing spots.
       .filter(r => r.class !== 'boundary' && !(r.class === 'place' && r.type !== 'house'))
       .map(r => ({
@@ -254,8 +281,10 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
         lng: r.lon,
         key: `osm-${r.place_id}`,
         source: 'osm' as const,
+        osmId: r.osm_type && r.osm_id != null ? `${r.osm_type}/${r.osm_id}` : undefined,
       }))
       .filter(s => s.name)
+    return dedupeOsmSuggestions(mapped).map(({ osmId: _osmId, ...s }) => s)
   }, [userLocation])
 
   const search = useCallback(async (query: string) => {
@@ -510,6 +539,7 @@ export default function BusinessAutocomplete({ value, onChange, onSelect, placeh
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
           data-expand-sheet={revealOnFocus || undefined}
+          data-reveal-handled={revealOnFocus || undefined}
           placeholder={placeholder ?? 'Search for a wing spot…'}
           maxLength={maxLength}
           autoComplete="off"

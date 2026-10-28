@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import type { GalleryReviewItem } from '../../lib/types'
 import { relativeVisitDate } from '../../lib/dates'
@@ -11,14 +11,37 @@ import { fetchReviewLikers } from '../../lib/reactionDetails'
 import { cleanUserText } from '../../lib/userText'
 import { useUserProfile } from '../UserProfileContext'
 import { useDragCarousel } from './useDragCarousel'
+import { markFeedLandingSettled, useFeedLandingSettled } from '../../lib/feedLanding'
 
 /**
  * Real photos always live in storage. A `data:` URL is a stand-in some
  * imported rows use for a file that no longer exists (a "no photo found"
  * picture), so it's treated like a photo that failed to load.
  */
-function isPlaceholderPhoto(url: string) {
+export function isPlaceholderPhoto(url: string) {
   return url.startsWith('data:')
+}
+
+/**
+ * True once the element is on screen — or, after the landing photo is done,
+ * within one screen of it. The browser's own lazy loading starts photos up to
+ * 2500px away on a slow connection: on 3G that was ~7 photos of ~470 KB all
+ * downloading next to the first one (S26).
+ */
+function useNearScreen(ref: RefObject<HTMLElement>, skip: boolean) {
+  const [near, setNear] = useState(() => skip || typeof IntersectionObserver === 'undefined')
+  const landingDone = useFeedLandingSettled()
+  useEffect(() => {
+    const el = ref.current
+    if (near || !el) return
+    const margin = landingDone ? `${Math.round(window.innerHeight)}px 0px` : '0px'
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) setNear(true)
+    }, { rootMargin: margin })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [near, landingDone, ref])
+  return near
 }
 
 interface Props {
@@ -27,9 +50,12 @@ interface Props {
   isAdmin: boolean
   onOpen: () => void
   onLike: () => void
+  /** The top card: its first photo is the page's largest paint, so it loads
+   *  first and at high priority. */
+  priority?: boolean
 }
 
-export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen, onLike }: Props) {
+export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen, onLike, priority = false }: Props) {
   const { openProfile } = useUserProfile()
   const fetchLikers = useCallback(() => fetchReviewLikers(review.review_id), [review.review_id])
   const [carouselIndex, setCarouselIndex] = useState(0)
@@ -44,6 +70,15 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
   const photosUnavailable = review.photos.length > 0 && photos.length === 0
   const activeIndex = Math.min(carouselIndex, Math.max(0, photos.length - 1))
   const { containerProps, trackStyle } = useDragCarousel(photos.length, activeIndex, setCarouselIndex)
+  // Carousel photos after the first are only requested when they're about to
+  // be shown: a finger on the carousel (or the mouse over it) loads the next
+  // one, a dot tap loads the one it shows.
+  const [loadUpTo, setLoadUpTo] = useState(0)
+  const lastToLoad = Math.max(loadUpTo, activeIndex)
+  const preloadNext = () => setLoadUpTo(n => Math.max(n, activeIndex + 1))
+  const photoBoxRef = useRef<HTMLDivElement>(null)
+  const nearScreen = useNearScreen(photoBoxRef, priority)
+  const firstPhotoDone = () => { if (priority) markFeedLandingSettled() }
   const name = cleanUserText(review.reviewer_name ?? review.reviewer_email?.split('@')[0] ?? 'Unknown') || 'Unknown'
   const spotName = cleanUserText(review.spot_name)
   const initials = name.charAt(0).toUpperCase()
@@ -118,8 +153,13 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
           doesn't jump when the photo arrives */}
       {photos.length > 0 && (
         <div
+          ref={photoBoxRef}
           className="relative aspect-[4/3] bg-night-800 overflow-hidden touch-pan-y"
-          {...(photos.length > 1 ? containerProps : {})}
+          {...(photos.length > 1 ? {
+            ...containerProps,
+            onTouchStart: (e: React.TouchEvent) => { preloadNext(); containerProps.onTouchStart(e) },
+            onMouseEnter: preloadNext,
+          } : {})}
         >
           {/* The track below sets an inline `transform`, creating a new stacking
               context. The absolutely-positioned open button below only stays
@@ -127,15 +167,26 @@ export default function ReviewFeedCard({ review, currentUserId, isAdmin, onOpen,
               order — don't reorder these two elements. */}
           <div className="flex h-full w-full" style={photos.length > 1 ? trackStyle : undefined}>
             {photos.map((p, i) => (
-              <img
-                key={p.photo_id}
-                src={p.photo_url}
-                alt={photoAlt(i)}
-                loading="lazy"
-                draggable={false}
-                onError={() => setBrokenPhotos(prev => new Set(prev).add(p.photo_id))}
-                className="w-full h-full flex-shrink-0 object-cover"
-              />
+              nearScreen && i <= lastToLoad ? (
+                <img
+                  key={p.photo_id}
+                  src={p.photo_url}
+                  alt={photoAlt(i)}
+                  // fetchpriority in lower case: React 18 doesn't know the
+                  // camel-case prop and would warn.
+                  {...(priority && i === 0 ? { loading: 'eager' as const, fetchpriority: 'high' } : { loading: 'lazy' as const })}
+                  draggable={false}
+                  onLoad={i === 0 ? firstPhotoDone : undefined}
+                  onError={() => {
+                    if (i === 0) firstPhotoDone()
+                    setBrokenPhotos(prev => new Set(prev).add(p.photo_id))
+                  }}
+                  className="w-full h-full flex-shrink-0 object-cover"
+                />
+              ) : (
+                // Same box as the photo, so the track's slides stay in place
+                <div key={p.photo_id} aria-hidden="true" className="w-full h-full flex-shrink-0" />
+              )
             ))}
           </div>
 

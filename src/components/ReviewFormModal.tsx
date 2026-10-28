@@ -14,13 +14,15 @@ import { looksSignedOut, signedOutMessage } from '../lib/publishErrors'
 import { rememberReturnTo } from '../lib/authReturn'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate, localDateString } from '../lib/dates'
-import type { ReviewFormData } from '../lib/types'
+import type { ReviewCreateData } from '../lib/reviewActions'
 
 interface PrefillSpot {
   shop_name: string
   address: string
   lat: string | number
   lng: string | number
+  /** The existing spot being reviewed: the review is attached to it directly. */
+  wing_spot_id?: string | null
 }
 
 interface EventContext {
@@ -31,7 +33,7 @@ interface EventContext {
 
 interface Props {
   onClose: () => void
-  onSubmit: (data: ReviewFormData) => Promise<{ error: string | null; reviewId?: string }>
+  onSubmit: (data: ReviewCreateData) => Promise<{ error: string | null; reviewId?: string }>
   prefill?: PrefillSpot
   eventContext?: EventContext
 }
@@ -136,6 +138,8 @@ interface Draft {
   lng: string
   locationPicked: boolean
   onWingMap: boolean
+  /** Id of the existing spot picked from the suggestions (older drafts lack it). */
+  spotId?: string | null
   showCoords: boolean
   overallRating: number
   wingSize: string
@@ -246,6 +250,10 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
   // the address block collapsed into a summary card; typing never collapses it.
   const [locationPicked, setLocationPicked] = useState(d?.locationPicked ?? false)
   const [onWingMap, setOnWingMap] = useState(d?.onWingMap ?? false)
+  // The existing spot the user picked ("Already on WingKingTony"). Sent with
+  // the review so it lands on exactly that spot, never a look-alike new one
+  // (m2 S03: a stored name with a trailing space didn't match by name).
+  const [spotId, setSpotId] = useState<string | null>(prefill?.wing_spot_id ?? d?.spotId ?? null)
   const [showCoords, setShowCoords] = useState(d?.showCoords ?? false)
   const [overallRating, setOverallRating] = useState(d?.overallRating ?? 0)
   const [wingSize, setWingSize] = useState(d?.wingSize ?? '')
@@ -321,12 +329,12 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     }
     writeDraft(storageKey, {
       v: 1,
-      shopName, address, lat, lng, locationPicked, onWingMap, showCoords,
+      shopName, address, lat, lng, locationPicked, onWingMap, spotId, showCoords,
       overallRating, wingSize, wingFlavor, isTakeout, takeoutContainer,
       reviewText, visitedAt, step, photoCount: photos.length,
     })
   }, [
-    storageKey, isDirty, shopName, address, lat, lng, locationPicked, onWingMap, showCoords,
+    storageKey, isDirty, shopName, address, lat, lng, locationPicked, onWingMap, spotId, showCoords,
     overallRating, wingSize, wingFlavor, isTakeout, takeoutContainer, reviewText,
     visitedAt, step, photos.length,
   ])
@@ -368,6 +376,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     setLng(prefill ? String(prefill.lng) : '')
     setLocationPicked(false)
     setOnWingMap(false)
+    setSpotId(prefill?.wing_spot_id ?? null)
     setShowCoords(false)
     setOverallRating(0)
     setWingSize('')
@@ -440,8 +449,8 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     setShopName(suggestion.name.slice(0, MAX_SPOT_NAME))
     setAddress(suggestion.address)
     if (suggestion.source === 'wingmap') {
-      // Reuse the stored values exactly: the review is attached to the
-      // existing spot by name + address, so nothing new gets created.
+      // Keep the stored values; the review is attached to the picked spot
+      // by its id (spotId below), so nothing new gets created.
       setLat(suggestion.lat)
       setLng(suggestion.lng)
     } else {
@@ -449,6 +458,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
       setLng(parseFloat(suggestion.lng).toFixed(6))
     }
     setOnWingMap(suggestion.source === 'wingmap')
+    setSpotId(suggestion.source === 'wingmap' ? suggestion.spotId ?? null : null)
     setLocationPicked(true)
     setFindError(null)
     setFieldErrors({})
@@ -523,6 +533,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
     let result: { error: string | null; reviewId?: string }
     try {
       result = await onSubmit({
+        wing_spot_id: spotId,
         shop_name: shopName.trim(),
         address: address.trim(),
         lat,
@@ -667,7 +678,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
               maxLength={MAX_SPOT_NAME}
               // Typing here is how the address and location get filled in
               // (pick a suggestion), so their old errors go too (m1 N10/B14).
-              onChange={v => { setShopName(v); setOnWingMap(false); clearError('shopName', 'address', 'location') }}
+              onChange={v => { setShopName(v); setOnWingMap(false); setSpotId(null); clearError('shopName', 'address', 'location') }}
               onSelect={handleAutocompleteSelect}
               placeholder="Type a name, e.g. Wingstop"
               revealOnFocus
@@ -712,6 +723,7 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
                       setAddress(e.target.value)
                       setLocationPicked(false)
                       setOnWingMap(false)
+                      setSpotId(null)
                       setFindError(null)
                       clearError('address', 'location')
                     }}

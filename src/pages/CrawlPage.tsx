@@ -21,6 +21,7 @@ import { useDragCarousel } from '../components/gallery/useDragCarousel'
 import type { WingCrawlDetailed, WingCrawlItem, WingSpot } from '../lib/types'
 import { isUuid } from '../lib/reviewActions'
 import { cleanUserText } from '../lib/userText'
+import { formatRating } from '../lib/formatRating'
 import CrawlCoverCollage from '../components/ui/CrawlCoverCollage'
 
 interface SpotPhoto { id: string; url: string }
@@ -41,6 +42,8 @@ interface ItemWithSpot extends WingCrawlItem {
   spot_avg_rating: number | null
   spot_review_count: number
   spot_reviews: SpotReview[]
+  /** The signed-in viewer has reviewed this spot (counts as visited). */
+  reviewed_by_me: boolean
 }
 
 interface CrawlDetail {
@@ -93,13 +96,14 @@ export default function CrawlPage() {
     let ratingsBySpot: Record<string, { avg: number; count: number }> = {}
     let photosBySpot: Record<string, SpotPhoto[]> = {}
     let reviewsBySpot: Record<string, SpotReview[]> = {}
+    const reviewedByMe = new Set<string>()
 
     if (spotIds.length > 0) {
       const [{ data: spots }, { data: reviews }] = await Promise.all([
         supabase.from('wing_spots').select('*').in('id', spotIds),
         supabase
           .from('reviews_with_profiles')
-          .select('id, wing_spot_id, overall_rating, wing_flavor, review_text, visited_at, reviewer_name, reviewer_avatar')
+          .select('id, wing_spot_id, user_id, overall_rating, wing_flavor, review_text, visited_at, reviewer_name, reviewer_avatar')
           .in('wing_spot_id', spotIds)
           .order('visited_at', { ascending: false }),
       ])
@@ -108,11 +112,12 @@ export default function CrawlPage() {
 
       const groups: Record<string, number[]> = {}
       const reviewToSpot: Record<string, string> = {}
-      type RawReview = { id: string; wing_spot_id: string; overall_rating: number; wing_flavor: string | null; review_text: string | null; visited_at: string; reviewer_name: string | null; reviewer_avatar: string | null }
+      type RawReview = { id: string; wing_spot_id: string; user_id: string | null; overall_rating: number; wing_flavor: string | null; review_text: string | null; visited_at: string; reviewer_name: string | null; reviewer_avatar: string | null }
       for (const r of (reviews ?? []) as RawReview[]) {
         if (!groups[r.wing_spot_id]) groups[r.wing_spot_id] = []
         groups[r.wing_spot_id].push(r.overall_rating)
         reviewToSpot[r.id] = r.wing_spot_id
+        if (viewerId && r.user_id === viewerId) reviewedByMe.add(r.wing_spot_id)
         if (!reviewsBySpot[r.wing_spot_id]) reviewsBySpot[r.wing_spot_id] = []
         if (reviewsBySpot[r.wing_spot_id].length < 3) {
           reviewsBySpot[r.wing_spot_id].push({
@@ -157,6 +162,7 @@ export default function CrawlPage() {
       spot_review_count: ratingsBySpot[it.wing_spot_id]?.count ?? 0,
       spot_photos: photosBySpot[it.wing_spot_id] ?? [],
       spot_reviews: reviewsBySpot[it.wing_spot_id] ?? [],
+      reviewed_by_me: reviewedByMe.has(it.wing_spot_id),
     }))
 
     setData({ crawl: crawl as WingCrawlDetailed, items, isOwner })
@@ -284,6 +290,7 @@ export default function CrawlPage() {
   }
 
   const { crawl, items, isOwner } = data
+  const isVisited = (i: ItemWithSpot) => i.reviewed_by_me || checkedIds.has(i.id)
   const allItemPhotos = items.flatMap(i => i.spot_photos.map(p => p.url))
   const coverPhoto = crawl.cover_image_url ?? allItemPhotos[0] ?? null
   const gridPhotos = !crawl.cover_image_url ? allItemPhotos.slice(0, 4) : []
@@ -426,18 +433,19 @@ export default function CrawlPage() {
           </p>
         ) : (
           <>
-            {/* On-crawl progress — device-local check-offs */}
+            {/* Visit progress: device-local check-offs, plus every spot the
+                signed-in viewer has already reviewed (m2 S10) */}
             <div className="card-soft px-4 py-3 mb-4 flex items-center gap-3">
               {/* Saved on this device only; plain words (not "on the crawl") */}
               <span className="text-xs font-extrabold uppercase tracking-crowd text-charcoal-500 shrink-0">Visited</span>
               <div className="flex-1 h-2 bg-cream-200 rounded-full overflow-hidden border border-night-900/20">
                 <div
                   className="h-full bg-sauce-400 transition-all duration-500"
-                  style={{ width: `${Math.round((items.filter(i => checkedIds.has(i.id)).length / items.length) * 100)}%` }}
+                  style={{ width: `${Math.round((items.filter(isVisited).length / items.length) * 100)}%` }}
                 />
               </div>
               <span className="text-xs font-extrabold text-sauce-500 shrink-0">
-                {items.filter(i => checkedIds.has(i.id)).length}/{items.length}
+                {items.filter(isVisited).length}/{items.length}
               </span>
             </div>
             <ol className="space-y-3">
@@ -448,6 +456,7 @@ export default function CrawlPage() {
                     position={idx + 1}
                     ranked={crawl.is_ranked}
                     checked={checkedIds.has(it.id)}
+                    reviewed={it.reviewed_by_me}
                     onToggleChecked={() => toggleChecked(it.id)}
                     onPhotoClick={(photoIdx) => setLightbox({ photos: it.spot_photos, index: photoIdx })}
                   />
@@ -480,12 +489,13 @@ export default function CrawlPage() {
 }
 
 function CrawlItemRow({
-  item, position, ranked, checked, onToggleChecked, onPhotoClick,
+  item, position, ranked, checked, reviewed, onToggleChecked, onPhotoClick,
 }: {
   item: ItemWithSpot
   position: number
   ranked: boolean
   checked: boolean
+  reviewed: boolean
   onToggleChecked: () => void
   onPhotoClick: (index: number) => void
 }) {
@@ -515,7 +525,7 @@ function CrawlItemRow({
           </div>
           {item.spot_avg_rating != null && (
             <div className="flex items-center gap-1 px-2 py-1 bg-cream-100 border-2 border-night-900 rounded shrink-0">
-              <span className="font-display text-sm text-night-900">{item.spot_avg_rating.toFixed(1)}</span>
+              <span className="font-display text-sm text-night-900">{formatRating(item.spot_avg_rating)}</span>
               <span className="text-[10px] uppercase font-bold tracking-crowd text-charcoal-500">/10</span>
             </div>
           )}
@@ -540,6 +550,12 @@ function CrawlItemRow({
 
       {/* On-crawl actions */}
       <div className="border-t-2 border-night-900/10 px-4 py-2 flex items-center gap-2">
+        {reviewed ? (
+          // You've reviewed it, so you've been: no need to tick it off.
+          <span className="min-h-[44px] px-3 inline-flex items-center rounded-xl border-2 bg-gold-100 border-gold-300 text-gold-700 text-xs font-extrabold uppercase tracking-crowd">
+            ✓ Reviewed
+          </span>
+        ) : (
         <button
           type="button"
           onClick={onToggleChecked}
@@ -552,6 +568,7 @@ function CrawlItemRow({
         >
           {checked ? '✓ Visited' : 'Mark as visited'}
         </button>
+        )}
         {spot.lat != null && spot.lng != null && (
           <a
             href={directionsUrl(spot.lat, spot.lng)}

@@ -229,7 +229,7 @@ export default function PhotoModal(props: Props) {
           {photoIndex > 0 && (
             <button
               onClick={goToPrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/70 backdrop-blur-sm ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center hover:bg-night-900/90 transition-colors"
               aria-label="Previous photo"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -238,7 +238,7 @@ export default function PhotoModal(props: Props) {
           {photoIndex < reviewData.photos.length - 1 && (
             <button
               onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/70 backdrop-blur-sm ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center hover:bg-night-900/90 transition-colors"
               aria-label="Next photo"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -466,6 +466,8 @@ export default function PhotoModal(props: Props) {
           gifOpen={mobileShowGif}
           onToggleGif={() => { if (requireAuth()) setMobileShowGif(prev => !prev) }}
           onFocusGate={requireAuth}
+          // The sheet itself is lifted above the keyboard (keyboardInset)
+          revealOnFocus={false}
         />
       </div>
 
@@ -498,7 +500,7 @@ export default function PhotoModal(props: Props) {
               {photoIndex > 0 && (
                 <button
                   onClick={goToPrev}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/70 backdrop-blur-sm ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center hover:bg-night-900/90 transition-colors"
                   aria-label="Previous photo"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -507,7 +509,7 @@ export default function PhotoModal(props: Props) {
               {photoIndex < reviewData.photos.length - 1 && (
                 <button
                   onClick={goToNext}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-900/45 backdrop-blur-sm text-cream-50 flex items-center justify-center hover:bg-night-900/65 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-night-900/70 backdrop-blur-sm ring-1 ring-white/40 shadow-lg text-white flex items-center justify-center hover:bg-night-900/90 transition-colors"
                   aria-label="Next photo"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>

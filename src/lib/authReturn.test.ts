@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   RETURN_TO_MAX_AGE_MS,
   clearReturnTo,
+  dropReturnToOnFreshAuthLoad,
+  isFreshAuthPageLoad,
   isSafeReturnPath,
   peekReturnTo,
   rememberReturnTo,
@@ -49,5 +51,36 @@ describe('auth return-to', () => {
     rememberReturnTo('/u/tony')
     clearReturnTo()
     expect(takeReturnTo()).toBeNull()
+  })
+})
+
+describe('return-to only applies inside the flow that set it (S09)', () => {
+  it('a fresh page load of /login or /register forgets an earlier entry', () => {
+    rememberReturnTo('/lists/new')
+    dropReturnToOnFreshAuthLoad('/register', 'navigate')
+    expect(takeReturnTo()).toBeNull()
+
+    rememberReturnTo('/lists/new')
+    dropReturnToOnFreshAuthLoad('/login', 'navigate')
+    expect(peekReturnTo()).toBeNull()
+  })
+
+  it('a reload or Back/Forward onto the auth page keeps it', () => {
+    rememberReturnTo('/lists/new')
+    dropReturnToOnFreshAuthLoad('/login', 'reload')
+    dropReturnToOnFreshAuthLoad('/login', 'back_forward')
+    expect(peekReturnTo()).toBe('/lists/new')
+  })
+
+  it('landing on a normal page (e.g. "/" after Google sign-in) keeps it', () => {
+    rememberReturnTo('/spots/ale-marys')
+    dropReturnToOnFreshAuthLoad('/', 'navigate')
+    expect(takeReturnTo()).toBe('/spots/ale-marys')
+  })
+
+  it('isFreshAuthPageLoad', () => {
+    expect(isFreshAuthPageLoad('/register', 'navigate')).toBe(true)
+    expect(isFreshAuthPageLoad('/login', undefined)).toBe(false)
+    expect(isFreshAuthPageLoad('/lists/new', 'navigate')).toBe(false)
   })
 })
