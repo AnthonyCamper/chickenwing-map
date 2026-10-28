@@ -207,7 +207,7 @@ export default function AppHeader({ view, onViewChange }: Props) {
             // With the view tabs, the brand is just the icon (and on the very
             // narrowest phones it steps aside entirely; the Feed tab goes to
             // the same place)
-            className={`${view && onViewChange ? 'hidden min-[340px]:flex flex-shrink-0' : 'flex flex-shrink'} items-center gap-2 min-w-11 min-h-11 group`}
+            className={`${view && onViewChange ? 'hidden min-[360px]:flex flex-shrink-0' : 'flex flex-shrink'} items-center gap-2 min-w-11 min-h-11 group`}
             aria-label="WingKingTony home"
           >
             <span className="relative inline-flex flex-shrink-0">

@@ -157,9 +157,11 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
           </button>
         </div>
 
-        {/* Scrollable content — safe-area bottom inset */}
+        {/* Scrollable content — safe-area bottom inset. overflow-x hidden:
+            overflow-y:auto alone makes x auto too, so anything a hair too
+            wide let the whole sheet slide left and right on iPhone. */}
         <div
-          className="overflow-y-auto flex-1 overscroll-contain"
+          className="overflow-y-auto overflow-x-hidden flex-1 min-w-0 overscroll-contain"
           style={footer ? undefined : { paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {children}

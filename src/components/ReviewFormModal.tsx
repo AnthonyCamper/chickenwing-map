@@ -637,15 +637,17 @@ export default function ReviewFormModal({ onClose, onSubmit, prefill, eventConte
           type="button"
           onClick={handleCloseAttempt}
           disabled={submitting}
-          className="btn-secondary px-5"
+          className="btn-secondary px-4 min-[360px]:px-5"
         >
           Cancel
         </button>
+        {/* Tighter letter-spacing on 320px phones: at full tracking the
+            label pushed the button ~30px off the screen. */}
         <button
           type="submit"
           form="review-step-2"
           disabled={submitting || overallRating === 0}
-          className="btn-primary flex-1 whitespace-nowrap"
+          className="btn-primary flex-1 min-w-0 whitespace-nowrap px-3 tracking-wide min-[360px]:px-5 min-[360px]:tracking-crowd"
         >
           {submitting ? 'Publishing…' : 'Publish review'}
         </button>

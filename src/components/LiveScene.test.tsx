@@ -63,12 +63,12 @@ describe('LiveScene', () => {
 
   it('reserves its height with a placeholder while data loads', () => {
     render(<LiveScene spots={[]} loading />)
-    expect(screen.getByText('Loading wing news…')).toBeInTheDocument()
+    expect(screen.getByText('Loading headlines…')).toBeInTheDocument()
   })
 
   it('never requests reddit.com', async () => {
     render(<LiveScene spots={[spot('a', [7])]} loading={false} />)
-    await waitFor(() => expect(screen.queryByText('Loading wing news…')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText('Loading headlines…')).not.toBeInTheDocument())
     for (const call of fetchMock.mock.calls as unknown[][]) {
       expect(String(call[0])).not.toContain('reddit.com')
     }
@@ -93,13 +93,16 @@ describe('ticker reads as parody, not real news (Q39)', () => {
     expect(isTooReal('Area Man Insists He "Only Wanted A Few" Before Finishing 30 Wings Alone')).toBe(false)
   })
 
-  it('labels the ticker as jokes, on every screen size', async () => {
+  it('does not tag the ticker or its headlines as jokes', async () => {
     const fetchMock = vi.fn(async () => new Response('[]', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     try {
       render(<LiveScene spots={[]} loading />)
-      expect(screen.getByText('(jokes)').parentElement).toHaveTextContent(/^wing news \(jokes\)$/i)
+      expect(screen.queryByText(/jokes?\b/i)).toBeNull()
+      expect(screen.queryByText(/^wing news/i)).toBeNull()
       expect(screen.queryByText(/^live$/i)).toBeNull()
+      const labels = [...ONION, ...EVERGREEN].map(it => it.eyebrow.toLowerCase())
+      expect(labels.filter(l => /fake|parody|made-up|joke/.test(l))).toEqual([])
     } finally {
       vi.unstubAllGlobals()
     }

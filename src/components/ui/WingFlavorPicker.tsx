@@ -106,7 +106,10 @@ export default function WingFlavorPicker({ value, onChange }: Props) {
       </div>
 
       {!search && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        // Wraps instead of scrolling sideways: inside the review sheet a
+        // sideways-scrolling row made the whole form feel loose left and
+        // right on iPhone.
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             aria-pressed={!activeCategory}

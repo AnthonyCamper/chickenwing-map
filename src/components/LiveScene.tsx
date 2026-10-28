@@ -81,18 +81,15 @@ export default function LiveScene({ spots, loading }: Props) {
     >
       <div className="pointer-events-none absolute inset-0 bg-halftone-dark opacity-20" aria-hidden="true" />
 
-      {/* Label — an in-flow flex item (not absolute) so it never overlaps
-          the headlines. It says these are jokes: "LIVE" + "BREAKING" read
-          as a real news feed. Shown on phones too, in short form. */}
-      <div className="flex relative z-10 px-2.5 sm:px-4 items-center gap-1.5
-                      bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px]
-                      font-extrabold uppercase tracking-crowd flex-shrink-0 whitespace-nowrap">
-        <span aria-hidden>😄</span>
-        <span>Wing news <span className="normal-case tracking-normal font-bold">(jokes)</span></span>
-        {ratedCount > 0 && (
-          <span className="hidden sm:inline opacity-70">· {ratedCount} {ratedCount === 1 ? 'spot rated' : 'spots rated'}</span>
-        )}
-      </div>
+      {/* Spot count — an in-flow flex item (not absolute) so it never
+          overlaps the headlines. Wider screens only. */}
+      {ratedCount > 0 && (
+        <div className="hidden sm:flex relative z-10 px-4 items-center
+                        bg-sauce-500 border-r-2 border-sauce-600 text-cream-50 text-[10px]
+                        font-extrabold uppercase tracking-crowd flex-shrink-0 whitespace-nowrap">
+          {ratedCount} {ratedCount === 1 ? 'spot rated' : 'spots rated'}
+        </div>
+      )}
 
       <div className="relative flex-1 min-w-0 overflow-hidden py-1.5">
         {/* Edge fades */}
@@ -121,7 +118,7 @@ export default function LiveScene({ spots, loading }: Props) {
 }
 
 const LOADING_ITEM: SceneItem = {
-  emoji: '📡', eyebrow: 'Wing news', type: 'scene', body: 'Loading wing news…',
+  emoji: '📡', eyebrow: '', type: 'scene', body: 'Loading headlines…',
 }
 
 function Chip({ item }: { item: SceneItem }) {
@@ -129,9 +126,11 @@ function Chip({ item }: { item: SceneItem }) {
   const inner = (
     <span className="inline-flex items-baseline gap-2 px-1 whitespace-nowrap">
       <span className="text-sm leading-none translate-y-[1px]">{item.emoji}</span>
-      <span className={`text-[10px] font-extrabold uppercase tracking-crowd ${eyebrowColor}`}>
-        {item.eyebrow}
-      </span>
+      {item.eyebrow && (
+        <span className={`text-[10px] font-extrabold uppercase tracking-crowd ${eyebrowColor}`}>
+          {item.eyebrow}
+        </span>
+      )}
       <span className={`text-[12px] font-bold tracking-wide ${item.url ? 'text-cream-50 underline underline-offset-2 decoration-cream-50/30 hover:decoration-cream-50' : 'text-cream-100'}`}>
         {item.body}
       </span>
@@ -239,11 +238,11 @@ function buildTimeItems(): SceneItem[] {
 
 // ─── Onion-style deadpan news headlines ──────────────────────────────────────
 
-// Every one of these is a joke. Labels say so ("Parody", "Fake study") rather
-// than "Breaking" / "Health" / "Alert", which read as real news (m1 non-native
-// persona thought someone was in hospital). Nothing about hospitals, deaths,
+// Every one of these is a joke, and obviously so, so they aren't tagged as
+// jokes. Still no "Breaking" / "Health" / "Alert" labels, which read as real
+// news (m1 non-native persona thought someone was in hospital). Nothing about hospitals, deaths,
 // police or real government, and nothing aimed at the reader.
-function o(body: string, eyebrow = 'Parody'): SceneItem {
+function o(body: string, eyebrow = 'Headline'): SceneItem {
   return { emoji: '📰', eyebrow, type: 'onion', body }
 }
 
@@ -271,23 +270,23 @@ export const ONION: SceneItem[] = [
 
   // ── Nation / Study / Report ──
   o('Nation Divided After Photo Of Boneless Wings Labeled As Wings'),
-  o('Scientists Confirm: No Amount Of Ranch Will Fix Bad Wings', 'Fake study'),
-  o('Study: People Who Don\'t Finish Their Wings Are A Completely Different Kind Of Person', 'Fake study'),
-  o('Report: Man Fully Committed To Rating Wings "Tomorrow" For Past 3 Weeks', 'Fake report'),
-  o('New Study Finds People Who Say "I\'m Not That Hungry" Are Statistically The Hungriest', 'Fake study'),
-  o('Researchers: Those Who Order Mild And Then Steal Your Hot Wings Are A Documented Threat', 'Fake study'),
-  o('Study Confirms Lemon Pepper Is Objectively Best; Everyone Already Knew This', 'Fake study'),
-  o('National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance', 'Fake study'),
-  o('Report: Wing Sauce Described As "Not Too Spicy" By Person Currently Sweating Through Their Shirt', 'Fake report'),
-  o('Scientists Unable To Explain Why Wings Always Taste Better After Midnight', 'Fake study'),
-  o('Report: 94% Of People Who Say "Just One More" Are On Wing Number 7', 'Fake report'),
-  o('Study: Finishing Your Wings And Immediately Wanting More Is Clinically Normal', 'Fake study'),
-  o('Report: Man Who Splits An Order With You Eats 70% Of It While Looking You In The Eye', 'Fake report'),
-  o('New Data Shows The Best Wing Spots Have The Worst Parking; Correlation Confirmed', 'Fake study'),
-  o('Economists Baffled By Wing Spot Pricing; Customers Pay Anyway', 'Fake report'),
-  o('Study: People Who Review Wings Immediately Are More Trustworthy In Every Area Of Life', 'Fake study'),
-  o('Survey Finds That "Family Size" Order Is Intended For One Person; Always Has Been', 'Fake report'),
-  o('Research Confirms The Crunchy One At The Bottom Of The Bag Is Always The Best One', 'Fake study'),
+  o('Scientists Confirm: No Amount Of Ranch Will Fix Bad Wings', 'Study'),
+  o('Study: People Who Don\'t Finish Their Wings Are A Completely Different Kind Of Person', 'Study'),
+  o('Report: Man Fully Committed To Rating Wings "Tomorrow" For Past 3 Weeks', 'Report'),
+  o('New Study Finds People Who Say "I\'m Not That Hungry" Are Statistically The Hungriest', 'Study'),
+  o('Researchers: Those Who Order Mild And Then Steal Your Hot Wings Are A Documented Threat', 'Study'),
+  o('Study Confirms Lemon Pepper Is Objectively Best; Everyone Already Knew This', 'Study'),
+  o('National Wing Survey Finds 1 In 3 Americans Has Lied About Their Heat Tolerance', 'Study'),
+  o('Report: Wing Sauce Described As "Not Too Spicy" By Person Currently Sweating Through Their Shirt', 'Report'),
+  o('Scientists Unable To Explain Why Wings Always Taste Better After Midnight', 'Study'),
+  o('Report: 94% Of People Who Say "Just One More" Are On Wing Number 7', 'Report'),
+  o('Study: Finishing Your Wings And Immediately Wanting More Is Clinically Normal', 'Study'),
+  o('Report: Man Who Splits An Order With You Eats 70% Of It While Looking You In The Eye', 'Report'),
+  o('New Data Shows The Best Wing Spots Have The Worst Parking; Correlation Confirmed', 'Study'),
+  o('Economists Baffled By Wing Spot Pricing; Customers Pay Anyway', 'Report'),
+  o('Study: People Who Review Wings Immediately Are More Trustworthy In Every Area Of Life', 'Study'),
+  o('Survey Finds That "Family Size" Order Is Intended For One Person; Always Has Been', 'Report'),
+  o('Research Confirms The Crunchy One At The Bottom Of The Bag Is Always The Best One', 'Study'),
 
   // ── D.C. ──
   o('D.C. Man Sets Personal Record Of 47 Wings Before Questioning Life Choices'),
@@ -398,7 +397,7 @@ export const EVERGREEN: SceneItem[] = [
   { emoji: '⚖️', eyebrow: 'Debate',        type: 'debate',   body: 'Bone-in vs boneless. Pick a side.' },
   { emoji: '🤔', eyebrow: 'Big question',  type: 'debate',   body: 'If a wing has no sauce, is it even a wing?' },
   { emoji: '💬', eyebrow: 'Argument',      type: 'debate',   body: 'Bleu cheese vs ranch. The culture is divided.' },
-  { emoji: '🔬', eyebrow: 'Fake science',       type: 'debate',   body: 'People who order boneless also put pineapple on pizza. Study pending.' },
+  { emoji: '🔬', eyebrow: 'Science',       type: 'debate',   body: 'People who order boneless also put pineapple on pizza. Study pending.' },
   { emoji: '🏛️', eyebrow: 'DC says',       type: 'debate',   body: 'Both sides of the aisle agree — lemon pepper hits different.' },
   { emoji: '😮‍💨', eyebrow: 'Controversy', type: 'debate',   body: 'Someone called sauce "optional." The table went quiet.' },
   { emoji: '🫳', eyebrow: 'Dropped',       type: 'debate',   body: 'Dry rub vs wet sauce. The table is split.' },
@@ -407,7 +406,7 @@ export const EVERGREEN: SceneItem[] = [
   { emoji: '📢', eyebrow: 'Announcement',  type: 'breaking', body: 'New sauce dropped. Supply chain is insufficient.' },
   { emoji: '👀', eyebrow: 'Spotted',       type: 'breaking', body: 'Someone dunking in bleu cheese AND ranch at the same time. Bold move.' },
   { emoji: '🛸', eyebrow: 'Unexplained',   type: 'breaking', body: "A 'mild' wing made someone cry. Science has no answers." },
-  { emoji: '📊', eyebrow: 'Made-up stat',    type: 'fact',     body: '67% of arguments at the table are about sauce. The other 33%: bone-in.' },
+  { emoji: '📊', eyebrow: 'Stat',    type: 'fact',     body: '67% of arguments at the table are about sauce. The other 33%: bone-in.' },
   { emoji: '🎯', eyebrow: 'Fact',          type: 'fact',     body: 'The best wing is the one in front of you.' },
   { emoji: '🦅', eyebrow: 'DC dispatch',   type: 'fact',     body: 'The wings of this city will not be disrespected.' },
   { emoji: '💡', eyebrow: 'Pro tip',       type: 'fact',     body: 'Order more than you think you need. You will always think wrong.' },
@@ -444,14 +443,14 @@ export function isTooReal(text: string): boolean {
 function classifyLine(text: string): { eyebrow: string; type: ChipType } {
   const t = text.toLowerCase()
   if (t.match(/\bstudy\b|\bscientists?\b|\bresearch(ers?)?\b/))
-    return { eyebrow: 'Fake study', type: 'fact' }
+    return { eyebrow: 'Study', type: 'fact' }
   if (t.match(/^report:|^report,|\bsources? confirm\b|\bdata show/))
-    return { eyebrow: 'Fake report', type: 'internet' }
+    return { eyebrow: 'Report', type: 'internet' }
   if (t.match(/crawl|stop [0-9]/))
     return { eyebrow: 'Crawl Report', type: 'scene' }
   if (t.match(/midnight|late night|\b[12]am\b|after midnight/))
     return { eyebrow: 'Late Night', type: 'scene' }
-  return { eyebrow: 'Parody', type: 'onion' }
+  return { eyebrow: 'Headline', type: 'onion' }
 }
 
 async function fetchAiHeadlines(): Promise<SceneItem[]> {
