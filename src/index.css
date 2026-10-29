@@ -133,6 +133,23 @@
     box-shadow: 3px 3px 0 0 #fa5a2e;
   }
 
+  /* iOS Safari sizes date/time inputs from their content and can push
+     them past a narrow container; keep them inside the column. */
+  input[type="date"].input, input[type="time"].input {
+    min-width: 0;
+    max-width: 100%;
+    display: block;
+  }
+  input[type="date"].input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"].input, input[type="time"].input {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  }
+
   .label {
     @apply block text-[11px] font-extrabold uppercase tracking-crowd text-night-700 mb-1.5;
   }
@@ -422,14 +439,18 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Custom scrollbar tuned to the new palette ────────────────────── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: #1a2240;
-  border-radius: 9999px;
+/* ── Custom scrollbar tuned to the new palette ──────────────────────
+   Mouse/trackpad screens only. On touch WebKit a styled scrollbar is a
+   classic 8px one, which left every tall page 8px of sideways slack. */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #1a2240;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #fa5a2e; }
 }
-::-webkit-scrollbar-thumb:hover { background: #fa5a2e; }
 
 /* ── Reduced motion ───────────────────────────────────────────────────
    Respect the OS "reduce motion" setting. We keep the gritty look (the
