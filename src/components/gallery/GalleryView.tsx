@@ -68,6 +68,11 @@ export default function GalleryView({ currentUserId, isAdmin, onAddReview }: Pro
   useEffect(() => {
     if (!feed || feed === 'people') return
     const onScroll = () => {
+      // An open sheet locks the body (position: fixed), so the feed isn't
+      // moving: on iPhone these are the keyboard panning the screen. Saving
+      // them made a reload with a sheet open land part-way down, the ticker
+      // tucked under the header.
+      if (document.body.style.position === 'fixed') return
       try { sessionStorage.setItem(`gallery-scroll:${feed}`, String(window.scrollY)) } catch { /* ignore */ }
     }
     window.addEventListener('scroll', onScroll, { passive: true })

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useBottomSheetDrag, useIsMobile } from '../../hooks/useBottomSheetDrag'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { useHideFab } from '../../hooks/useHideFab'
+import { useKeyboardViewport } from '../../hooks/useKeyboardViewport'
 
 interface Props {
   title: string
@@ -31,23 +32,10 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
   // footer buttons and text; it steps aside while any modal is open.
   useHideFab(true)
 
-  // Keep the sheet above the iOS keyboard: 100dvh ignores the keyboard, so
-  // shrink and lift the bottom-anchored sheet by the overlap (same pattern
-  // as PhotoModal's mobile sheet).
-  const [keyboardInset, setKeyboardInset] = useState(0)
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => {
-      setKeyboardInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)))
-    }
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-    }
-  }, [])
+  // Keep the sheet above the iOS keyboard: while a field has focus, pin the
+  // overlay to the visible part of the screen so the bottom-anchored sheet
+  // sits on top of the keyboard and is never taller than what's left.
+  const keyboardBox = useKeyboardViewport(isMobile)
 
   // Lock body scroll while modal is open (prevents double-scroll on iOS)
   // Saves and restores scroll position to prevent the jump caused by position:fixed
@@ -106,7 +94,10 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
   // dragged bottom sheet) would otherwise become this fixed dialog's
   // containing block and clip it.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={keyboardBox ? { top: keyboardBox.top, height: keyboardBox.height, bottom: 'auto' } : undefined}
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-night-900/40 backdrop-blur-sm animate-fade-in"
@@ -123,12 +114,7 @@ export default function Modal({ title, onClose, children, size = 'md', footer }:
         className={`relative w-full ${maxWidths[size]} bg-cream-50 rounded-t-3xl sm:rounded-3xl sm:border-2 sm:border-night-900 shadow-elevated animate-slide-up flex flex-col focus:outline-none`}
         style={{
           ...sheetStyle,
-          ...(isMobile && keyboardInset > 0
-            ? {
-                maxHeight: `calc(100dvh - env(safe-area-inset-top) - ${keyboardInset}px)`,
-                transform: `translateY(-${keyboardInset}px)`,
-              }
-            : {}),
+          ...(keyboardBox ? { maxHeight: 'calc(100% - env(safe-area-inset-top))' } : {}),
         }}
       >
         {/* Drag handle (mobile only) — swipe up to expand, down to collapse */}

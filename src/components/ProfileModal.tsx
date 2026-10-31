@@ -16,6 +16,7 @@ import { formatRating } from '../lib/formatRating'
 import { BADGES_UNLOCKED_EVENT } from '../lib/badgeUnlocks'
 import { validateImageFile } from '../lib/imageValidation'
 import { AVATAR_MAX_SIDE, downscaleImage, imageExtension } from '../lib/imageResize'
+import { useKeyboardViewport } from '../hooks/useKeyboardViewport'
 
 interface Props {
   auth: AuthState
@@ -143,7 +144,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
   // focused field up to the top of the sheet's scroll area so it isn't left
   // under the keyboard (the Bio box sat at y≈480–557 on a 375×667 phone).
   const isMobile = useIsMobile()
-  const keyboardInset = useKeyboardInset()
+  const keyboardBox = useKeyboardViewport(isMobile)
   const revealField = (e: React.FocusEvent<HTMLElement>) => {
     if (!isMobile) return
     const field = (e.currentTarget.closest('[data-field]') as HTMLElement | null) ?? e.currentTarget
@@ -283,7 +284,12 @@ export default function ProfileModal({ auth, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-night-900/70 backdrop-blur-sm" onClick={requestClose} />
-      <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-6">
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-6"
+        style={keyboardBox
+          ? { top: keyboardBox.top, height: keyboardBox.height, bottom: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }
+          : undefined}
+      >
         <div
           ref={panelRef}
           role="dialog"
@@ -293,12 +299,7 @@ export default function ProfileModal({ auth, onClose }: Props) {
           className="w-full sm:max-w-sm bg-cream-50 sm:rounded-2xl sm:border-2 sm:border-night-900 sm:shadow-sticker overflow-hidden flex flex-col animate-slide-up focus:outline-none"
           style={{
             ...sheetStyle,
-            ...(isMobile && keyboardInset > 0
-              ? {
-                  maxHeight: `calc(100dvh - env(safe-area-inset-top) - ${keyboardInset}px)`,
-                  transform: `translateY(-${keyboardInset}px)`,
-                }
-              : {}),
+            ...(keyboardBox ? { maxHeight: 'calc(100% - env(safe-area-inset-top))' } : {}),
           }}
         >
           {/* Drag handle (mobile) */}
@@ -766,23 +767,6 @@ function useUsernameCheck(name: string | null, userId: string | undefined, isAdm
   if (name === null) return { status: 'ok', message: null }
   if (settled?.name === name) return settled.result
   return { status: formatProblem && !reservedOnly ? 'typing' : 'checking', message: null }
-}
-
-/** How much of the layout viewport the on-screen keyboard covers (0 if none). */
-function useKeyboardInset(): number {
-  const [inset, setInset] = useState(0)
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)))
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-    }
-  }, [])
-  return inset
 }
 
 // ── Unsaved-edit draft (sessionStorage, per tab and per user) ──────────────

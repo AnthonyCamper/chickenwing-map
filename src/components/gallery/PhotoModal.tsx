@@ -16,6 +16,7 @@ import LikedByOverlay from './LikedByOverlay'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { fetchReviewLikers, fetchReviewCommentLikers, fetchReviewCommentReactors } from '../../lib/reactionDetails'
 import { useDragCarousel } from './useDragCarousel'
+import { useKeyboardViewport } from '../../hooks/useKeyboardViewport'
 import type { GalleryPhoto, GalleryReviewItem } from '../../lib/types'
 
 interface ReviewProps {
@@ -102,7 +103,10 @@ export default function PhotoModal(props: Props) {
   const [showLightbox, setShowLightbox] = useState(false)
   // iOS keyboard overlap (px) — 100dvh ignores the keyboard, so we measure it
   // via visualViewport and lift the mobile sheet to keep the composer visible.
-  const [keyboardInset, setKeyboardInset] = useState(0)
+  // Keyboard-safe composer: while a field has focus the overlay is pinned to
+  // the visible part of the screen, so the full-height sheet ends on top of
+  // the iOS keyboard.
+  const keyboardBox = useKeyboardViewport()
   // Trap focus in the modal; release it while the fullscreen lightbox is open
   const panelRef = useFocusTrap<HTMLDivElement>(!showLightbox)
 
@@ -156,24 +160,6 @@ export default function PhotoModal(props: Props) {
       window.scrollTo(0, scrollY)
     }
   }, [onClose, showLightbox])
-
-  // Keyboard-safe composer: track how much of the layout viewport the iOS
-  // keyboard covers. Feature-detected; listeners cleaned up on unmount.
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const update = () => {
-      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
-      setKeyboardInset(inset)
-    }
-    update()
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
-    }
-  }, [])
 
   const handleMobilePost = async () => {
     if ((!mobileText.trim() && !mobileSelectedGif) || mobilePosting || commentTooLong(mobileText)) return
@@ -326,6 +312,7 @@ export default function PhotoModal(props: Props) {
       aria-modal="true"
       aria-label="Review detail"
       className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 animate-fade-in"
+      style={keyboardBox ? { top: keyboardBox.top, height: keyboardBox.height, bottom: 'auto' } : undefined}
       onClick={onClose}
     >
 
@@ -335,15 +322,9 @@ export default function PhotoModal(props: Props) {
                    h-[100dvh] sm:h-[92dvh] flex flex-col overflow-hidden"
         style={{
           paddingTop: 'env(safe-area-inset-top)',
-          // Keep the pinned composer above the iOS keyboard: shrink the sheet
-          // by the keyboard overlap and lift it so its bottom edge sits on
-          // top of the keyboard (100dvh ignores the keyboard on iOS).
-          ...(keyboardInset > 0
-            ? {
-                height: `calc(100dvh - ${keyboardInset}px)`,
-                transform: `translateY(-${keyboardInset}px)`,
-              }
-            : {}),
+          // Keyboard up: fill the visible area the overlay is pinned to
+          // (100dvh ignores the keyboard on iOS).
+          ...(keyboardBox ? { height: '100%' } : {}),
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -466,7 +447,7 @@ export default function PhotoModal(props: Props) {
           gifOpen={mobileShowGif}
           onToggleGif={() => { if (requireAuth()) setMobileShowGif(prev => !prev) }}
           onFocusGate={requireAuth}
-          // The sheet itself is lifted above the keyboard (keyboardInset)
+          // The sheet itself is kept above the keyboard (keyboardBox)
           revealOnFocus={false}
         />
       </div>
