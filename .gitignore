@@ -27,3 +27,5 @@ npm-debug.log*
 
 # MCP Configuration (contains sensitive credentials)
 .mcp.json
+CLAUDE.md
+.claude/
